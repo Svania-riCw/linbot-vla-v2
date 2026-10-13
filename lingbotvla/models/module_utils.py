@@ -52,6 +52,44 @@ if TYPE_CHECKING:
 logger = logging.get_logger(__name__)
 
 
+# The official LingBot-VLA 2.0 checkpoint includes parameters for optional
+# depth/video alignment losses. A downstream run may disable those losses
+# (for example, to train RTC actions without loading their external teachers),
+# in which case these modules are intentionally absent from the model.
+_OPTIONAL_ALIGNMENT_STATE_PREFIXES = (
+    "model.depth_align_head",
+    "model.depth_align_embs",
+    "model.future_depth_align_head",
+    "model.future_depth_align_embs",
+    "model.current_video_align_head",
+    "model.current_video_align_embs",
+    "model.future_video_align_head",
+    "model.future_video_align_embs",
+    "model.current_shared_task_proj",
+    "model.future_shared_task_proj",
+)
+
+
+def _is_disabled_optional_alignment_state_key(
+    name: str, model_parameter_names: set[str] | frozenset[str]
+) -> bool:
+    """Return whether ``name`` belongs to an alignment module absent in the model."""
+    component = next(
+        (
+            prefix
+            for prefix in _OPTIONAL_ALIGNMENT_STATE_PREFIXES
+            if name == prefix or name.startswith(prefix + ".")
+        ),
+        None,
+    )
+    if component is None:
+        return False
+    return not any(
+        parameter_name == component or parameter_name.startswith(component + ".")
+        for parameter_name in model_parameter_names
+    )
+
+
 @contextmanager
 def init_empty_weights():
     """
@@ -235,6 +273,7 @@ def load_model_weights(
 
     buffer_dict     = {name: buffer.clone() for name, buffer in model.named_buffers()}
     parameter_names = {name for name, _ in model.named_parameters()}
+    model_parameter_names = frozenset(parameter_names)
 
     # Get model parameter names
     vlm_param_names  = weight_loader.get_vlm_para_fullnames(model)
@@ -249,6 +288,7 @@ def load_model_weights(
 
     # Load checkpoint weight iterators
     state_dict_iterators = _load_state_dict(weights_path)
+    skipped_disabled_alignment_keys = set()
     for state_dict_iterator in tqdm(
         state_dict_iterators, desc="Loading checkpoint shards", disable=int(os.getenv("LOCAL_RANK", "-1")) > 0
     ):
@@ -269,6 +309,12 @@ def load_model_weights(
                     parameter_names.remove(name)
                     _dispatch_parameter(model, name, tensor, dtensor_factory)
             else:
+                if (
+                    post_training
+                    and _is_disabled_optional_alignment_state_key(name, model_parameter_names)
+                ):
+                    skipped_disabled_alignment_keys.add(name)
+                    continue
                 if post_training:
                     error_msg = f"Unexpected key '{name}' found in state dict during Post-Training. This is not allowed!!!"
                     logger.info_rank0(error_msg)
@@ -277,6 +323,12 @@ def load_model_weights(
 
         del state_dict_iterator
         empty_cache()
+
+    if skipped_disabled_alignment_keys:
+        logger.info_rank0(
+            "Skipped %d checkpoint weights for disabled depth/video alignment modules.",
+            len(skipped_disabled_alignment_keys),
+        )
 
     for name, buffer in buffer_dict.items():
         _dispatch_buffer(model, name, buffer)
