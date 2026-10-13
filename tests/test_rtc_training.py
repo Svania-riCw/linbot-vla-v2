@@ -67,22 +67,27 @@ class TrainingPreparationTests(unittest.TestCase):
     def generate(self):
         return prepare_module.prepare(self.root, source=self.source)
 
-    def test_batch_manifest_stats_and_base_recipe(self):
+    def test_default_enables_teacher_losses_and_prepares_batch_manifest_stats(self):
         output = self.generate()
         config = yaml.safe_load(output.read_text())
         train = config["train"]
         self.assertEqual((train["micro_batch_size"], train["global_batch_size"], train["gradient_accumulation_steps"]), (16, 128, 1))
         self.assertTrue(train["training_time_rtc"])
-        self.assertEqual(train["align_params"], {})
+        self.assertIn("depth", train["align_params"])
+        self.assertIn("video", train["align_params"])
         self.assertEqual(train["save_steps"], 1000)
-        self.assertFalse(config["data"]["use_future_image"])
+        self.assertTrue(config["data"]["use_future_image"])
+        self.assertEqual(
+            train["output_dir"],
+            str(self.root / "checkpoints/lingbot-vla-v2-6b-robotwin-rtc"),
+        )
         robot = Path(config["data"]["robot_config_root"]) / "robotwin.yaml"
         self.assertEqual(yaml.safe_load(robot.read_text())["norm_stats"], str(self.stats_path))
         self.assertEqual(config["data"]["norm_stats_file"], str(self.stats_path))
         self.assertEqual(len(Path(config["data"]["train_path"]).read_text().splitlines()), 1)
         self.assertEqual((self.source / "configs/vla/robotwin/robotwin.yaml").read_bytes(), self.recipe_before)
 
-    def test_default_does_not_require_teacher_checkpoints(self):
+    def test_default_requires_teacher_checkpoints(self):
         for relative in (
             "checkpoints/lingbot-vla-v2-6b/depth/model.pt",
             "checkpoints/lingbot-vla-v2-6b/dino_video/teacher_step_10000.pth",
@@ -90,9 +95,25 @@ class TrainingPreparationTests(unittest.TestCase):
             "checkpoints/moge2-vitb-normal.pt",
         ):
             (self.root / relative).unlink()
-        config = yaml.safe_load(self.generate().read_text())
+            with self.assertRaisesRegex(FileNotFoundError, "not found or empty"):
+                self.generate()
+            target = self.root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("fixture")
+
+    def test_explicit_disable_does_not_require_teacher_checkpoints(self):
+        for relative in (
+            "checkpoints/lingbot-vla-v2-6b/depth/model.pt",
+            "checkpoints/lingbot-vla-v2-6b/dino_video/teacher_step_10000.pth",
+            "checkpoints/lingbot-vla-v2-6b/dino_video/config.yaml",
+            "checkpoints/moge2-vitb-normal.pt",
+        ):
+            (self.root / relative).unlink()
+        with patch.dict(os.environ, {"RTC_USE_TEACHERS": "false"}):
+            config = yaml.safe_load(self.generate().read_text())
         self.assertEqual(config["train"]["align_params"], {})
         self.assertFalse(config["data"]["use_future_image"])
+        self.assertTrue(config["train"]["output_dir"].endswith("robotwin-rtc-no-moge"))
 
     def test_teacher_mode_requires_moge(self):
         (self.root / "checkpoints/moge2-vitb-normal.pt").unlink()
@@ -100,7 +121,7 @@ class TrainingPreparationTests(unittest.TestCase):
             with self.assertRaisesRegex(FileNotFoundError, "MoGe"):
                 self.generate()
 
-    def test_teacher_mode_can_be_opted_back_in(self):
+    def test_explicit_teacher_mode_uses_configured_teacher_paths(self):
         with patch.dict(os.environ, {"RTC_USE_TEACHERS": "true", "RTC_SAVE_STEPS": "250"}):
             config = yaml.safe_load(self.generate().read_text())
         self.assertTrue(config["data"]["use_future_image"])

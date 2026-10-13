@@ -20,10 +20,10 @@ at `/2025233210/lmx/training-data/robotwin_clean_norm_stats.json`. Defaults:
 - Gradient checkpointing enabled; optimizer and MoE settings follow
   `configs/vla/robotwin/robotwin.yaml`.
 - RTC enabled with exclusive delay limit 10 (prefix lengths 0 through 9).
-- Auxiliary depth/video teacher losses disabled. The policy trains from the RTC
-  action-flow objective without loading MoGe, MoRGBD, or DINO-video teachers.
+- MoGe, MoRGBD, and DINO-video auxiliary teacher losses enabled by default,
+  alongside the RTC action-flow objective.
 - Maximum training length: 50,000 optimizer steps; checkpoint every 1,000 steps.
-- Checkpoints: `/2025233210/lmx/checkpoints/lingbot-vla-v2-6b-robotwin-rtc-no-moge`.
+- Checkpoints: `/2025233210/lmx/checkpoints/lingbot-vla-v2-6b-robotwin-rtc`.
 - Runtime YAML and manifest: `.runtime/rtc/robotwin_clean/` in this checkout.
 - Training log: `.runtime/rtc/train.log` (or `RTC_LOG_PATH`).
 
@@ -34,8 +34,8 @@ Accumulation is computed from the GPU/process count and `NNODES`. An explicit
 YAML may be passed instead of automatic preparation; additional normal
 `--model.*`, `--data.*`, and `--train.*` flags follow that YAML or `--auto`.
 When overriding the batch on the CLI, also set its accumulation accordingly.
-Set `RTC_USE_TEACHERS=true` to re-enable the official MoGe, MoRGBD, and DINO-video
-auxiliary losses; this mode requires their teacher weights, including MoGe.
+Teacher losses require the MoGe, MoRGBD, and DINO-video weights. Set
+`RTC_USE_TEACHERS=false` to disable them and train with RTC action loss only.
 
 Preparation does not start training:
 

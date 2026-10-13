@@ -66,7 +66,7 @@ def prepare(root: Path, output: Path | None = None, source: Path | None = None) 
     clean_stats = root / "training-data/robotwin_clean_norm_stats.json"
     dino_root = base_weights / "dino_video"
     depth_root = base_weights / "depth"
-    use_teachers = _parse_bool(os.environ.get("RTC_USE_TEACHERS", "false"))
+    use_teachers = _parse_bool(os.environ.get("RTC_USE_TEACHERS", "true"))
 
     _required_file(base_weights / "config.json", "Official LingBot-VLA 2.0 base config")
     _required_file(base_weights / "model.safetensors.index.json", "Base weight index")
@@ -139,10 +139,13 @@ def prepare(root: Path, output: Path | None = None, source: Path | None = None) 
     data_cfg["use_future_image"] = use_teachers
 
     train_cfg = recipe.setdefault("train", {})
+    default_output_dir = root / (
+        "checkpoints/lingbot-vla-v2-6b-robotwin-rtc"
+        if use_teachers
+        else "checkpoints/lingbot-vla-v2-6b-robotwin-rtc-no-moge"
+    )
     train_cfg["output_dir"] = str(
-        Path(os.environ.get(
-            "RTC_OUTPUT_DIR", root / "checkpoints/lingbot-vla-v2-6b-robotwin-rtc-no-moge"
-        )).expanduser().resolve()
+        Path(os.environ.get("RTC_OUTPUT_DIR", default_output_dir)).expanduser().resolve()
     )
     gpu_count = _gpu_count() * int(os.environ.get("NNODES", "1"))
     if gpu_count <= 0:
