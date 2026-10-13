@@ -234,8 +234,11 @@ class AdaRMSNorm(nn.Module):
 
         hidden_states = self.weight * hidden_states
         # cond = cond.to(torch.float32)
-        gamma = self.gamma(cond).unsqueeze(1)  # [B, 1, H]
-        beta  = self.beta(cond).unsqueeze(1)   # [B, 1, H]
+        gamma = self.gamma(cond)
+        beta  = self.beta(cond)
+        if cond.ndim == 2:
+            gamma = gamma.unsqueeze(1)  # [B, 1, H]
+            beta = beta.unsqueeze(1)   # [B, 1, H]
         hidden_states = (1 + gamma.to(torch.float32)) * hidden_states + beta.to(torch.float32)
         return hidden_states.to(input_dtype)
 
@@ -264,8 +267,11 @@ class FixAdaRMSNorm(nn.Module):
 
         hidden_states = self.weight * hidden_states
         cond = cond.to(torch.float32)
-        gamma = self.gamma(cond).unsqueeze(1)  # [B, 1, H]
-        beta  = self.beta(cond).unsqueeze(1)   # [B, 1, H]
+        gamma = self.gamma(cond)
+        beta  = self.beta(cond)
+        if cond.ndim == 2:
+            gamma = gamma.unsqueeze(1)  # [B, 1, H]
+            beta = beta.unsqueeze(1)   # [B, 1, H]
         hidden_states = (1 + gamma.to(torch.float32)) * hidden_states + beta.to(torch.float32)
         return hidden_states.to(input_dtype)
 

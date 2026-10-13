@@ -158,6 +158,14 @@ class MyTrainingArguments(TrainingArguments):
         default=50,
         metadata={"help": "Chunk size of action."},
     )
+    training_time_rtc: bool = field(
+        default=False,
+        metadata={"help": "Train with clean ground-truth action prefixes (RTC)."},
+    )
+    training_time_rtc_max_delay: int = field(
+        default=10,
+        metadata={"help": "Exclusive upper bound for sampled RTC prefix length."},
+    )
     vlm_causal: bool = field(
         default=False,
         metadata={"help": "Whether to use causal atten for img anb lang tokens in vlm."},

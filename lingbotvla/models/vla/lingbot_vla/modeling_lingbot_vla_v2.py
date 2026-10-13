@@ -31,6 +31,13 @@ from .utils import (
     prefix_query_token_spans,
     sample_beta,
 )
+from .rtc import (
+    apply_rtc_prefix,
+    combine_rtc_loss_mask,
+    make_rtc_flow,
+    rtc_time_for_prefix,
+    sample_rtc_delay,
+)
 from .flex_attention import build_block_mask, flex_attention_forward, flex_attention_with_block_mask
 from lingbotvla.models.loader import LingBotVLAWeightLoader
 from lingbotvla.ops.triton_moe_loss import triton_sequence_wise_balance_loss
@@ -496,6 +503,67 @@ class FlowMatchingV2(FlowMatchingV1):
 
         self.set_requires_grad()
 
+    def embed_suffix(self, state, noisy_actions, timestep, action_is_pad=None):
+        """Embed per-action RTC times; retain the upstream path for scalar times."""
+        if timestep.ndim == 1:
+            if action_is_pad is None:
+                return super().embed_suffix(state, noisy_actions, timestep)
+            timestep = timestep[:, None].expand(noisy_actions.shape[:2])
+        batch_size, horizon = noisy_actions.shape[:2]
+        if timestep.shape != (batch_size, horizon):
+            raise ValueError(
+                f"timestep must have shape {(batch_size, horizon)}, got {tuple(timestep.shape)}"
+            )
+
+        device = state.device
+        dtype = state.dtype
+        use_fp32 = getattr(self.config, "action_fp32", False)
+        state_emb = self._fp32_linear(self.state_proj, state) if use_fp32 else self.state_proj(state)
+        action_time_emb = create_sinusoidal_pos_embedding(
+            timestep.reshape(-1),
+            self.config.proj_width,
+            min_period=4e-3,
+            max_period=4.0,
+            device=device,
+        ).to(dtype=dtype).reshape(batch_size, horizon, self.config.proj_width)
+        state_time_emb = create_sinusoidal_pos_embedding(
+            timestep.mean(dim=1),
+            self.config.proj_width,
+            min_period=4e-3,
+            max_period=4.0,
+            device=device,
+        ).to(dtype=dtype)
+        ada_time_emb = torch.cat([state_time_emb[:, None], action_time_emb], dim=1)
+
+        action_emb = (
+            self._fp32_linear(self.action_in_proj, noisy_actions)
+            if use_fp32
+            else self.action_in_proj(noisy_actions)
+        )
+        action_time = torch.cat([action_emb, action_time_emb], dim=-1)
+        action_time = (
+            self._fp32_linear(self.action_time_mlp_in, action_time)
+            if use_fp32
+            else self.action_time_mlp_in(action_time)
+        )
+        action_time = F.silu(action_time)
+        action_time = (
+            self._fp32_linear(self.action_time_mlp_out, action_time)
+            if use_fp32
+            else self.action_time_mlp_out(action_time)
+        )
+        suffix_embs = torch.cat([state_emb[:, None], action_time], dim=1)
+        suffix_pad_masks = torch.ones(
+            (batch_size, horizon + 1), device=device, dtype=torch.bool
+        )
+        if action_is_pad is not None and action_is_pad.shape != (batch_size, horizon):
+            raise ValueError(f"action_is_pad must have shape {(batch_size, horizon)}")
+        if action_is_pad is not None:
+            suffix_pad_masks[:, 1:] = ~action_is_pad.to(device=device, dtype=torch.bool)
+        suffix_att_masks = torch.zeros_like(suffix_pad_masks)
+        suffix_att_masks[:, :2] = True
+        return ada_time_emb, suffix_embs, suffix_pad_masks, suffix_att_masks
+
     def embed_prefix(
         self,
         images,
@@ -781,17 +849,57 @@ class FlowMatchingV2(FlowMatchingV1):
         future_video_targets=None,
         future_video_cls_targets=None,
         future_video_current_patch=None,
+        action_is_pad=None,
+        rtc_delay=None,
     ) -> Tensor:
         dtype = state.dtype
         device = state.device
+        rtc_loss_mask = None
         if noise is None:
             noise = torch.randn(actions.shape, device=device, dtype=dtype)
-        if time is None:
-            time = self.sample_time(actions.size(0), device).to(dtype)
-
-        time_expanded = time[:, None, None]
-        x_t = time_expanded * noise + (1 - time_expanded) * actions
-        u_t = noise - actions
+        if getattr(self.config, "training_time_rtc", False):
+            batch_size, horizon = actions.shape[:2]
+            if action_is_pad is not None:
+                action_is_pad = action_is_pad.to(device=device, dtype=torch.bool)
+            if time is None:
+                time = sample_beta(1.5, 1.0, batch_size * horizon, device)
+                time = time.reshape(batch_size, horizon).mul(0.999).add(0.001).to(dtype)
+            else:
+                time = torch.as_tensor(time, device=device, dtype=dtype)
+                if time.ndim == 1 and time.shape[0] == batch_size:
+                    time = time[:, None].expand(batch_size, horizon)
+            if time.shape != (batch_size, horizon):
+                raise ValueError(f"RTC time must have shape {(batch_size, horizon)}, got {tuple(time.shape)}")
+            if action_is_pad is not None and action_is_pad.shape != (batch_size, horizon):
+                raise ValueError(f"action_is_pad must have shape {(batch_size, horizon)}")
+            if rtc_delay is None:
+                rtc_delay = sample_rtc_delay(
+                    action_is_pad,
+                    batch_size,
+                    horizon,
+                    int(getattr(self.config, "training_time_rtc_max_delay", 10)),
+                    device,
+                )
+            else:
+                rtc_delay = torch.as_tensor(rtc_delay, device=device, dtype=torch.long)
+                if rtc_delay.ndim == 0:
+                    rtc_delay = rtc_delay.expand(batch_size)
+                if rtc_delay.shape != (batch_size,):
+                    raise ValueError(f"rtc_delay must have shape {(batch_size,)}, got {tuple(rtc_delay.shape)}")
+                if not torch.compiler.is_compiling() and (
+                    torch.any(rtc_delay < 0) or torch.any(rtc_delay > horizon)
+                ):
+                    raise ValueError(f"rtc_delay values must be in [0, {horizon}]")
+            x_t, u_t, rtc_loss_mask = make_rtc_flow(actions, noise, time, rtc_delay)
+            if action_is_pad is not None:
+                rtc_loss_mask &= ~action_is_pad
+            time = time.masked_fill(~rtc_loss_mask, 0.0)
+        else:
+            if time is None:
+                time = self.sample_time(actions.size(0), device).to(dtype)
+            time_expanded = time[:, None, None]
+            x_t = time_expanded * noise + (1 - time_expanded) * actions
+            u_t = noise - actions
 
         (
             prefix_embs,
@@ -808,7 +916,8 @@ class FlowMatchingV2(FlowMatchingV1):
             image_grid_thw=image_grid_thw,
         )
         time_embs, suffix_embs, suffix_pad_masks, suffix_att_masks = self.embed_suffix(
-            state, x_t, time
+            state, x_t, time,
+            action_is_pad=action_is_pad if getattr(self.config, "training_time_rtc", False) else None,
         )
 
         pad_masks = torch.cat([prefix_pad_masks, suffix_pad_masks], dim=1)
@@ -915,7 +1024,7 @@ class FlowMatchingV2(FlowMatchingV1):
         )
         if align_metrics:
             moe_metrics.update(align_metrics)
-        return losses, loss_depth, loss_future_depth, loss_future_video, depth_preds, seq_wise_loss, router_z_loss, moe_metrics, future_depth_preds, future_video_preds, current_video_preds
+        return losses, loss_depth, loss_future_depth, loss_future_video, depth_preds, seq_wise_loss, router_z_loss, moe_metrics, future_depth_preds, future_video_preds, current_video_preds, rtc_loss_mask
 
     def sample_actions(
         self,
@@ -926,6 +1035,8 @@ class FlowMatchingV2(FlowMatchingV1):
         state,
         noise=None,
         image_grid_thw=None,
+        previous_actions=None,
+        rtc_delay=None,
     ) -> Tensor:
         """Do a full Qwen3-VL inference forward and compute the action."""
         bsize = state.shape[0]
@@ -939,6 +1050,32 @@ class FlowMatchingV2(FlowMatchingV1):
                 self.config.max_action_dim,
             )
             noise = torch.randn(actions_shape, device=device, dtype=dtype)
+
+        rtc_prefix = None
+        if previous_actions is not None:
+            if not getattr(self.config, "training_time_rtc", False):
+                raise ValueError("previous_actions requires training_time_rtc=True in the model config")
+            if rtc_delay is None:
+                raise ValueError("rtc_delay is required when previous_actions are supplied")
+            rtc_delay = torch.as_tensor(rtc_delay, device=device, dtype=torch.long)
+            if rtc_delay.ndim == 0:
+                rtc_delay = rtc_delay.expand(bsize)
+            if rtc_delay.shape != (bsize,):
+                raise ValueError(f"rtc_delay must have shape {(bsize,)}, got {tuple(rtc_delay.shape)}")
+            horizon = self.config.n_action_steps
+            if not torch.compiler.is_compiling() and (
+                torch.any(rtc_delay < 0) or torch.any(rtc_delay > horizon)
+            ):
+                raise ValueError(f"rtc_delay values must be in [0, {horizon}]")
+            if previous_actions.ndim != 3 or previous_actions.shape[0] != bsize:
+                raise ValueError("previous_actions must have shape (batch, horizon, action_dim)")
+            if previous_actions.shape[1] < horizon or previous_actions.shape[2] != self.config.max_action_dim:
+                raise ValueError(
+                    f"previous_actions must have shape (batch, at least {horizon}, {self.config.max_action_dim})"
+                )
+            previous_actions = previous_actions[:, :horizon].to(device=device, dtype=dtype)
+            rtc_prefix = rtc_delay[:, None] > torch.arange(horizon, device=device)[None, :]
+            x_t = torch.where(rtc_prefix[..., None], previous_actions, noise)
 
         (
             prefix_embs,
@@ -969,7 +1106,8 @@ class FlowMatchingV2(FlowMatchingV1):
         )
 
         dt = torch.tensor(-1.0 / self.config.num_steps, dtype=dtype, device=device)
-        x_t = noise
+        if rtc_prefix is None:
+            x_t = noise
         time = torch.tensor(1.0, dtype=dtype, device=device)
         count = 0
         predict_velocity_fn = self.predict_velocity
@@ -987,16 +1125,25 @@ class FlowMatchingV2(FlowMatchingV1):
         while time >= -dt / 2:
             count += 1
             expanded_time = time.expand(bsize)
+            model_time = expanded_time
+            if rtc_prefix is not None:
+                model_time = rtc_time_for_prefix(
+                    expanded_time,
+                    rtc_delay,
+                    self.config.n_action_steps,
+                )
             v_t = predict_velocity_fn(
                 state,
                 prefix_pad_masks,
                 past_key_values,
                 x_t,
-                expanded_time,
+                model_time,
                 prefix_position_ids=prefix_position_ids,
             )
 
             x_t += dt * v_t
+            if rtc_prefix is not None:
+                x_t = apply_rtc_prefix(x_t, previous_actions, rtc_delay)
             time += dt
         print(f"Denoise {count} steps")
         return x_t
@@ -1009,6 +1156,7 @@ class FlowMatchingV2(FlowMatchingV1):
         x_t,
         timestep,
         prefix_position_ids=None,
+        action_is_pad=None,
     ):
         """Predict velocity at time t using cached Qwen3-VL prefix states."""
         if prefix_position_ids is None:
@@ -1018,6 +1166,7 @@ class FlowMatchingV2(FlowMatchingV1):
             state,
             x_t,
             timestep,
+            action_is_pad=action_is_pad,
         )
 
         suffix_len = suffix_pad_masks.shape[1]
@@ -1251,6 +1400,7 @@ class LingbotVlaV2Policy(PreTrainedModel):
         future_video_targets=None,
         future_video_cls_targets=None,
         future_video_current_patch=None,
+        rtc_delay=None,
         **kwargs
     ) -> tuple[Tensor, dict[str, Tensor]]:
         loss_dict = {}
@@ -1269,6 +1419,7 @@ class LingbotVlaV2Policy(PreTrainedModel):
             future_depth_preds,
             future_video_preds,
             current_video_preds,
+            rtc_loss_mask,
         ) = self.model.forward(
             images,
             img_masks,
@@ -1285,9 +1436,24 @@ class LingbotVlaV2Policy(PreTrainedModel):
             future_video_targets=future_video_targets,
             future_video_cls_targets=future_video_cls_targets,
             future_video_current_patch=future_video_current_patch,
+            action_is_pad=action_is_pad,
+            rtc_delay=rtc_delay,
         )
 
-        if joint_mask is not None:
+        if getattr(self.config, "training_time_rtc", False):
+            if rtc_loss_mask is None:
+                raise RuntimeError("RTC is enabled but the action-prefix loss mask was not returned")
+            if joint_mask is None:
+                losses = losses[:, :, : self.config.action_dim]
+                rtc_mask = combine_rtc_loss_mask(losses, None, action_is_pad, rtc_loss_mask)
+            else:
+                rtc_mask = combine_rtc_loss_mask(losses, joint_mask, action_is_pad, rtc_loss_mask)
+            masked_losses = losses * rtc_mask.to(dtype=losses.dtype)
+            valid_counts = rtc_mask.sum(dim=(1, 2)).clamp(min=1)
+            batch_mean_losses = masked_losses.sum(dim=(1, 2)) / valid_counts
+            loss_vla = masked_losses.sum() / rtc_mask.sum().clamp(min=1)
+            loss_dict["rtc/valid_action_fraction"] = rtc_loss_mask.float().mean().detach()
+        elif joint_mask is not None:
             if "repeat" in self.config.loss_type:
                 joint_mask = joint_mask.repeat(2, 1, 1)
             assert len(joint_mask.shape) == 3

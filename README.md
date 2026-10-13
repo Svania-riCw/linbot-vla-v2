@@ -143,6 +143,17 @@ Below we use **RoboTwin 2.0** 50 tasks, trained with clean and randomized data t
 
 ### Training
 
+For RTC training on the local clean RoboTwin LeRobot data, use the source
+repository's launcher on the `lmx_rtc` branch:
+
+```bash
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 bash train_rtc.sh
+```
+
+This prepares model/teacher paths and clean normalization statistics, with
+`16 × 8 × 1 = 128` batch settings. See [RTC training](docs/rtc.md) for setup,
+configuration, and tests.
+
 We provide a post-training example of **LingBot-VLA 2.0** on RoboTwin 2.0 50 tasks with clean and randomized data:
 
 ```bash
