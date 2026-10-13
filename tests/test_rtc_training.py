@@ -73,11 +73,43 @@ class TrainingPreparationTests(unittest.TestCase):
         train = config["train"]
         self.assertEqual((train["micro_batch_size"], train["global_batch_size"], train["gradient_accumulation_steps"]), (16, 128, 1))
         self.assertTrue(train["training_time_rtc"])
+        self.assertEqual(train["align_params"], {})
+        self.assertEqual(train["save_steps"], 1000)
+        self.assertFalse(config["data"]["use_future_image"])
         robot = Path(config["data"]["robot_config_root"]) / "robotwin.yaml"
         self.assertEqual(yaml.safe_load(robot.read_text())["norm_stats"], str(self.stats_path))
         self.assertEqual(config["data"]["norm_stats_file"], str(self.stats_path))
         self.assertEqual(len(Path(config["data"]["train_path"]).read_text().splitlines()), 1)
         self.assertEqual((self.source / "configs/vla/robotwin/robotwin.yaml").read_bytes(), self.recipe_before)
+
+    def test_default_does_not_require_teacher_checkpoints(self):
+        for relative in (
+            "checkpoints/lingbot-vla-v2-6b/depth/model.pt",
+            "checkpoints/lingbot-vla-v2-6b/dino_video/teacher_step_10000.pth",
+            "checkpoints/lingbot-vla-v2-6b/dino_video/config.yaml",
+            "checkpoints/moge2-vitb-normal.pt",
+        ):
+            (self.root / relative).unlink()
+        config = yaml.safe_load(self.generate().read_text())
+        self.assertEqual(config["train"]["align_params"], {})
+        self.assertFalse(config["data"]["use_future_image"])
+
+    def test_teacher_mode_requires_moge(self):
+        (self.root / "checkpoints/moge2-vitb-normal.pt").unlink()
+        with patch.dict(os.environ, {"RTC_USE_TEACHERS": "true"}):
+            with self.assertRaisesRegex(FileNotFoundError, "MoGe"):
+                self.generate()
+
+    def test_teacher_mode_can_be_opted_back_in(self):
+        with patch.dict(os.environ, {"RTC_USE_TEACHERS": "true", "RTC_SAVE_STEPS": "250"}):
+            config = yaml.safe_load(self.generate().read_text())
+        self.assertTrue(config["data"]["use_future_image"])
+        self.assertTrue(config["train"]["align_params"]["use_future_video"])
+        self.assertEqual(config["train"]["save_steps"], 250)
+        self.assertEqual(
+            config["train"]["align_params"]["depth"]["moge_path"],
+            str(self.root / "checkpoints/moge2-vitb-normal.pt"),
+        )
 
     def test_nondivisible_global_batch_is_rejected(self):
         with patch.dict(os.environ, {"RTC_GLOBAL_BATCH_SIZE": "127"}):

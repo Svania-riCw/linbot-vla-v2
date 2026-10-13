@@ -66,9 +66,7 @@ def prepare(root: Path, output: Path | None = None, source: Path | None = None) 
     clean_stats = root / "training-data/robotwin_clean_norm_stats.json"
     dino_root = base_weights / "dino_video"
     depth_root = base_weights / "depth"
-    moge_path = Path(
-        os.environ.get("RTC_MOGE_PATH", root / "checkpoints/moge2-vitb-normal.pt")
-    ).expanduser().resolve()
+    use_teachers = _parse_bool(os.environ.get("RTC_USE_TEACHERS", "false"))
 
     _required_file(base_weights / "config.json", "Official LingBot-VLA 2.0 base config")
     _required_file(base_weights / "model.safetensors.index.json", "Base weight index")
@@ -77,10 +75,14 @@ def prepare(root: Path, output: Path | None = None, source: Path | None = None) 
     for shard in set(index["weight_map"].values()):
         _required_file(base_weights / shard, "Base weight shard")
     _required_file(qwen_weights / "config.json", "Qwen3-VL tokenizer/model config")
-    _required_file(depth_root / "model.pt", "MoRGBD teacher checkpoint")
-    _required_file(dino_root / "teacher_step_10000.pth", "DINO video teacher checkpoint")
-    _required_file(dino_root / "config.yaml", "DINO video teacher config")
-    _required_file(moge_path, "MoGe-2 ViT-B normal checkpoint")
+    if use_teachers:
+        moge_path = Path(
+            os.environ.get("RTC_MOGE_PATH", root / "checkpoints/moge2-vitb-normal.pt")
+        ).expanduser().resolve()
+        _required_file(depth_root / "model.pt", "MoRGBD teacher checkpoint")
+        _required_file(dino_root / "teacher_step_10000.pth", "DINO video teacher checkpoint")
+        _required_file(dino_root / "config.yaml", "DINO video teacher config")
+        _required_file(moge_path, "MoGe-2 ViT-B normal checkpoint")
     _required_file(clean_stats, "Clean RoboTwin normalization stats")
 
     recipe_path = source / "configs/vla/robotwin/robotwin.yaml"
@@ -134,11 +136,12 @@ def prepare(root: Path, output: Path | None = None, source: Path | None = None) 
     # The data loader currently reads normalization from the robot config above.
     # Keep this explicit field in sync for readers and future upstream versions.
     data_cfg["norm_stats_file"] = str(clean_stats.resolve())
+    data_cfg["use_future_image"] = use_teachers
 
     train_cfg = recipe.setdefault("train", {})
     train_cfg["output_dir"] = str(
         Path(os.environ.get(
-            "RTC_OUTPUT_DIR", root / "checkpoints/lingbot-vla-v2-6b-robotwin-rtc"
+            "RTC_OUTPUT_DIR", root / "checkpoints/lingbot-vla-v2-6b-robotwin-rtc-no-moge"
         )).expanduser().resolve()
     )
     gpu_count = _gpu_count() * int(os.environ.get("NNODES", "1"))
@@ -162,18 +165,25 @@ def prepare(root: Path, output: Path | None = None, source: Path | None = None) 
     train_cfg["enable_gradient_checkpointing"] = _parse_bool(
         os.environ.get("RTC_GRADIENT_CHECKPOINTING", "true")
     )
-    train_cfg.setdefault("align_params", {}).setdefault("depth", {})[
-        "moge_path"
-    ] = str(moge_path)
-    train_cfg["align_params"]["depth"]["morgbd_path"] = str(
-        (depth_root / "model.pt").resolve()
-    )
-    train_cfg["align_params"].setdefault("video", {})["ckpt_path"] = str(
-        (dino_root / "teacher_step_10000.pth").resolve()
-    )
-    train_cfg["align_params"]["video"]["config_path"] = str(
-        (dino_root / "config.yaml").resolve()
-    )
+    train_cfg["save_steps"] = int(os.environ.get("RTC_SAVE_STEPS", "1000"))
+    if train_cfg["save_steps"] <= 0:
+        raise ValueError("RTC_SAVE_STEPS must be positive")
+    if use_teachers:
+        train_cfg.setdefault("align_params", {}).setdefault("depth", {})[
+            "moge_path"
+        ] = str(moge_path)
+        train_cfg["align_params"]["depth"]["morgbd_path"] = str(
+            (depth_root / "model.pt").resolve()
+        )
+        train_cfg["align_params"].setdefault("video", {})["ckpt_path"] = str(
+            (dino_root / "teacher_step_10000.pth").resolve()
+        )
+        train_cfg["align_params"]["video"]["config_path"] = str(
+            (dino_root / "config.yaml").resolve()
+        )
+    else:
+        # Keep RTC's action loss, but omit depth/video auxiliary teachers entirely.
+        train_cfg["align_params"] = {}
     train_cfg["training_time_rtc"] = True
     train_cfg["training_time_rtc_max_delay"] = int(os.environ.get("RTC_MAX_DELAY", "10"))
     if train_cfg["training_time_rtc_max_delay"] <= 0:
@@ -186,6 +196,11 @@ def prepare(root: Path, output: Path | None = None, source: Path | None = None) 
     print(f"Generated RTC config: {output_path}")
     print(f"Clean LeRobot datasets: {len(datasets)} ({manifest_path})")
     print(f"Clean normalization stats: {clean_stats.resolve()}")
+    print(
+        "Auxiliary teachers: "
+        + ("enabled (MoGe, MoRGBD, DINO-video)" if use_teachers else "disabled")
+    )
+    print(f"Checkpoint interval: {train_cfg['save_steps']} steps")
     print(
         f"Batch setup: micro={micro_batch_size}, global={global_batch_size}, "
         f"GPUs={gpu_count}, accumulation={train_cfg['gradient_accumulation_steps']}"

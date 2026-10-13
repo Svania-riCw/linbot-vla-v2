@@ -9,10 +9,14 @@ Usage: bash train_rtc.sh [--prepare-only] [--auto | CONFIG.yaml] [training argum
 The default recipe uses the local official LingBot 6B weights and clean
 RoboTwin LeRobot datasets under $LMX_ROOT/training-data/lerobot.
 On 8 GPUs: micro batch 16 * GPU count 8 * accumulation 1 = global batch 128.
-The RTC model code is part of this checkout; no patch is applied or reverted.
+RTC action training does not load MoGe or other auxiliary teachers by default.
+Checkpoints are saved every 1000 steps. The RTC model code is part of this
+checkout; no patch is applied or reverted.
 
 Options via environment: RTC_TRAIN_ENV, RTC_MAX_DELAY, RTC_MICRO_BATCH_SIZE,
 RTC_GLOBAL_BATCH_SIZE, RTC_GRADIENT_CHECKPOINTING, RTC_MOGE_PATH, RTC_OUTPUT_DIR.
+Set RTC_SAVE_STEPS to change the checkpoint interval. Set RTC_USE_TEACHERS=true
+to opt into the original MoGe, MoRGBD, and DINO-video auxiliary losses.
 EOF
     exit 0
 fi

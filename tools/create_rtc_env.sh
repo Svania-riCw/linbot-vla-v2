@@ -12,7 +12,7 @@ source "$CONDA_SH"
 env_name="${RTC_TRAIN_ENV:-lingbotvla-train}"
 source_env="${RTC_SOURCE_ENV:-lingbotvla}"
 if conda env list | awk '{print $1}' | grep -Fxq "$env_name"; then
-    if conda run -n "$env_name" python -c 'import torch, transformers, lerobot, flash_attn, moge, mdm, utils3d, torchcodec' >/dev/null 2>&1; then
+    if conda run -n "$env_name" python -c 'import torch, transformers, lerobot, flash_attn, utils3d, torchcodec' >/dev/null 2>&1; then
         printf 'RTC training environment is ready: %s\n' "$env_name"
         conda run -n "$env_name" python -c 'import torch, transformers, lerobot; print("torch", torch.__version__, "transformers", transformers.__version__, "lerobot", lerobot.__version__)'
         exit 0
@@ -25,4 +25,4 @@ if ! conda env list | awk '{print $1}' | grep -Fxq "$source_env"; then
     exit 2
 fi
 conda create -n "$env_name" --clone "$source_env" -y
-conda run -n "$env_name" python -c 'import torch, transformers, lerobot, flash_attn, moge, mdm, utils3d, torchcodec; print("torch", torch.__version__, "transformers", transformers.__version__, "lerobot", lerobot.__version__)'
+conda run -n "$env_name" python -c 'import torch, transformers, lerobot, flash_attn, utils3d, torchcodec; print("torch", torch.__version__, "transformers", transformers.__version__, "lerobot", lerobot.__version__)'

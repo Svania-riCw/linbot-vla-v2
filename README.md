@@ -150,9 +150,10 @@ repository's launcher on the `lmx_rtc` branch:
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 bash train_rtc.sh
 ```
 
-This prepares model/teacher paths and clean normalization statistics, with
-`16 × 8 × 1 = 128` batch settings. See [RTC training](docs/rtc.md) for setup,
-configuration, and tests.
+This prepares the official base model and clean normalization statistics,
+with `16 × 8 × 1 = 128` batch settings. MoGe, MoRGBD, and DINO-video auxiliary
+teachers are disabled by default; checkpoints are saved every 1,000 steps.
+See [RTC training](docs/rtc.md) for setup, configuration, and tests.
 
 We provide a post-training example of **LingBot-VLA 2.0** on RoboTwin 2.0 50 tasks with clean and randomized data:
 
