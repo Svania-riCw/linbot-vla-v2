@@ -23,7 +23,7 @@ at `/2025233210/lmx/training-data/robotwin_clean_norm_stats.json`. Defaults:
 - MoGe, MoRGBD, and DINO-video auxiliary teacher losses enabled by default,
   alongside the RTC action-flow objective.
 - Maximum training length: 50,000 optimizer steps; checkpoint every 1,000 steps.
-- Checkpoints: `/2025233210/lmx/checkpoints/lingbot-vla-v2-6b-robotwin-rtc`.
+- Checkpoint run directory: `/2025233210/lmx/checkpoints/lingbot-vla-v2-6b-robotwin-rtc`.
 - Runtime YAML and manifest: `.runtime/rtc/robotwin_clean/` in this checkout.
 - Training log: `.runtime/rtc/train.log` (or `RTC_LOG_PATH`).
 
@@ -36,6 +36,52 @@ YAML may be passed instead of automatic preparation; additional normal
 When overriding the batch on the CLI, also set its accumulation accordingly.
 Teacher losses require the MoGe, MoRGBD, and DINO-video weights. Set
 `RTC_USE_TEACHERS=false` to disable them and train with RTC action loss only.
+
+## Progress and checkpoint lifecycle
+
+Rank 0 prints a live progress bar such as `RTC train: 1200/50000`, including
+elapsed time, estimated remaining time, step rate, current loss, and learning
+rate. The other ranks keep the bar disabled so their logs remain readable.
+
+`--name` selects the run directory below `$LMX_ROOT/checkpoints`. The native
+distributed checkpointer then writes step snapshots below that directory:
+
+```text
+$LMX_ROOT/checkpoints/<name>/
+└── checkpoints/
+    ├── global_step_1000/
+    │   └── hf_ckpt/       # best-effort Hugging Face export for inference
+    └── global_step_2000/
+```
+
+These are directory snapshots because FSDP distributed state and optimizer
+state are sharded across ranks; they are not a single `.pt` file. The explicit
+run name is therefore the safe way to name a training checkpoint series.
+
+Start a new named run:
+
+```bash
+bash train_rtc.sh --name rtc_moge_run01
+```
+
+Resume its newest `global_step_N` snapshot:
+
+```bash
+bash train_rtc.sh --name rtc_moge_run01 --resume
+```
+
+To intentionally discard only that named run and start at step 0, use
+`--overwrite`:
+
+```bash
+bash train_rtc.sh --name rtc_moge_run01 --overwrite
+```
+
+If a run directory already contains files, the launcher refuses to start
+without either `--resume` or `--overwrite`. This prevents an accidental new
+job from mixing with an earlier run. `--prepare-only` only generates the YAML
+and prints the selected checkpoint directory; it never deletes or launches a
+run.
 
 Preparation does not start training:
 

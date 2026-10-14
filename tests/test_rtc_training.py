@@ -178,7 +178,7 @@ class TrainingPreparationTests(unittest.TestCase):
         config.write_text("train: {}\n")
         args_file = self.root / "runner_args.txt"
         env = dict(os.environ, CONDA_SH=str(activation), RTC_TEST_ARGS=str(args_file),
-                   PATH=f"{bin_dir}:{os.environ['PATH']}")
+                   LMX_ROOT=str(self.root), PATH=f"{bin_dir}:{os.environ['PATH']}")
         return config, args_file, env
 
     def test_launcher_propagates_failure_and_forwards_rtc_arguments(self):
@@ -192,7 +192,75 @@ class TrainingPreparationTests(unittest.TestCase):
         self.assertIn("--nproc-per-node=8", args)
         self.assertIn(str(config), args)
         self.assertIn("--train.max_steps", args)
-        self.assertEqual(args[-4:], ["--train.training_time_rtc", "true", "--train.training_time_rtc_max_delay", "10"])
+        self.assertEqual(
+            args[-8:],
+            [
+                "--train.training_time_rtc", "true",
+                "--train.training_time_rtc_max_delay", "10",
+                "--train.output_dir", str(self.root / "checkpoints/lingbot-vla-v2-6b-robotwin-rtc"),
+                "--train.enable_resume", "false",
+            ],
+        )
+
+    def test_launcher_uses_named_run_directory_and_overwrites_only_that_run(self):
+        config, args_file, env = self.launcher_fixture()
+        run_dir = self.root / "checkpoints/rtc_named"
+        run_dir.mkdir(parents=True)
+        marker = run_dir / "old-run-marker"
+        marker.write_text("old")
+        outside_marker = self.root / "checkpoints/keep-me"
+        outside_marker.mkdir(parents=True)
+        (outside_marker / "marker").write_text("keep")
+
+        result = subprocess.run(
+            ["bash", str(self.source / "train_rtc.sh"), "--name", "rtc_named", "--overwrite", str(config)],
+            env=env, capture_output=True, text=True, timeout=10,
+        )
+        self.assertEqual(result.returncode, 17, result.stderr)
+        self.assertFalse(marker.exists())
+        self.assertTrue((outside_marker / "marker").exists())
+        args = args_file.read_text().splitlines()
+        self.assertEqual(args[-4:], ["--train.output_dir", str(run_dir), "--train.enable_resume", "false"])
+
+    def test_launcher_resumes_latest_named_checkpoint(self):
+        config, args_file, env = self.launcher_fixture()
+        run_dir = self.root / "checkpoints/rtc_resume"
+        for step in (900, 1000):
+            (run_dir / "checkpoints" / f"global_step_{step}").mkdir(parents=True)
+        (run_dir / "checkpoints" / "not-a-checkpoint").mkdir()
+
+        result = subprocess.run(
+            ["bash", str(self.source / "train_rtc.sh"), "--name", "rtc_resume", "--resume", str(config)],
+            env=env, capture_output=True, text=True, timeout=10,
+        )
+        self.assertEqual(result.returncode, 17, result.stderr)
+        self.assertIn("Resuming from latest checkpoint", result.stdout)
+        args = args_file.read_text().splitlines()
+        self.assertEqual(args[-4:], ["--train.output_dir", str(run_dir), "--train.enable_resume", "true"])
+
+    def test_launcher_requires_explicit_mode_for_existing_run(self):
+        config, args_file, env = self.launcher_fixture()
+        run_dir = self.root / "checkpoints/lingbot-vla-v2-6b-robotwin-rtc"
+        run_dir.mkdir(parents=True)
+        (run_dir / "partial.log").write_text("partial run")
+
+        result = subprocess.run(
+            ["bash", str(self.source / "train_rtc.sh"), str(config)],
+            env=env, capture_output=True, text=True, timeout=10,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Use --resume or --overwrite explicitly", result.stderr)
+        self.assertFalse(args_file.exists())
+
+    def test_launcher_resume_requires_a_checkpoint(self):
+        config, args_file, env = self.launcher_fixture()
+        result = subprocess.run(
+            ["bash", str(self.source / "train_rtc.sh"), "--name", "rtc_missing", "--resume", str(config)],
+            env=env, capture_output=True, text=True, timeout=10,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("No global_step_N checkpoint found", result.stderr)
+        self.assertFalse(args_file.exists())
 
     def test_prepare_only_does_not_start_distributed_training(self):
         config, args_file, env = self.launcher_fixture()

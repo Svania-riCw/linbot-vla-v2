@@ -147,13 +147,15 @@ For RTC training on the local clean RoboTwin LeRobot data, use the source
 repository's launcher on the `lmx_rtc` branch:
 
 ```bash
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 bash train_rtc.sh
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 bash train_rtc.sh --name rtc_moge_run01
 ```
 
 This prepares the official base model and clean normalization statistics,
 with `16 × 8 × 1 = 128` batch settings. MoGe, MoRGBD, and DINO-video auxiliary
 teacher losses are enabled by default; checkpoints are saved every 1,000 steps.
-See [RTC training](docs/rtc.md) for setup, configuration, and tests.
+Use `--resume` to continue this named run, or `--overwrite` to delete only its
+output directory and restart. See [RTC training](docs/rtc.md) for checkpoint
+paths, setup, configuration, and tests.
 
 We provide a post-training example of **LingBot-VLA 2.0** on RoboTwin 2.0 50 tasks with clean and randomized data:
 

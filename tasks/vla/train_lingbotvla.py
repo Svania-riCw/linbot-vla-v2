@@ -715,9 +715,12 @@ def main():
     if max_steps_driven:
         data_loader_tqdm = trange(
             args.train.max_steps,
-            bar_format="Step: {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]{postfix}",
+            desc="RTC train" if args.train.training_time_rtc else "Train",
+            unit="step",
+            dynamic_ncols=True,
+            bar_format="{desc}: {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]{postfix}",
             initial=global_step,
-            disable=args.train.local_rank != 0,
+            disable=args.train.global_rank != 0,
         )
     for epoch in range(start_epoch, args.train.num_train_epochs):
         current_epoch_for_eval = epoch + 1
@@ -728,9 +731,11 @@ def main():
             data_loader_tqdm = trange(
                 args.train.train_steps,
                 desc=f"Epoch {epoch + 1}/{args.train.num_train_epochs}",
+                unit="step",
+                dynamic_ncols=True,
                 total=args.train.train_steps,
                 initial=start_step,
-                disable=args.train.local_rank != 0,
+                disable=args.train.global_rank != 0,
             )
         data_iterator = iter(train_dataloader)
         for epoch_step in range(start_step, args.train.train_steps):
@@ -918,6 +923,9 @@ def main():
                 lr = max(all_lrs)
                 expert_lr = None
             train_metrics = environ_meter.step(delta_time, global_step=global_step)
+            data_loader_tqdm.set_postfix(
+                loss=f"{total_loss:.4f}", lr=f"{lr:.2e}", refresh=False
+            )
             data_loader_tqdm.update()
             expert_lr_str = f"Expert_LR {expert_lr:.2e}, " if expert_lr is not None else ""
             maxvio_val = loss_log.get("moe_summary/maxvio_avg", loss_log.get("token_moe/avg_maxvio", None))
