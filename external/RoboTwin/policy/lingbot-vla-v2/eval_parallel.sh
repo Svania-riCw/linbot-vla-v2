@@ -232,24 +232,9 @@ WORKER_PIDS=()
 RESULT="${RUN_DIR}/_result.txt"
 echo -e "\n\033[32m======== EVAL SUMMARY (${MODEL_NAME}) ========\033[0m"
 if [ -f "${RESULT}" ]; then
-    sort "${RESULT}" | column -t
-    python - "${RESULT}" "${#JOB_ARR[@]}" <<'PY'
-import sys
-from collections import defaultdict
-path, n_units = sys.argv[1], int(sys.argv[2])
-per_case = defaultdict(lambda: [0, 0]); suc = tot = lines = 0
-for line in open(path):
-    parts = line.rstrip("\n").split("\t")
-    if len(parts) >= 3 and "/" in parts[2]:
-        s, t = (int(x) for x in parts[2].split("/"))
-        per_case[parts[1]][0] += s; per_case[parts[1]][1] += t
-        suc += s; tot += t; lines += 1
-for case in sorted(per_case):
-    s, t = per_case[case]
-    print(f"\n{case.upper():>8}: {s}/{t} = {s/t*100:.1f}%")
-if tot:
-    print(f"\nOVERALL: {suc}/{tot} = {suc/tot*100:.1f}%  over {lines}/{n_units} units")
-PY
+    # Rewrites _result.txt in place: unit lines sorted + all_clean/all_random/all averages.
+    python script/summarize_result.py "${RESULT}"
+    echo "units with a result: $(grep -vc '^#' "${RESULT}")/${#JOB_ARR[@]}"
 else
     echo "no _result.txt produced (all units failed to run; check per-unit .log files)"
 fi

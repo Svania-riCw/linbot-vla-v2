@@ -334,6 +334,10 @@ def eval_policy(task_name,
         # task_total_reward += TASK_ENV.episode_score
         if TASK_ENV.eval_video_path is not None:
             TASK_ENV._del_eval_video_ffmpeg()
+            # Tag the outcome in the file name: episodeN.mp4 -> episodeN_{success,fail}.mp4.
+            video = Path(TASK_ENV.eval_video_path) / f"episode{TASK_ENV.test_num}.mp4"
+            if video.exists():
+                video.rename(video.with_name(f"episode{TASK_ENV.test_num}_{'success' if succ else 'fail'}.mp4"))
 
         if succ:
             TASK_ENV.suc += 1
