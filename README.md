@@ -8,6 +8,14 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-green"></a>
 </p>
 
+## LMX RTC branch
+
+This branch adds RTC training and optional asynchronous RoboTwin inference.
+See [RTC training and evaluation](docs/rtc.md#asynchronous-robotwin-evaluation)
+for the local `eval_rtc.sh` command, normalized-prefix alignment, environment
+settings, and resumable success-rate evaluation. Local and remote servers use
+the same protocol. Ordinary synchronous inference remains available.
+
 ## Overview
 
 **LingBot-VLA 2.0** is a practical Vision-Language-Action foundation model designed to move from large-scale pre-training toward reliable real-world robot applications.

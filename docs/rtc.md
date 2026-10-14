@@ -141,3 +141,109 @@ Tests check RTC masks, tokenwise conditioning, default-off behavior, prefix
 clamping, config parsing, batch arithmetic, no-teacher preparation, optional
 teacher preparation, checkpoint interval, and actual normalizer wiring.
 These checks do not run a full training job or measure task success.
+
+## Asynchronous RoboTwin evaluation
+
+The `lmx_rtc` branch now includes an opt-in, single-flight RTC evaluator.
+Inference runs in a background client thread while the main thread executes
+old targets. SAPIEN observation, rendering, and `take_action` stay on the main
+thread. The server can run locally or remotely and handles one request at a time.
+Ordinary requests without `_rtc` retain the synchronous chunk behavior.
+
+The initial request returns the full raw `(50, 14)` execution plan and normalized
+`(50, 55)` model plan. With defaults `replan_steps=8`, `delay=6`, execution is:
+
+```text
+Execute A[0:8]. Observe at target step 8 and request B.
+Fix normalized B[0:6] to normalized A[8:14].
+While B is computed, execute A[8:14].
+Install B and continue at B[6], without replaying B[0:6].
+After 8 further targets, repeat using the current plan's actual cursor.
+```
+
+An early response is installed only after all committed targets execute.
+A late response stalls further target execution until it arrives. It never
+silently executes beyond the committed prefix. Delay counts RoboTwin joint
+targets, not milliseconds or 25 Hz ticks: each target uses the unchanged TOPP
+trajectory execution and a variable number of physics steps. This overlaps
+work but does not implement hard real-time control or guarantee a speedup.
+
+The server requires an RTC-trained config, finite full-dimensional normalized
+plans, and `0 <= delay < training_time_rtc_max_delay` (this checkpoint: 0..9).
+The scheduler checks request IDs and prefix continuity. It drains pending
+requests before episode reset. A timeout or RPC error interrupts the episode;
+it is restarted on resume rather than counted as a task failure.
+
+### Local command on the evaluation machine
+
+```bash
+bash /home/asus/lmx/lingbot-vla-v2/eval_rtc.sh \
+  /home/asus/lmx/checkpoints/global_step_5000/hf_ckpt \
+  /home/asus/lmx/checkpoints/Qwen3-VL-4B-Instruct \
+  demo_clean \
+  --task_name stack_bowls_three \
+  --num_episodes 1 \
+  --rtc_replan_steps 8 --rtc_delay 6 \
+  --run_dir /home/asus/lmx/RoboTwin/eval_results/step5000_rtc_stack_bowls_three
+```
+
+The standalone wrapper detects the Conda base directory. Defaults are
+`lingbotvla` for inference and `robotwin-eval` for simulation, BF16, compilation
+off, and CPU offload for the embedding and first 12 language MLP layers.
+For a larger GPU, set `LINGBOT_CPU_OFFLOAD_MLP_LAYERS=0`; for other environments
+or directories use `INFERENCE_ENV`, `SIM_ENV`, `CONDA_SH`, and `EVAL_WORKDIR`.
+Video is enabled by default, with success/fail filenames. This machine's
+RoboTwin already records continuous physics-step video; an unmodified upstream
+RoboTwin uses its own recording implementation. Headless rendering still needs
+GPU memory. Avoid running unrelated GPU workloads during evaluation.
+
+Without `LINGBOT_INFERENCE_CONFIG`, `tools/render_robotwin_inference_config.py`
+reads the exported checkpoint architecture and the RoboTwin data recipe into
+`.runtime/`. An explicit training YAML takes priority. Specify the actual
+training normalization with `LINGBOT_NORM_STATS_FILE=/path/to/stats.json`
+when generating a config, and `LINGBOT_DATA_CONFIG=/path/to/training.yaml` if
+the data representation differs. With an explicit inference YAML, edit its
+`data.norm_stats_file` directly. Default `assets/norm_stats/robotwin.json` is
+only a fallback; step5000's actual training stats have not been verified on
+this machine, so a run using that fallback validates deployment but cannot
+establish a reliable checkpoint success rate.
+
+Repeat the identical command to resume completed episodes (both successes
+and failures). `--num_episodes 25` can extend the same run. The run manifest
+includes RTC mode, delay and replan interval; use a new directory if these,
+the model, inference YAML or other evaluation settings change. Logs contain
+`[rtc] request/install/wait/summary` entries, including latency, waiting time,
+request count, and stalls. `stats.txt` reports success / completed episodes.
+RoboTwin expert-seed checks, task success conditions, and trajectory planning
+remain in use. This RTC scheduler is a custom inference mode, not the official
+synchronous baseline; compare them using separate run directories.
+
+For the usual seven tasks, replace `--task_name` with:
+
+```bash
+--tasks stack_blocks_three,blocks_ranking_rgb,pick_diverse_bottles,place_shoe,rotate_qrcode,open_laptop,hanging_mug \
+--num_episodes 25
+```
+
+Run once with `demo_clean` and once with `demo_randomized`, using separate run
+directories. To run synchronously use the existing deployment `eval.sh` or
+call `experiment/robotwin/start_robotwin_infer_and_eval.sh` without `--rtc_async`.
+
+### Protocol and checks
+
+`_rtc` is a mapping with `request_id`, integer `delay`, and optional
+`previous_actions`. The bootstrap uses delay 0 and no previous plan. RTC responses
+contain `_rtc_request_id` and NumPy `_normalized_actions` in addition to raw action
+keys and `server_timing`. RTC always samples a full fresh plan regardless of
+ordinary cache and `use_length`. Only one connection/request should control a
+server slot because episode state is shared by the policy.
+
+```bash
+conda activate lingbotvla
+python -m unittest discover -s tests -p 'test_async_rtc.py' -v
+python -m unittest discover -s tests -p 'test_rtc*.py' -v
+```
+
+Checks cover multi-plan action alignment, real thread overlap, detached camera
+buffers, reset isolation, stale/corrupt responses, timeout cleanup, RPC validation,
+server-to-sampler parameter forwarding, and incompatible resume rejection.

@@ -100,6 +100,8 @@ class PolicyPreprocessMixin:
         use_compile: bool = False,
         capture_time: bool = False,
         sample_compile_fn: callable = None,
+        previous_actions=None,
+        rtc_delay=None,
     ) -> Tensor:
         """Run one model forward for a batch of already-transformed observations.
 
@@ -131,6 +133,10 @@ class PolicyPreprocessMixin:
         if state.ndim == 1:
             state = state.unsqueeze(0)
 
+        rtc_kwargs = {}
+        if previous_actions is not None:
+            rtc_kwargs = dict(previous_actions=previous_actions.to(device=device, dtype=dtype),
+                              rtc_delay=rtc_delay)
         if capture_time:
             with torch.inference_mode():
                 for _ in range(3):
@@ -141,6 +147,7 @@ class PolicyPreprocessMixin:
                             lang_masks.to(device=device),
                             state.to(dtype=dtype, device=device),
                             image_grid_thw=self._to_device_image_grid_thw(image_grid_thw, device),
+                            **rtc_kwargs,
                     )
                 torch.cuda.synchronize()
 
@@ -156,6 +163,7 @@ class PolicyPreprocessMixin:
                                     lang_masks.to(device=device),
                                     state.to(dtype=dtype, device=device),
                                     image_grid_thw=self._to_device_image_grid_thw(image_grid_thw, device),
+                                    **rtc_kwargs,
                     )
                     ends[i].record()
                 torch.cuda.synchronize()
@@ -169,6 +177,7 @@ class PolicyPreprocessMixin:
                             lang_masks.to(device=device),
                             state.to(dtype=dtype, device=device),
                             image_grid_thw=self._to_device_image_grid_thw(image_grid_thw, device),
+                            **rtc_kwargs,
             )
 
         delta_time = time.time() - s1
@@ -217,6 +226,8 @@ class LingbotVLAv2Server:
             self.vla.model.float()
             self.vla = self.vla.cuda().eval()
 
+        self.configure_cpu_offload()
+
         self.global_step = 0
         self.last_action_chunk = None
         self.last_normalized_action_chunk = None
@@ -224,15 +235,44 @@ class LingbotVLAv2Server:
         self.use_fp32 = use_fp32
         self.action_key: str= "action"
 
-    def load_model_weights(self, path_to_pi_model, strict=True):
-        all_safetensors = glob(os.path.join(path_to_pi_model, "*.safetensors"))
-        merged_weights = {}
+    def configure_cpu_offload(self):
+        count = int(os.environ.get('LINGBOT_CPU_OFFLOAD_MLP_LAYERS', '0'))
+        if count == 0:
+            return
+        if self.use_compile:
+            raise ValueError('CPU offload requires use_compile=False')
+        from accelerate import cpu_offload
+        backbone = self.vla.model.qwenvl_with_expert.qwenvl.model.language_model
+        if not 1 <= count <= len(backbone.layers):
+            raise ValueError('Invalid LINGBOT_CPU_OFFLOAD_MLP_LAYERS')
+        for layer in backbone.layers[:count]:
+            cpu_offload(layer.mlp, execution_device=torch.device('cuda'))
+        cpu_offload(backbone.embed_tokens, execution_device=torch.device('cuda'))
+        torch.cuda.empty_cache()
+        print(f'CPU weight offload enabled: embedding and {count} language MLP layers.', flush=True)
 
-        for file_path in tqdm(all_safetensors):
+    def load_model_weights(self, path_to_pi_model, strict=True):
+        all_safetensors = sorted(glob(os.path.join(path_to_pi_model, "*.safetensors")))
+        if not all_safetensors:
+            raise FileNotFoundError(f"No safetensors weights in {path_to_pi_model}")
+        expected = self.vla.state_dict()
+        loaded = set()
+        # Validate every tensor before copying, without retaining all FP32 shards.
+        for file_path in all_safetensors:
             with safe_open(file_path, framework="pt", device="cpu") as f:
                 for key in f.keys():
-                    merged_weights[key] = f.get_tensor(key)
-        self.vla.load_state_dict(merged_weights, strict=strict)
+                    if key in loaded:
+                        raise ValueError(f"Duplicate checkpoint key: {key}")
+                    loaded.add(key)
+                    if key in expected and tuple(f.get_slice(key).get_shape()) != tuple(expected[key].shape):
+                        raise ValueError(f"Shape mismatch for {key}")
+        if strict and loaded != set(expected):
+            raise ValueError(f"Checkpoint mismatch: missing={set(expected) - loaded}, unexpected={loaded - set(expected)}")
+        for file_path in tqdm(all_safetensors, desc="Loading validated shards"):
+            weights = load_file(file_path, device="cpu")
+            self.vla.load_state_dict(weights, strict=False)
+            del weights
+        print(f"Strictly validated and loaded {len(loaded)} checkpoint tensors.")
 
     def merge_qwen_config(self, qwen_config):
         if hasattr(qwen_config, 'to_dict'):
@@ -273,7 +313,8 @@ class LingbotVLAv2Server:
         print(f"loading model from: {path_to_pi_model}")
         
         # load training config
-        training_config_path = Path(path_to_pi_model).parent.parent.parent/'lingbotvla_cli.yaml'
+        training_config_path = Path(os.environ.get('LINGBOT_INFERENCE_CONFIG') or
+                                    Path(path_to_pi_model).parent.parent.parent/'lingbotvla_cli.yaml')
         with open(training_config_path, 'r') as f:
             training_config = yaml.safe_load(f)
         f.close()
@@ -315,7 +356,13 @@ class LingbotVLAv2Server:
         
         print('Initializing model ... ')
 
-        self.vla = LingBotVlaV2InferencePolicy(config, eval=True)
+        previous_dtype = torch.get_default_dtype()
+        try:
+            if os.environ.get('LINGBOT_LOAD_DTYPE') == 'bfloat16':
+                torch.set_default_dtype(torch.bfloat16)
+            self.vla = LingBotVlaV2InferencePolicy(config, eval=True)
+        finally:
+            torch.set_default_dtype(previous_dtype)
 
         self.load_model_weights(path_to_pi_model, strict=True)
         
@@ -345,6 +392,7 @@ class LingbotVLAv2Server:
                 #fp32
                 self.vla.model.float()
                 self.vla = self.vla.cuda().eval()
+            self.configure_cpu_offload()
 
         self.global_step = 0
         self.last_action_chunk = None
@@ -432,7 +480,7 @@ class LingbotVLAv2Server:
             return torch.stack(padded, dim=0)
 
         raise ValueError(f"Cannot batch tensors with different shapes: {shapes}")
-    def _infer_batch(self, observations, return_normalized=False):
+    def _infer_batch(self, observations, return_normalized=False, previous_actions=None, rtc_delay=None):
         if not isinstance(observations, (list, tuple)) or len(observations) == 0:
             raise ValueError("batch observation must be a non-empty list")
         applied = [self._prepare_model_input(obs) for obs in observations] # bsize, dict{key }
@@ -451,6 +499,7 @@ class LingbotVLAv2Server:
             self.use_compile,
             capture_time=False,
             sample_compile_fn = self.sample_actions_fn,
+            previous_actions=previous_actions, rtc_delay=rtc_delay,
         )
         
         unnormalized_actions = self._unapply_batched_actions(applied, actions)
@@ -467,8 +516,23 @@ class LingbotVLAv2Server:
             self.reset(robo_name=observation['robo_name'], path_to_pi_model=observation['path_to_pi_model'] if 'path_to_pi_model' in observation else None)
             return dict(action = None)
 
+        observation = dict(observation)
+        rtc = observation.pop('_rtc', None)
+        return_normalized = bool(observation.pop('_return_normalized', return_normalized))
         is_batch = 'batch' in observation
         observations = observation['batch'] if is_batch else [observation]
+        if rtc is not None:
+            from deploy.rtc_protocol import validate_rtc_request
+            previous, delay, request_id = validate_rtc_request(rtc, self.config, len(observations))
+            previous = torch.from_numpy(previous.copy()) if previous is not None else None
+            # RTC always samples a fresh full plan, independently of the ordinary action cache.
+            result, normalized = self._infer_batch(observations, return_normalized=True,
+                                                   previous_actions=previous, rtc_delay=delay)
+            if not is_batch:
+                result = {key: value[0] for key, value in result.items()}
+                normalized = normalized[0]
+            return dict(result, _normalized_actions=normalized.numpy(),
+                        _rtc_request_id=request_id)
         if not self.chunk_ret and self.use_length <= 0:
             raise ValueError(f"use_length must be > 0 when chunk_ret=False, got {self.use_length}")
         should_forward = (
@@ -522,7 +586,7 @@ class LingbotVLAv2Server:
         result = action
         if return_normalized:
             result = dict(result)
-            result["_normalized_actions"] = normalized_action
+            result["_normalized_actions"] = normalized_action.numpy() if normalized_action is not None else None
 
         self.global_step += 1
         
@@ -545,6 +609,7 @@ except ImportError:
 
 def main():
     parser = argparse.ArgumentParser(description="Launch the Qwen3VL LingbotVlaV2 WebSocket policy server")
+    parser.add_argument('--host', default='0.0.0.0', help='Address to bind the policy server')
 
     parser.add_argument(
         "--model_path",
@@ -600,7 +665,7 @@ def main():
         use_fp32=args.use_fp32,
         use_compile=args.use_compile,
     )
-    model_server = WebsocketPolicyServer(model, port=args.port)
+    model_server = WebsocketPolicyServer(model, host=args.host, port=args.port)
     model_server.serve_forever()
 
 

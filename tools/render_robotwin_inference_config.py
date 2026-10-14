@@ -1,0 +1,57 @@
+"""Render an exported hf_ckpt for RoboTwin without changing its architecture."""
+import argparse
+import json
+import os
+from pathlib import Path
+import sys
+
+import yaml
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def render(checkpoint, qwen, output, norm_stats=None, data_config=None):
+    checkpoint, qwen, output = map(lambda p: Path(p).resolve(), (checkpoint, qwen, output))
+    if (checkpoint / 'hf_ckpt').is_dir():
+        checkpoint /= 'hf_ckpt'
+    model = json.loads((checkpoint / 'config.json').read_text())
+    for key in ('post_training', 'max_action_dim', 'max_state_dim', 'token_moe_layers'):
+        if key not in model:
+            raise ValueError(f'Incomplete exported config: {key}; use original training YAML')
+    if not list(checkpoint.glob('*.safetensors')) or not (qwen / 'config.json').is_file():
+        raise ValueError('Checkpoint safetensors or Qwen config is missing')
+    model.update(model_path=str(checkpoint), tokenizer_path=str(qwen), use_compile=False)
+    source = Path(data_config) if data_config else ROOT / 'configs/vla/robotwin/robotwin.yaml'
+    data = yaml.safe_load(source.read_text())['data']
+    for key in ('joints', 'norm_type'):
+        data[key] = [str(item) if isinstance(item, dict) else item for item in data[key]]
+    norm = Path(norm_stats or data.get('norm_stats_file') or ROOT / 'assets/norm_stats/robotwin.json').resolve()
+    if not norm.is_file():
+        raise ValueError(f'Normalization statistics are missing: {norm}')
+    data['norm_stats_file'] = str(norm)
+    content = yaml.safe_dump(dict(model=model, data=data, train={}), sort_keys=False)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    if not output.exists() or output.read_text() != content:
+        temporary = output.with_suffix('.tmp')
+        temporary.write_text(content)
+        os.replace(temporary, output)
+    print(f'Normalization statistics: {norm}; verify these match checkpoint training.', file=sys.stderr)
+    return output
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--checkpoint', required=True)
+    parser.add_argument('--qwen', required=True)
+    parser.add_argument('--output', required=True)
+    parser.add_argument('--norm-stats', default=os.environ.get('LINGBOT_NORM_STATS_FILE'))
+    parser.add_argument('--data-config', default=os.environ.get('LINGBOT_DATA_CONFIG'))
+    args = parser.parse_args()
+    try:
+        print(render(args.checkpoint, args.qwen, args.output, args.norm_stats, args.data_config))
+    except (OSError, ValueError, KeyError) as error:
+        parser.exit(2, f'Error: {error}\n')
+
+
+if __name__ == '__main__':
+    main()

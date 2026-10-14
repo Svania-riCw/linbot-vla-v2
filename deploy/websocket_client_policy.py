@@ -14,10 +14,11 @@ class WebsocketClientPolicy:
     See WebsocketPolicyServer for a corresponding server implementation.
     """
 
-    def __init__(self, host: str = "0.0.0.0", port: Optional[int] = None, api_key: Optional[str] = None) -> None:
+    def __init__(self, host: str = "0.0.0.0", port: Optional[int] = None, api_key: Optional[str] = None, request_timeout: float = 180.0) -> None:
         self._uri = f"ws://{host}"
         if port is not None:
             self._uri += f":{port}"
+        self._request_timeout = request_timeout
         self._packer = Packer()
         self._api_key = api_key
         self._ws, self._server_metadata = self._wait_for_server()
@@ -50,11 +51,14 @@ class WebsocketClientPolicy:
     def infer(self, obs: Dict) -> Dict:  # noqa: UP006
         data = self._packer.pack(obs)
         self._ws.send(data)
-        response = self._ws.recv()
+        response = self._ws.recv(timeout=self._request_timeout)
         if isinstance(response, str):
             # we're expecting bytes; if the server sends a string, it's an error.
             raise RuntimeError(f"Error in inference server:\n{response}")
         return unpackb(response)
+
+    def close(self) -> None:
+        self._ws.close()
 
     @override
     def reset(self, robo_name: str) -> None:

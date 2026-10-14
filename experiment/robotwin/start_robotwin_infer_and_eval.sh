@@ -13,15 +13,20 @@
 #   --sim_env           sim-side conda env (default: RoboTwin, or $SIM_ENV)
 #   --conda_sh          conda.sh path to source (default: /path/to/miniconda3/etc/profile.d/conda.sh, or $CONDA_SH)
 #   --output_base       result output path (default: /path/to/VLABenchmarkResult, or $OUTPUT_BASE)
+#   --run_dir           fixed run directory; rerun with the same directory to resume
 #   --start_port        starting port (default: 9330)
 #   --pid_name          PID file prefix (default: test_pid)
 #   --num_tasks         number of sim tasks, taken in order from the task list (default: 50, max: 50)
+#   --task_name         evaluate one named task
+#   --tasks             comma-separated or quoted space-separated named tasks (overrides --num_tasks)
+#   --list_tasks        print available task names and exit
 #   --num_gpus          total GPUs (default: 1)
 #   --num_per_gpu       inference servers per GPU (default: 1)
 #   --use_length        chunk length (default: 50)
 #   --robo_name         robot config name (default: robotwin)
-#   --video_fps         video recording fps (default: 10)
+#   --video_fps         video recording fps (default: 30)
 #   --no_video          disable video recording to speed up simulation
+#   --video             enable video recording (default: enabled)
 #   --use_bf16          use bfloat16 inference (default: False)
 #   --use_fp32          use float32 inference (default: True; release reproduction setting)
 #   --use_compile       enable model compile in policy inference (default: True)
@@ -42,6 +47,7 @@ inference_script="deploy/lingbot_vla_v2_policy.py"
 model_path="${MODEL_PATH:-/path/to/your/checkpoint}"
 eval_workdir="${EVAL_WORKDIR:-/path/to/RoboTwin}"
 output_base="${OUTPUT_BASE:-/path/to/VLABenchmarkResult}"
+run_dir=""
 # Conda env names + conda.sh path for both sides (overridable via flags or env).
 inference_env="${INFERENCE_ENV:-lingbotvla}"
 sim_env="${SIM_ENV:-RoboTwin}"
@@ -49,6 +55,9 @@ conda_sh="${CONDA_SH:-/path/to/miniconda3/etc/profile.d/conda.sh}"
 start_port=9330
 pid_name="test_pid"
 num_tasks=50
+num_episodes=100
+selected_tasks=""
+list_tasks=false
 num_gpus=1
 num_per_gpu=1
 use_length=50
@@ -56,11 +65,15 @@ use_bf16=False
 use_fp32=True
 use_compile=True
 robo_name="robotwin"
-video_fps=10
+video_fps=30
 enable_video=True
+rtc_async=False
+rtc_replan_steps=8
+rtc_delay=6
+rtc_timeout=180
 keep_inference=false
-enable_video=False
 task_config="${TASK_CONFIG:-demo_clean}"
+instruction_type="${INSTRUCTION_TYPE:-}"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -69,19 +82,34 @@ while [[ $# -gt 0 ]]; do
         --model_path)        model_path="$2";        shift 2 ;;
         --eval_workdir)      eval_workdir="$2";      shift 2 ;;
         --output_base)       output_base="$2";       shift 2 ;;
+        --run_dir)           run_dir="$2";           shift 2 ;;
         --start_port)        start_port="$2";        shift 2 ;;
         --pid_name)          pid_name="$2";          shift 2 ;;
         --num_tasks)         num_tasks="$2";         shift 2 ;;
+        --num_episodes)      num_episodes="$2";      shift 2 ;;
+        --task_name|--tasks)
+            if [[ $# -lt 2 || -z "${2//[[:space:],]/}" ]]; then
+                echo "$1 requires at least one task name." >&2
+                exit 2
+            fi
+            selected_tasks="${selected_tasks:+$selected_tasks,}$2"; shift 2 ;;
+        --list_tasks)        list_tasks=true;         shift ;;
         --num_gpus)          num_gpus="$2";          shift 2 ;;
         --num_per_gpu)       num_per_gpu="$2";       shift 2 ;;
+        --rtc_async)         rtc_async=True; shift ;;
+        --rtc_replan_steps)  rtc_replan_steps="$2"; shift 2 ;;
+        --rtc_delay)         rtc_delay="$2"; shift 2 ;;
+        --rtc_timeout)       rtc_timeout="$2"; shift 2 ;;
         --use_length)        use_length="$2";        shift 2 ;;
         --use_bf16)          use_bf16="$2";        shift 2 ;;
         --use_fp32)          use_fp32="$2";        shift 2 ;;
         --use_compile)       use_compile="$2";     shift 2 ;;
         --robo_name)         robo_name="$2";         shift 2 ;;
         --task_config)       task_config="$2";       shift 2 ;;
+        --instruction_type)  instruction_type="$2";  shift 2 ;;
         --video_fps)         video_fps="$2";         shift 2 ;;
         --no_video)          enable_video=False;     shift ;;
+        --video)             enable_video=True;      shift ;;
         --keep_inference)    keep_inference=true;    shift ;;
         --inference_env)     inference_env="$2";     shift 2 ;;
         --sim_env)           sim_env="$2";           shift 2 ;;
@@ -96,26 +124,129 @@ while [[ $# -gt 0 ]]; do
             echo "  --sim_env           sim-side conda env (default: RoboTwin, or \$SIM_ENV)"
             echo "  --conda_sh          conda.sh path to source (default: /path/to/miniconda3/etc/profile.d/conda.sh, or \$CONDA_SH)"
             echo "  --output_base       result output path"
+            echo "  --run_dir           fixed run directory; automatically resume saved episodes"
             echo "  --start_port        starting port (default: 9330)"
             echo "  --pid_name          PID file prefix (default: test_pid)"
             echo "  --num_tasks         number of sim tasks (default: 50, max: 50)"
+            echo "  --num_episodes      evaluation episodes per task (default: 100)"
+            echo "  --task_name         evaluate one named task"
+            echo "  --tasks             comma-separated or quoted space-separated task names; overrides --num_tasks"
+            echo "  --list_tasks        print available task names and exit"
             echo "  --num_gpus          total GPUs (default: 1)"
             echo "  --num_per_gpu       inference servers per GPU (default: 1)"
+            echo "  --rtc_async         overlap inference with committed old-plan actions"
+            echo "  --rtc_replan_steps  new actions before replanning (default: 8)"
+            echo "  --rtc_delay         committed prefix targets (default: 6; trained range: 0..9)"
+            echo "  --rtc_timeout       request timeout seconds (default: 180)"
             echo "  --use_length        chunk length (default: 50)"
             echo "  --use_bf16          use bfloat16 inference (default: False)"
             echo "  --use_fp32          use float32 inference (default: True; release reproduction setting)"
             echo "  --use_compile       enable model compile (default: True)"
             echo "  --robo_name         robot config name (default: robotwin)"
             echo "  --task_config       RoboTwin task config (default: demo_clean)"
+            echo "  --instruction_type  seen or unseen (defaults: clean=seen, randomized=unseen)"
             echo "  --keep_inference    keep inference servers resident after simulation"
-            echo "  --video_fps         video recording fps (default: 10)"
+            echo "  --video_fps         video recording fps (default: 30)"
             echo "  --no_video          disable video recording to speed up simulation"
+            echo "  --video             enable video recording (default: enabled)"
             exit 0 ;;
         *)
             echo -e "\033[31mUnknown argument: $1\033[0m"; exit 1 ;;
     esac
 done
 
+if [ -z "$instruction_type" ]; then
+    if [ "$task_config" = demo_clean ]; then
+        instruction_type=seen
+    else
+        instruction_type=unseen
+    fi
+fi
+case "$instruction_type" in
+    seen|unseen) ;;
+    *) echo "instruction_type must be seen or unseen" >&2; exit 2 ;;
+esac
+if ! [[ "$num_episodes" =~ ^[1-9][0-9]*$ ]]; then
+    echo "num_episodes must be a positive integer." >&2
+    exit 2
+fi
+
+if ! [[ "$rtc_replan_steps" =~ ^[1-9][0-9]*$ && "$rtc_delay" =~ ^[0-9]+$ ]]; then
+    echo 'RTC replan steps must be positive and delay nonnegative integers' >&2; exit 2
+fi
+# ===== Select and validate tasks before starting environments or services =====
+task_list_all=("lift_pot" "hanging_mug" "stack_bowls_three" "scan_object" "handover_block" "click_bell" "put_object_cabinet" "open_microwave" "stack_blocks_three" "place_shoe" "adjust_bottle" "beat_block_hammer" "blocks_ranking_rgb" "blocks_ranking_size" "click_alarmclock" "dump_bin_bigbin" "grab_roller" "handover_mic" "move_can_pot" "move_pillbottle_pad" "move_playingcard_away" "place_cans_plasticbox" "place_container_plate" "place_dual_shoes" "place_empty_cup" "place_fan" "place_mouse_pad" "place_object_basket" "place_object_scale" "place_object_stand" "place_phone_stand" "move_stapler_pad" "open_laptop" "pick_diverse_bottles" "pick_dual_bottles" "place_a2b_left" "place_a2b_right" "place_bread_basket" "place_bread_skillet" "place_burger_fries" "place_can_basket" "press_stapler" "rotate_qrcode" "shake_bottle_horizontally" "shake_bottle" "stack_blocks_two" "stack_bowls_two" "stamp_seal" "turn_switch" "put_bottles_dustbin")
+if $list_tasks; then
+    printf '%s\n' "${task_list_all[@]}"
+    exit 0
+fi
+
+task_queue=()
+if [ -n "$selected_tasks" ]; then
+    read -r -a requested_tasks <<< "${selected_tasks//,/ }"
+    for task in "${requested_tasks[@]}"; do
+        valid=false
+        for known in "${task_list_all[@]}"; do
+            if [ "$task" = "$known" ]; then valid=true; break; fi
+        done
+        if ! $valid; then
+            echo "Unknown task: $task. Use --list_tasks to see available names." >&2
+            exit 2
+        fi
+        for queued in "${task_queue[@]}"; do
+            if [ "$task" = "$queued" ]; then
+                echo "Duplicate task: $task" >&2
+                exit 2
+            fi
+        done
+        task_queue+=("$task")
+    done
+    num_tasks=${#task_queue[@]}
+    if [ "$num_tasks" -eq 0 ]; then
+        echo "Provide at least one task name." >&2
+        exit 2
+    fi
+else
+    if ! [[ "$num_tasks" =~ ^([1-9]|[1-4][0-9]|50)$ ]]; then
+        echo "num_tasks must be an integer from 1 to 50." >&2
+        exit 2
+    fi
+    task_queue=("${task_list_all[@]:0:num_tasks}")
+fi
+echo -e "\033[36mTasks this run (${num_tasks}): ${task_queue[*]}\033[0m"
+
+# Prepare resume state before loading the model or initializing the simulator.
+requested_task_queue=("${task_queue[@]}")
+batch_time=$(date +%Y%m%d_%H%M%S)
+_exp_name=$(echo "$model_path" | grep -oP '[^/]+(?=/checkpoints)')
+_step_num=$(echo "$model_path" | grep -oP 'global_step_\K\d+')
+_step_k=$(( _step_num / 1000 ))k
+run_dir="${run_dir:-${output_base}/${_exp_name}_${_step_k}_${task_config}_${batch_time}}"
+mkdir -p "$run_dir"
+run_dir=$(realpath "$run_dir")
+# Lock the directory for this invocation and all child workers.
+exec 9>"$run_dir/.run.lock"
+flock -n 9 || { echo "Run directory already in use: $run_dir" >&2; exit 2; }
+checkpoint_tool="${inference_workdir%/}/experiment/robotwin/eval_checkpoint.py"
+inference_config="${LINGBOT_INFERENCE_CONFIG:-}"
+if [ -z "$inference_config" ]; then
+    inference_config=$(python3 -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).parent.parent.parent / "lingbotvla_cli.yaml")' "$model_path")
+fi
+python3 "$checkpoint_tool" prepare --run-dir "$run_dir" --model "$model_path" \
+    --config "$inference_config" --setting "$task_config" --instruction "$instruction_type" \
+    --task-config-file "$eval_workdir/task_config/$task_config.yml" \
+    --rtc-async "$rtc_async" --rtc-replan-steps "$rtc_replan_steps" --rtc-delay "$rtc_delay" \
+    --length "$use_length" --robo-name "$robo_name" \
+    --precision "$use_bf16/$use_fp32/$use_compile" --episodes "$num_episodes" \
+    --tasks "${requested_task_queue[@]}" || exit $?
+run_id=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["run_id"])' "$run_dir/resume_plan.json")
+mapfile -t task_queue < <(python3 -c 'import json,sys; print("\n".join(json.load(open(sys.argv[1]))["pending"]), end="")' "$run_dir/resume_plan.json")
+if [ ${#task_queue[@]} -eq 0 ]; then
+    echo "All selected tasks already complete; inference server is not started."
+    python3 "$checkpoint_tool" stats --run-dir "$run_dir" --episodes "$num_episodes" --tasks "${requested_task_queue[@]}"
+    exit $?
+fi
+num_tasks=${#task_queue[@]}
 
 # ===== Common environment =====
 # Cleanup: kill all child processes on exit / Ctrl-C / kill
@@ -148,9 +279,12 @@ cleanup() {
             fi
         done
     done
+    python3 "$checkpoint_tool" stats --run-dir "$run_dir" --episodes "$num_episodes" --tasks "${requested_task_queue[@]}" >/dev/null 2>&1 || true
     echo -e "\033[33m=== Cleanup done ===\033[0m"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 
 
@@ -192,12 +326,6 @@ echo -e "\033[36mSim-side python (${sim_env}): ${sim_python} ($(${sim_python} --
 # activates ${sim_env} itself via `setsid bash -c`.
 conda deactivate 2>/dev/null || true
 
-# ===== Task count validation =====
-if [ "$num_tasks" -gt 50 ]; then
-    echo -e "\033[31mError: num_tasks ${num_tasks} exceeds max 50; use 1~50\033[0m"
-    exit 1
-fi
-
 # ===== Sim-side args =====
 policy_name=ACT
 train_config_name=0
@@ -213,25 +341,10 @@ if [ "$num_tasks" -lt "$num_slots" ]; then
     num_slots=$num_tasks
 fi
 
-# ===== Full task list (50) =====
-task_list_all=("lift_pot" "hanging_mug" "stack_bowls_three" "scan_object" "handover_block" "click_bell" "put_object_cabinet" "open_microwave" "stack_blocks_three" "place_shoe" "adjust_bottle" "beat_block_hammer" "blocks_ranking_rgb" "blocks_ranking_size" "click_alarmclock" "dump_bin_bigbin" "grab_roller" "handover_mic" "move_can_pot" "move_pillbottle_pad" "move_playingcard_away" "place_cans_plasticbox" "place_container_plate" "place_dual_shoes" "place_empty_cup" "place_fan" "place_mouse_pad" "place_object_basket" "place_object_scale" "place_object_stand" "place_phone_stand" "move_stapler_pad" "open_laptop" "pick_diverse_bottles" "pick_dual_bottles" "place_a2b_left" "place_a2b_right" "place_bread_basket" "place_bread_skillet" "place_burger_fries" "place_can_basket" "press_stapler" "rotate_qrcode" "shake_bottle_horizontally" "shake_bottle" "stack_blocks_two" "stack_bowls_two" "stamp_seal" "turn_switch" "put_bottles_dustbin")
-
-# Build the sim task queue
-task_queue=()
-for i in $(seq 0 $((num_tasks-1))); do
-    task_queue+=("${task_list_all[$i]}")
-done
-echo -e "\033[36mTasks this run (${num_tasks}): ${task_queue[*]}\033[0m"
 echo -e "\033[36mInference config: ${num_gpus} GPU x ${num_per_gpu} servers/GPU = ${num_slots} slots\033[0m"
 echo -e "\033[36mInference precision: use_bf16=${use_bf16}, use_fp32=${use_fp32}, use_compile=${use_compile}\033[0m"
 
 # ===== Common variables =====
-batch_time=$(date +%Y%m%d_%H%M%S)
-# Extract experiment name and step from model_path (e.g. qwen35_robotwin_forward_no_mask_30k)
-_exp_name=$(echo "$model_path" | grep -oP '[^/]+(?=/checkpoints)')
-_step_num=$(echo "$model_path" | grep -oP 'global_step_\K\d+')
-_step_k=$(( _step_num / 1000 ))k
-run_dir="${output_base}/${_exp_name}_${_step_k}_${task_config}_${batch_time}"
 mkdir -p "${run_dir}/inference_logs" "${run_dir}/eval_logs"
 log_dir="${run_dir}"
 inference_pid_file="${run_dir}/inference_pids.txt"
@@ -308,14 +421,18 @@ cd "$eval_workdir" || { echo -e "\033[31mError: sim workdir ${eval_workdir} miss
 # ===== Ensure the lingbot eval client is present under RoboTwin/script =====
 # The eval client resolves its ../task_config relative to its own location, so it
 # must live at <RoboTwin>/script/ for _camera_config.yml to be found.
-eval_client_src="${inference_workdir}experiment/robotwin/eval_policy_client_lingbotvla.py"
+cp "$checkpoint_tool" "${eval_workdir}/script/eval_checkpoint.py"
+eval_client_src="${inference_workdir%/}/experiment/robotwin/eval_policy_client_lingbotvla.py"
 eval_client_dst="${eval_workdir}/script/eval_policy_client_lingbotvla.py"
-if [ ! -f "$eval_client_dst" ]; then
+if [ ! -f "$eval_client_dst" ] || ! cmp -s "$eval_client_src" "$eval_client_dst"; then
     if [ ! -f "$eval_client_src" ]; then
         echo -e "\033[31mError: eval client source not found: ${eval_client_src}\033[0m"
         exit 1
     fi
-    echo -e "\033[36mCopying eval client -> ${eval_client_dst}\033[0m"
+    if [ -f "$eval_client_dst" ]; then
+        cp "$eval_client_dst" "${eval_client_dst}.bak.$(date +%Y%m%d_%H%M%S)"
+    fi
+    echo -e "\033[36mSyncing eval client -> ${eval_client_dst}\033[0m"
     cp "$eval_client_src" "$eval_client_dst"
 fi
 
@@ -325,8 +442,8 @@ fi
 deploy_pkg_src="${inference_workdir}deploy"
 deploy_pkg_dst="${eval_workdir}/script/deploy"
 mkdir -p "$deploy_pkg_dst"
-for f in __init__.py websocket_client_policy.py msgpack_numpy.py; do
-    if [ ! -f "$deploy_pkg_dst/$f" ]; then
+for f in __init__.py websocket_client_policy.py msgpack_numpy.py async_rtc.py; do
+    if [ ! -f "$deploy_pkg_dst/$f" ] || ! cmp -s "$deploy_pkg_src/$f" "$deploy_pkg_dst/$f"; then
         if [ ! -f "$deploy_pkg_src/$f" ]; then
             echo -e "\033[31mError: deploy helper source not found: ${deploy_pkg_src}/${f}\033[0m"
             exit 1
@@ -424,7 +541,14 @@ launch_task() {
     setsid bash -c "source ${conda_sh} && conda activate ${sim_env} && export PYTHONPATH=\"\$(python -c 'import site;print(site.getsitepackages()[0])')\${PYTHONPATH:+:\$PYTHONPATH}\" && PYTHONUNBUFFERED=1 PYTHONWARNINGS=ignore::UserWarning XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0 python -u ${eval_client_dst} --config policy/${policy_name}/deploy_policy.yml \
         --overrides \
         --task_name ${task_name} \
+        --num_episodes ${num_episodes} \
+        --rtc_async ${rtc_async} \
+        --rtc_replan_steps ${rtc_replan_steps} \
+        --rtc_delay ${rtc_delay} \
+        --rtc_timeout ${rtc_timeout} \
+        --run_id ${run_id} \
         --task_config ${task_config} \
+        --instruction_type ${instruction_type} \
         --train_config_name ${train_config_name} \
         --seed ${seed} \
         --policy_name ${policy_name} \
@@ -440,6 +564,14 @@ launch_task() {
     slot_task[$slot]="$task_name"
     slot_start[$slot]=$(date +%s)
     slot_log[$slot]="$log_file"
+}
+
+# Read only a bounded log tail; camera rendering and model inference are untouched.
+show_task_progress() {
+    local slot=$1
+    "$sim_python" "${inference_workdir}experiment/robotwin/eval_progress.py" \
+        --log "${slot_log[$slot]}" --task "${slot_task[$slot]}" \
+        --episodes "$num_episodes" --elapsed "$(( $(date +%s) - slot_start[$slot] ))"
 }
 
 # Initial fill: assign a task to each free slot
@@ -548,6 +680,8 @@ while [ $((completed + skipped)) -lt $total_tasks ] && has_running; do
                     fi
                 fi
             fi
+        else
+            show_task_progress "$slot"
         fi
     done
 
@@ -577,81 +711,8 @@ fi
 # ============================================================
 echo -e "\033[36mGenerating stats file: ${stats_file}\033[0m"
 
-{
-    echo "============================================"
-    echo "  Eval Result Stats"
-    echo "  Time: $(date '+%Y-%m-%d %H:%M:%S')"
-    echo "  Model: ${_exp_name}_${_step_k}"
-    echo "  Model path: ${model_path}"
-    echo "  Tasks: ${num_tasks}"
-    echo "  Task Config: ${task_config}"
-    echo "  Inference: ${num_gpus} GPU x ${num_per_gpu}/GPU = ${num_slots} slots"
-    echo "  Precision: use_bf16=${use_bf16}, use_fp32=${use_fp32}, use_compile=${use_compile}"
-    echo "  Result: ${completed} done, ${skipped} skipped"
-    echo "============================================"
-    echo ""
-    printf "%-30s %-10s %-12s %-10s %-10s\n" "Task" "Time(s)" "Done(100)" "Success/Total" "Rate"
-    echo "--------------------------------------------------------------------------------"
-
-    total_success=0
-    total_episodes=0
-    all_complete=true
-
-    for i in "${!result_task_names[@]}"; do
-        task_name="${result_task_names[$i]}"
-        duration="${result_durations[$i]}"
-        log_file="${result_logs[$i]}"
-        status="${result_status[$i]}"
-
-        # Extract success rate from the log (strip ANSI color codes)
-        success_rate="-"
-        episodes_done="-"
-        if [ -f "$log_file" ]; then
-            last_rate_line=$(sed 's/\x1b\[[0-9;]*m//g' "$log_file" | grep -oP 'Success rate: \K.*' | tail -1)
-            if [ -n "$last_rate_line" ]; then
-                suc_num=$(echo "$last_rate_line" | grep -oP '^\d+' | head -1)
-                total_num=$(echo "$last_rate_line" | grep -oP '/\K\d+' | head -1)
-                rate_pct=$(echo "$last_rate_line" | grep -oP '=> \K[\d.]+')
-                if [ -n "$suc_num" ] && [ -n "$total_num" ]; then
-                    success_rate="${rate_pct}%"
-                    episodes_done="${suc_num}/${total_num}"
-                    total_success=$((total_success + suc_num))
-                    total_episodes=$((total_episodes + total_num))
-                fi
-            fi
-        fi
-
-        # Check whether all 100 episodes ran
-        if [ "$episodes_done" != "-" ]; then
-            total_ep=$(echo "$episodes_done" | cut -d'/' -f2)
-            if [ "$total_ep" = "100" ]; then
-                complete_mark="YES"
-            else
-                complete_mark="NO(${total_ep}/100)"
-                all_complete=false
-            fi
-        else
-            complete_mark="NO(0/100)"
-            all_complete=false
-        fi
-
-        printf "%-30s %-10s %-12s %-10s %-10s\n" "$task_name" "$duration" "$complete_mark" "$episodes_done" "$success_rate"
-    done
-
-    echo "--------------------------------------------------------------------------------"
-    if [ $total_episodes -gt 0 ]; then
-        overall_rate=$(awk "BEGIN {printf \"%.1f\", $total_success/$total_episodes*100}")
-    else
-        overall_rate="0.0"
-    fi
-    printf "Summary: total %ds, success %d/%d, overall rate %s%%\n" "$total_duration" "$total_success" "$total_episodes" "$overall_rate"
-    if $all_complete; then
-        echo "All tasks fully executed 100 episodes"
-    else
-        echo "Warning: some tasks did not complete 100 episodes; check logs"
-    fi
-    echo "============================================"
-} | tee "$stats_file"
+python3 "$checkpoint_tool" stats --run-dir "$run_dir" --episodes "$num_episodes" \
+    --tasks "${requested_task_queue[@]}"
 
 # ============================================================
 # Phase 5: handle inference servers (stop the remaining ones)
@@ -688,3 +749,6 @@ else
     echo -e "Inference PIDs: ${inference_pid_file} (stopped)"
 fi
 echo -e "Sim PIDs: ${eval_pid_file}"
+
+# Failed/incomplete tasks must propagate failure to suite scripts.
+if [ "$skipped" -gt 0 ]; then exit 1; fi

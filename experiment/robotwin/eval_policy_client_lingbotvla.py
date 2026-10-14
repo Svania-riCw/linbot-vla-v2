@@ -1,6 +1,9 @@
 import sys
 import os
 import subprocess
+import json
+import random
+from eval_checkpoint import EpisodeCheckpoint, task_identity
 
 sys.path.append("./")
 sys.path.append(f"./policy")
@@ -23,6 +26,14 @@ from generate_episode_instructions import *
 
 current_file_path = os.path.abspath(__file__)
 parent_directory = os.path.dirname(current_file_path)
+
+
+def report_progress(stage, episode, episodes, completed=0, successes=0,
+                    step=0, limit=0, seed=None):
+    print('\n[eval-progress] ' + json.dumps(dict(
+        stage=stage, episode=episode, episodes=episodes, completed=completed,
+        successes=successes, step=step, limit=limit, seed=seed,
+    )), flush=True)
 
 
 def class_decorator(task_name):
@@ -72,7 +83,7 @@ def main(usr_args):
     save_dir = None
     video_save_dir = None
     video_size = None
-    video_fps = str(usr_args.get("video_fps", 10))
+    video_fps = str(usr_args.get("video_fps", 30))
 
     get_model = eval_function_decorator(policy_name, "get_model")
 
@@ -127,6 +138,25 @@ def main(usr_args):
     else:
         save_dir = Path(f"eval_result/{task_name}/{policy_name}/{task_config}/{ckpt_setting}/{current_time}")
     save_dir.mkdir(parents=True, exist_ok=True)
+    test_num = int(usr_args.get('num_episodes', 100))
+    if test_num < 1:
+        raise ValueError('num_episodes must be positive')
+    seed = usr_args['seed']
+    run_id = str(usr_args.get('run_id') or f"remote:{usr_args.get('host', '127.0.0.1')}:{usr_args['port']}")
+    checkpoint = EpisodeCheckpoint(save_dir,
+        task_identity(run_id, task_name, task_config, instruction_type, seed),
+        test_num, start_seed=100000 * (1 + seed))
+    usr_args['_checkpoint'] = checkpoint
+    print(f'Resuming {task_name}: {checkpoint.completed}/{test_num} episodes, '
+          f'{checkpoint.successes} successes, next seed {checkpoint.next_seed}', flush=True)
+    if checkpoint.completed == test_num:
+        (save_dir / '_result.txt').write_text(
+            f'Timestamp: {current_time}\n\nInstruction Type: {instruction_type}\n\n'
+            f'{checkpoint.successes / test_num}')
+        print(f'Success rate: {checkpoint.successes}/{test_num} => '
+              f'{checkpoint.successes / test_num * 100:.1f}% (already complete)', flush=True)
+        checkpoint.close()
+        return
 
     # 命令行 --eval_video_log 优先于 YAML 配置
     if "eval_video_log" in usr_args:
@@ -167,24 +197,30 @@ def main(usr_args):
 
     st_seed = 100000 * (1 + seed)
     suc_nums = []
-    test_num = 100
     topk = 1
 
     # model = get_model(usr_args)
     # from IPython import embed;embed()
     from script.deploy.websocket_client_policy import WebsocketClientPolicy
-    model = WebsocketClientPolicy(port=usr_args['port'])
+    report_progress('waiting_server', checkpoint.completed + 1, test_num,
+                    completed=checkpoint.completed, successes=checkpoint.successes)
+    model = WebsocketClientPolicy(host=usr_args.get('host', '127.0.0.1'), port=usr_args['port'],
+                                  request_timeout=float(usr_args.get('rtc_timeout', 180)))
 
-    st_seed, suc_num = eval_policy(task_name,
-                                   TASK_ENV,
-                                   args,
-                                   model,
-                                   st_seed,
-                                   test_num=test_num,
-                                   video_size=video_size,
-                                   video_fps=video_fps,
-                                   instruction_type=instruction_type,
-                                   usr_args=usr_args)
+    try:
+        st_seed, suc_num = eval_policy(task_name,
+                                      TASK_ENV,
+                                      args,
+                                      model,
+                                      st_seed,
+                                      test_num=test_num,
+                                      video_size=video_size,
+                                      video_fps=video_fps,
+                                      instruction_type=instruction_type,
+                                      usr_args=usr_args)
+    finally:
+        model.close()
+        checkpoint.close()
     suc_nums.append(suc_num)
 
     topk_success_rate = sorted(suc_nums, reverse=True)[:topk]
@@ -207,35 +243,45 @@ def eval_policy(task_name,
                 st_seed,
                 test_num=100,
                 video_size=None,
-                video_fps="10",
+                video_fps="30",
                 instruction_type=None,
                 usr_args = None):
     print(f"\033[34mTask Name: {args['task_name']}\033[0m")
     print(f"\033[34mPolicy Name: {args['policy_name']}\033[0m")
 
     expert_check = True
-    TASK_ENV.suc = 0
-    TASK_ENV.test_num = 0
+    checkpoint = usr_args['_checkpoint']
+    TASK_ENV.suc = checkpoint.successes
+    TASK_ENV.test_num = checkpoint.completed
 
-    now_id = 0
-    succ_seed = 0
+    now_id = checkpoint.completed
+    succ_seed = checkpoint.completed
     suc_test_seed_list = []
 
     policy_name = args["policy_name"]
     # eval_func = eval_function_decorator(policy_name, "eval")
     # reset_func = eval_function_decorator(policy_name, "reset_model")
 
-    now_seed = st_seed
+    now_seed = checkpoint.next_seed
     task_total_reward = 0
     clear_cache_freq = args["clear_cache_freq"]
 
     args["eval_mode"] = True
+
+    def progress(stage):
+        episode = TASK_ENV.test_num if stage == 'episode_done' else TASK_ENV.test_num + 1
+        preparing = stage in ('expert_check', 'scene_setup')
+        report_progress(stage, min(episode, test_num), test_num,
+                        completed=TASK_ENV.test_num, successes=TASK_ENV.suc,
+                        step=0 if preparing else getattr(TASK_ENV, 'take_action_cnt', 0),
+                        limit=0 if preparing else (getattr(TASK_ENV, 'step_lim', 0) or 0), seed=now_seed)
 
     while succ_seed < test_num:
         render_freq = args["render_freq"]
         args["render_freq"] = 0
 
         if expert_check:
+            progress('expert_check')
             try:
                 TASK_ENV.setup_demo(now_ep_num=now_id, seed=now_seed, is_test=True, **args)
                 episode_info = TASK_ENV.play_once()
@@ -245,6 +291,7 @@ def eval_policy(task_name,
                 # print("Error: ", e)
                 # print(" -------------")
                 TASK_ENV.close_env()
+                checkpoint.skip_seed(now_seed)
                 now_seed += 1
                 args["render_freq"] = render_freq
                 continue
@@ -254,6 +301,7 @@ def eval_policy(task_name,
                 # print("Error: ", e)
                 # print(" -------------")
                 TASK_ENV.close_env()
+                checkpoint.skip_seed(now_seed)
                 now_seed += 1
                 args["render_freq"] = render_freq
                 print(f"error occurs ! {e}")
@@ -263,19 +311,25 @@ def eval_policy(task_name,
             succ_seed += 1
             suc_test_seed_list.append(now_seed)
         else:
+            checkpoint.skip_seed(now_seed)
             now_seed += 1
             args["render_freq"] = render_freq
             continue
 
         args["render_freq"] = render_freq
 
+        progress('scene_setup')
         TASK_ENV.setup_demo(now_ep_num=now_id, seed=now_seed, is_test=True, **args)
         episode_info_list = [episode_info["info"]]
+        # Description generation uses Python random, which setup_demo does not
+        # seed. Make language selection reproducible across process restarts.
+        random.seed(now_seed)
         results = generate_episode_descriptions(args["task_name"], episode_info_list, test_num)
-        instruction = np.random.choice(results[0][instruction_type])
+        instruction = checkpoint.begin(now_seed, str(np.random.choice(results[0][instruction_type])))
         TASK_ENV.set_instruction(instruction=instruction)  # set language instruction
 
         if TASK_ENV.eval_video_path is not None:
+            progress('recording_setup')
             ffmpeg = subprocess.Popen(
                 [
                     "ffmpeg",
@@ -302,77 +356,62 @@ def eval_policy(task_name,
                 ],
                 stdin=subprocess.PIPE,
             )
-            TASK_ENV._set_eval_video_ffmpeg(ffmpeg)
+            TASK_ENV._set_eval_video_ffmpeg(ffmpeg, fps=float(video_fps))
 
         succ = False
         path_to_pi_model = None
         if usr_args is not None and "new_ckpt_path" in usr_args:
             path_to_pi_model = usr_args['new_ckpt_path']
+        progress('model_reset')
         ret = model.infer(dict(reset = True, robo_name=usr_args['robo_name'], path_to_pi_model=path_to_pi_model))
-        
-        while TASK_ENV.take_action_cnt<TASK_ENV.step_lim and not succ:
+
+        def observe():
+            progress('observation')
             observation = TASK_ENV.get_obs()
-            # from IPython import embed;embed()
-            
-            formatted_observation = {
-                "observation.images.cam_high": observation["observation"]["head_camera"]["rgb"], # H,W,3
+            return {
+                "observation.images.cam_high": observation["observation"]["head_camera"]["rgb"],
                 "observation.images.cam_left_wrist": observation["observation"]["left_camera"]["rgb"],
                 "observation.images.cam_right_wrist": observation["observation"]["right_camera"]["rgb"],
-                
                 "observation.state": observation["joint_action"]["vector"],
                 "task": TASK_ENV.get_instruction(),
             }
 
-            # print(formatted_observation["observation.images.cam_high"].shape)
-            # ========= debug image =========
-            # import torch, torchvision
-            # from PIL import Image
-            # imgs_np = []
-            # for k in ['base_0_rgb', 'left_wrist_0_rgb', 'right_wrist_0_rgb']:
-            #     arr = formatted_observation['image'][k].squeeze(0)  # (H,W,3), uint8
-            #     print(arr.max(), arr.min())
-            #     imgs_np.append(arr)
-
-            # concat = np.concatenate(imgs_np, axis=1)
-            # if TASK_ENV.take_action_cnt % 25 ==0:
-            #     Image.fromarray(concat).save(f'combined_{TASK_ENV.take_action_cnt}.png')
-            # ========= debug image =========
-
-            # from IPython import embed;embed()
-            ret = model.infer(formatted_observation) #(TASK_ENV, model, observation)
-            action, latency = ret['action'], ret['server_timing']
-            if len(action.shape) == 2:
-                initial_obs = False
-                for act in action:
-                    if initial_obs: # ensure the video is correct, but slow down simulation
-                        # observation = TASK_ENV.get_obs()
-                        pass
-                    else:
-                        initial_obs = True
+        if usr_args.get('rtc_async', False):
+            from script.deploy.async_rtc import AsyncRTC
+            with AsyncRTC(model, replan_steps=int(usr_args.get('rtc_replan_steps', 8)),
+                          delay=int(usr_args.get('rtc_delay', 6)),
+                          timeout=float(usr_args.get('rtc_timeout', 180))) as rtc:
+                while TASK_ENV.take_action_cnt < TASK_ENV.step_lim and not succ:
+                    act = rtc.next_action(observe)
+                    TASK_ENV.take_action(act)
+                    succ = bool(TASK_ENV.eval_success)
+                    if TASK_ENV.take_action_cnt % 8 == 0:
+                        progress('actions')
+        else:
+            while TASK_ENV.take_action_cnt < TASK_ENV.step_lim and not succ:
+                progress('inference')
+                ret = model.infer(observe())
+                action = ret['action']
+                progress('actions')
+                for act in action if action.ndim == 2 else [action]:
+                    if TASK_ENV.take_action_cnt >= TASK_ENV.step_lim:
+                        break
                     TASK_ENV.take_action(act)
                     if TASK_ENV.eval_success:
                         succ = True
                         break
-            else:
-                TASK_ENV.take_action(action)
-                if TASK_ENV.eval_success:
-                    succ = True
-            
-            print(f"infer time {latency}")
-
+                print(f"infer time {ret['server_timing']}")
 
         # task_total_reward += TASK_ENV.episode_score
         if TASK_ENV.eval_video_path is not None:
+            progress('video_finalize')
             TASK_ENV._del_eval_video_ffmpeg()
-
-        result_tag = "success" if succ else "failure"
-        
-        old_name = f"{TASK_ENV.eval_video_path}/episode{TASK_ENV.test_num}.mp4"
-        new_name = f"{TASK_ENV.eval_video_path}/episode{TASK_ENV.test_num}_{result_tag}.mp4"
-
-        if os.path.exists(old_name):
-            os.rename(old_name, new_name)
-            print(f"Video saved: {new_name}")
+            result_tag = "success" if succ else "fail"
+            old_name = f"{TASK_ENV.eval_video_path}/episode{TASK_ENV.test_num}.mp4"
+            new_name = f"{TASK_ENV.eval_video_path}/episode{TASK_ENV.test_num}_{result_tag}.mp4"
+            if os.path.exists(old_name):
+                os.rename(old_name, new_name)
+                print(f"Video saved: {new_name}")
 
 
         if succ:
@@ -381,6 +420,9 @@ def eval_policy(task_name,
         else:
             print("\033[91mFail!\033[0m")
 
+        # Commit before environment cleanup: a cleanup error must not rerun or
+        # double-count an episode whose task result and video are complete.
+        checkpoint.commit(succ, TASK_ENV.take_action_cnt)
         now_id += 1
         TASK_ENV.close_env(clear_cache=((succ_seed + 1) % clear_cache_freq == 0))
 
@@ -388,6 +430,7 @@ def eval_policy(task_name,
             TASK_ENV.viewer.close()
 
         TASK_ENV.test_num += 1
+        progress('episode_done')
 
         print(
             f"\033[93m{task_name}\033[0m | \033[94m{args['policy_name']}\033[0m | \033[92m{args['task_config']}\033[0m | \033[91m{args['ckpt_setting']}\033[0m\n"
