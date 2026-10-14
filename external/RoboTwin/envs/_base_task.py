@@ -572,39 +572,8 @@ class Base_Task(gym.Env):
         self.left_joint_path = args.get("left_joint_path", [])
         self.right_joint_path = args.get("right_joint_path", [])
 
-    def _set_eval_video_ffmpeg(self, ffmpeg, fps=10):
-        fps = float(fps)
-        if not np.isfinite(fps) or fps <= 0:
-            raise ValueError("Video FPS must be positive and finite")
+    def _set_eval_video_ffmpeg(self, ffmpeg, fps=None):
         self.eval_video_ffmpeg = ffmpeg
-        self._eval_video_period = 1.0 / fps
-        self._eval_video_time = 0.0
-        self._eval_video_frame_count = 0
-        self._eval_video_last_frame_time = None
-        self._eval_video_camera = next(
-            camera for camera, name in zip(
-                self.cameras.static_camera_list, self.cameras.static_camera_name
-            ) if name == "head_camera"
-        )
-        self._update_render()
-        self._record_eval_video_frame()
-
-    def _record_eval_video_frame(self):
-        # Refresh only the recording camera; never reuse the policy observation.
-        self._eval_video_camera.take_picture()
-        rgba = self._eval_video_camera.get_picture("Color")
-        frame = (rgba[:, :, :3] * 255).clip(0, 255).astype("uint8")
-        self.eval_video_ffmpeg.stdin.write(frame.tobytes())
-        self._eval_video_frame_count += 1
-        self._eval_video_last_frame_time = self._eval_video_time
-
-    def _step_eval_video(self):
-        if self.eval_video_path is None or not hasattr(self, "eval_video_ffmpeg"):
-            return
-        self._eval_video_time += self.scene.get_timestep()
-        next_frame_time = self._eval_video_frame_count * self._eval_video_period
-        if self._eval_video_time + 1e-9 >= next_frame_time:
-            self._record_eval_video_frame()
 
     def close_env(self, clear_cache=False):
         if clear_cache:
@@ -615,12 +584,9 @@ class Base_Task(gym.Env):
 
     def _del_eval_video_ffmpeg(self):
         if self.eval_video_ffmpeg:
-            if self._eval_video_time > self._eval_video_last_frame_time + 1e-9:
-                self._record_eval_video_frame()
             self.eval_video_ffmpeg.stdin.close()
             self.eval_video_ffmpeg.wait()
             del self.eval_video_ffmpeg
-            del self._eval_video_camera
 
     def delay(self, delay_time, save_freq=None):
         render_freq = self.render_freq
@@ -1514,6 +1480,10 @@ class Base_Task(gym.Env):
         if self.take_action_cnt == self.step_lim or self.eval_success:
             return
 
+        eval_video_freq = 1  # fixed
+        if (self.eval_video_path is not None and self.take_action_cnt % eval_video_freq == 0):
+            self.eval_video_ffmpeg.stdin.write(self.now_obs["observation"]["head_camera"]["rgb"].tobytes())
+
         self.take_action_cnt += 1
         print(f"step: \033[92m{self.take_action_cnt} / {self.step_lim}\033[0m", end="\r")
 
@@ -1683,11 +1653,12 @@ class Base_Task(gym.Env):
 
             self.scene.step()
             self._update_render()
-            self._step_eval_video()
                 
             if self.check_success():
                 self.eval_success = True
                 self.get_obs() # update obs
+                if (self.eval_video_path is not None):
+                    self.eval_video_ffmpeg.stdin.write(self.now_obs["observation"]["head_camera"]["rgb"].tobytes())
                 return
 
         self._update_render()
