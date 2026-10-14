@@ -5,7 +5,7 @@ __pycache__/
 *.log
 log.txt
 
-# Untracked dependencies / outputs (see xsy_utils/env/README.md)
+# Untracked dependencies / outputs (see xsy_utils/README.md, recreated by xsy_utils/env/setup.sh)
 third_party/
 external/RoboTwin/eval_result/
 external/RoboTwin/envs/curobo/
