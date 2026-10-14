@@ -121,11 +121,27 @@ def main(usr_args):
     else:
         embodiment_name = str(embodiment_type[0]) + "+" + str(embodiment_type[1])
 
-    save_dir = Path(f"eval_result/{task_name}/{policy_name}/{task_config}/{ckpt_setting}/{current_time}")
+    # Grouped-run layout (opt-in): when --output_name/--run_timestamp are passed, all
+    # task x config invocations of one run share eval_result/<output_name>/<run_timestamp>/,
+    # with a single appended _result.txt and per-case video dirs <task>_<case_label>/.
+    output_name = usr_args.get("output_name")
+    run_timestamp = usr_args.get("run_timestamp", current_time)
+    # Derive a short case label from task_config (NOT passed via --overrides: the
+    # override parser eval()s each value, so "random" would resolve to the random module).
+    case_label = {"demo_clean": "clean", "demo_randomized": "random"}.get(
+        task_config, str(task_config).replace("demo_", ""))
+    if output_name is not None:
+        run_dir = Path(f"eval_result/{output_name}/{run_timestamp}")
+        save_dir = run_dir  # _result.txt lives at the run root, shared across tasks
+        video_dir_name = f"{task_name}_{case_label}" if case_label else task_name
+    else:
+        run_dir = None
+        save_dir = Path(f"eval_result/{task_name}/{policy_name}/{task_config}/{ckpt_setting}/{current_time}")
+        video_dir_name = None
     save_dir.mkdir(parents=True, exist_ok=True)
 
     if args["eval_video_log"]:
-        video_save_dir = save_dir
+        video_save_dir = run_dir / video_dir_name if run_dir is not None else save_dir
         camera_config = get_camera_config(args["camera"]["head_camera_type"])
         video_size = str(camera_config["w"]) + "x" + str(camera_config["h"])
         video_save_dir.mkdir(parents=True, exist_ok=True)
@@ -159,7 +175,7 @@ def main(usr_args):
 
     st_seed = 100000 * (1 + seed)
     suc_nums = []
-    test_num = 100
+    test_num = usr_args.get("test_num", 100)  # overridable via --test_num
     topk = 1
 
     model = get_model(usr_args)
@@ -176,11 +192,17 @@ def main(usr_args):
     topk_success_rate = sorted(suc_nums, reverse=True)[:topk]
 
     file_path = os.path.join(save_dir, f"_result.txt")
-    with open(file_path, "w") as file:
-        file.write(f"Timestamp: {current_time}\n\n")
-        file.write(f"Instruction Type: {instruction_type}\n\n")
-        # file.write(str(task_reward) + '\n')
-        file.write("\n".join(map(str, np.array(suc_nums) / test_num)))
+    if output_name is not None:
+        # Grouped run: append one labeled line per (task, case) to the shared file.
+        success_rate = float(np.array(suc_nums)[0]) / test_num
+        with open(file_path, "a") as file:
+            file.write(f"{task_name}\t{case_label}\t{suc_num}/{test_num}\t{success_rate}\n")
+    else:
+        with open(file_path, "w") as file:
+            file.write(f"Timestamp: {current_time}\n\n")
+            file.write(f"Instruction Type: {instruction_type}\n\n")
+            # file.write(str(task_reward) + '\n')
+            file.write("\n".join(map(str, np.array(suc_nums) / test_num)))
 
     print(f"Data has been saved to {file_path}")
     # return task_reward
@@ -204,6 +226,12 @@ def eval_policy(task_name,
     now_id = 0
     succ_seed = 0
     suc_test_seed_list = []
+    # Expert-check exceptions are per-seed and normally transient, but some failures are
+    # permanent for the whole process (e.g. a corrupted warp/curobo JIT cache makes every
+    # single seed throw). Without a cap this loop spins forever, never returns, and hangs the
+    # parallel eval driver waiting on it. Bail out after this many *consecutive* failures.
+    max_consec_err = int(os.environ.get("ROBOTWIN_MAX_CONSEC_ERR", "50"))
+    consec_err = 0
 
     policy_name = args["policy_name"]
     eval_func = eval_function_decorator(policy_name, "eval")
@@ -240,8 +268,15 @@ def eval_policy(task_name,
                 TASK_ENV.close_env()
                 now_seed += 1
                 args["render_freq"] = render_freq
+                consec_err += 1
                 print("error occurs !")
+                if consec_err >= max_consec_err:
+                    print(f"\033[31m{consec_err} consecutive expert-check failures -- "
+                          f"aborting (last error: {type(e).__name__}: {e})\033[0m")
+                    traceback.print_exc()
+                    raise
                 continue
+        consec_err = 0
 
         if (not expert_check) or (TASK_ENV.plan_success and TASK_ENV.check_success()):
             succ_seed += 1
