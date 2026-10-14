@@ -1,0 +1,63 @@
+"""Validate RTC server capabilities and prepare resumable simulation-only runs."""
+import argparse
+from pathlib import Path
+import os
+import sys
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+from deploy.websocket_client_policy import WebsocketClientPolicy
+from experiment.robotwin.eval_checkpoint import file_digest, prepare_run
+
+
+def validate_server(metadata, delay, replan_steps):
+    if metadata.get('rtc_protocol') != 1 or not metadata.get('training_time_rtc'):
+        raise ValueError('Remote server must use this lmx_rtc version and an RTC-trained checkpoint')
+    maximum, horizon = int(metadata['rtc_max_delay']), int(metadata['action_horizon'])
+    if not 0 <= delay < min(maximum, horizon):
+        raise ValueError(f'RTC delay must be in [0, {min(maximum, horizon)-1}]')
+    if replan_steps < 1 or replan_steps + 2*delay >= horizon:
+        raise ValueError('RTC requires replan_steps >= 1 and replan_steps + 2*delay < horizon')
+    if not metadata.get('checkpoint_signature'):
+        raise ValueError('Missing remote checkpoint signature')
+
+
+def prepare(args, metadata):
+    validate_server(metadata, args.rtc_delay, args.rtc_replan_steps)
+    identity = dict(model=metadata.get('checkpoint', args.checkpoint_id),
+                    remote_checkpoint_id=args.checkpoint_id,
+                    remote_checkpoint_signature=metadata['checkpoint_signature'],
+                    norm_stats_sha256=metadata.get('norm_stats_sha256'),
+                    task_config=args.setting, task_config_sha256=file_digest(args.task_config_file),
+                    instruction_type=args.instruction, seed=0, robo_name='robotwin',
+                    denoiser=os.environ.get('ROBOTWIN_DENOISER', 'default'),
+                    rtc=dict(mode='async_fixed_prefix_v1', delay=args.rtc_delay,
+                             replan_steps=args.rtc_replan_steps))
+    prepare_run(args, identity)
+
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    for option in ('host','checkpoint-id','run-dir','setting','instruction','task-config-file'):
+        parser.add_argument('--'+option,required=True)
+    parser.add_argument('--port',required=True,type=int)
+    parser.add_argument('--episodes',required=True,type=int)
+    parser.add_argument('--tasks',required=True,nargs='+')
+    parser.add_argument('--rtc-delay',type=int,default=6)
+    parser.add_argument('--rtc-replan-steps',type=int,default=8)
+    parser.add_argument('--timeout',type=float,default=180)
+    args=parser.parse_args()
+    try:
+        client=WebsocketClientPolicy(args.host,args.port,request_timeout=args.timeout,startup_timeout=args.timeout)
+        try:
+            metadata=client.get_server_metadata()
+        finally:
+            client.close()
+        prepare(args,metadata)
+        print(f"Remote checkpoint: {metadata.get('checkpoint')}; signature: {metadata['checkpoint_signature']}")
+    except (OSError, TimeoutError, ValueError, KeyError) as error:
+        parser.exit(2,f'Error: {error}\n')
+
+
+if __name__=='__main__':
+    main()

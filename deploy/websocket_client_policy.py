@@ -14,10 +14,11 @@ class WebsocketClientPolicy:
     See WebsocketPolicyServer for a corresponding server implementation.
     """
 
-    def __init__(self, host: str = "0.0.0.0", port: Optional[int] = None, api_key: Optional[str] = None, request_timeout: float = 180.0) -> None:
+    def __init__(self, host: str = "0.0.0.0", port: Optional[int] = None, api_key: Optional[str] = None, request_timeout: float = 180.0, startup_timeout: float = 180.0) -> None:
         self._uri = f"ws://{host}"
         if port is not None:
             self._uri += f":{port}"
+        self._startup_timeout = startup_timeout
         self._request_timeout = request_timeout
         self._packer = Packer()
         self._api_key = api_key
@@ -28,6 +29,7 @@ class WebsocketClientPolicy:
 
     def _wait_for_server(self) -> Tuple[websockets.sync.client.ClientConnection, Dict]:
         logging.info(f"Waiting for server at {self._uri}...")
+        deadline = time.monotonic() + self._startup_timeout
         while True:
             try:
                 headers = {"Authorization": f"Api-Key {self._api_key}"} if self._api_key else None
@@ -35,17 +37,20 @@ class WebsocketClientPolicy:
                 ping_timeout = _optional_float_env("WEBSOCKET_PING_TIMEOUT")
                 conn = websockets.sync.client.connect(
                     self._uri,
+                    open_timeout=min(10.0, self._startup_timeout),
                     compression=None,
                     max_size=None,
                     additional_headers=headers,
                     ping_interval=ping_interval,
                     ping_timeout=ping_timeout,
                 )
-                metadata = unpackb(conn.recv())
+                metadata = unpackb(conn.recv(timeout=self._request_timeout))
                 return conn, metadata
-            except ConnectionRefusedError:
+            except (ConnectionRefusedError, TimeoutError, OSError) as error:
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(f'Server unavailable at {self._uri}') from error
                 logging.info("Still waiting for server...")
-                time.sleep(5)
+                time.sleep(min(5, max(0, deadline - time.monotonic())))
 
     @override
     def infer(self, obs: Dict) -> Dict:  # noqa: UP006

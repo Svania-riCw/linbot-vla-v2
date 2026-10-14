@@ -13,8 +13,10 @@
 This branch adds RTC training and optional asynchronous RoboTwin inference.
 See [RTC training and evaluation](docs/rtc.md#asynchronous-robotwin-evaluation)
 for the local `eval_rtc.sh` command, normalized-prefix alignment, environment
-settings, and resumable success-rate evaluation. Local and remote servers use
-the same protocol. Ordinary synchronous inference remains available.
+settings, and resumable success-rate evaluation. For the SSH workflow use
+[remote inference](docs/rtc.md#remote-inference-over-the-ssh-tunnel):
+`serve_rtc.sh` on the GPU server, `eval_rtc_remote.sh` on the RoboTwin machine.
+Local and remote servers use the same protocol. Ordinary synchronous inference remains available.
 
 ## Overview
 

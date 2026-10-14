@@ -665,7 +665,9 @@ def main():
         use_fp32=args.use_fp32,
         use_compile=args.use_compile,
     )
-    model_server = WebsocketPolicyServer(model, host=args.host, port=args.port)
+    from deploy.rtc_protocol import server_metadata
+    metadata = server_metadata(model, args.model_path)
+    model_server = WebsocketPolicyServer(model, host=args.host, port=args.port, metadata=metadata)
     model_server.serve_forever()
 
 

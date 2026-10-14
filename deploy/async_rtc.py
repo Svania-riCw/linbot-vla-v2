@@ -1,5 +1,5 @@
 """Single-flight RTC scheduling. Only the caller may observe/step the simulator."""
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 import json
 import time
 import uuid
@@ -52,13 +52,21 @@ class AsyncRTC:
         self.requests += 1
         self._log('request', request_id=request_id, delay=delay, cursor=self.cursor)
 
+    def _await_pending(self):
+        future, _, start, rtc = self.pending
+        try:
+            return future.result(timeout=max(0.001, self.timeout - (time.monotonic() - start)))
+        except FutureTimeoutError as error:
+            # concurrent.futures.TimeoutError is distinct on simulator Python 3.10.
+            raise TimeoutError(f"RTC request timed out: {rtc['request_id']}") from error
+
     def _install(self):
         future, origin, start, rtc = self.pending
         waiting = time.monotonic()
         if not future.done():
             self.stalls += 1
             self._log('wait', request_id=rtc['request_id'])
-        response = future.result(timeout=max(0.001, self.timeout - (waiting - start)))
+        response = self._await_pending()
         waited = time.monotonic() - waiting
         self.wait_seconds += waited
         if response.get('_rtc_request_id') != rtc['request_id']:
@@ -111,7 +119,7 @@ class AsyncRTC:
             if self.pending is not None:
                 future, _, start, _ = self.pending
                 # Drain before the next episode resets the same websocket/policy.
-                future.result(timeout=max(0.001, self.timeout - (time.monotonic()-start)))
+                self._await_pending()
                 self.pending = None
         except BaseException:
             close = getattr(self.model, 'close', None)

@@ -26,3 +26,25 @@ def validate_rtc_request(rtc, config, batch_size):
     if previous.shape != (batch_size, horizon, dim) or not np.isfinite(previous).all():
         raise ValueError(f'previous_actions must be finite normalized actions with shape {(batch_size, horizon, dim)}')
     return previous, delay, request_id
+
+
+def server_metadata(policy, checkpoint):
+    """Stable identity for resume checks; doesn't transmit model weights."""
+    import hashlib
+    import json
+    import os
+    from pathlib import Path
+    root = Path(checkpoint).resolve()
+    identity = dict(checkpoint=str(root), config=policy.config.to_dict(),
+                    shards=[dict(name=p.name, size=p.stat().st_size, mtime_ns=p.stat().st_mtime_ns)
+                            for p in sorted(root.glob('*.safetensors'))])
+    norm = Path(policy.robot_norm_path)
+    identity['norm_stats_sha256'] = hashlib.sha256(norm.read_bytes()).hexdigest()
+    config = Path(os.environ.get('LINGBOT_INFERENCE_CONFIG') or root.parent.parent.parent / 'lingbotvla_cli.yaml')
+    identity['inference_config_sha256'] = hashlib.sha256(config.read_bytes()).hexdigest()
+    signature = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+    return dict(rtc_protocol=1, training_time_rtc=bool(policy.config.training_time_rtc),
+                rtc_max_delay=policy.config.training_time_rtc_max_delay,
+                action_horizon=policy.config.n_action_steps, normalized_action_dim=policy.config.max_action_dim,
+                checkpoint_signature=signature, checkpoint=str(root),
+                norm_stats_sha256=identity['norm_stats_sha256'])

@@ -146,6 +146,12 @@ def prepare(args):
                     denoiser=os.environ.get('ROBOTWIN_DENOISER', 'default'))
     if getattr(args, 'rtc_async', 'False') == 'True':
         identity['rtc'] = dict(mode='async_fixed_prefix_v1', replan_steps=args.rtc_replan_steps, delay=args.rtc_delay)
+    prepare_run(args, identity)
+
+
+def prepare_run(args, identity):
+    root = Path(args.run_dir).resolve()
+    root.mkdir(parents=True, exist_ok=True)
     manifest = root / 'run_manifest.json'
     run_id = digest(identity)
     if manifest.exists():

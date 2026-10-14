@@ -248,3 +248,107 @@ python -m unittest discover -s tests -p 'test_rtc*.py' -v
 Checks cover multi-plan action alignment, real thread overlap, detached camera
 buffers, reset isolation, stale/corrupt responses, timeout cleanup, RPC validation,
 server-to-sampler parameter forwarding, and incompatible resume rejection.
+
+## Remote inference over the SSH tunnel
+
+Server startup and simulation-only evaluation are separate:
+`serve_rtc.sh` activates the remote inference environment and loads weights;
+`eval_rtc_remote.sh` activates only the local simulator environment. The latter
+never starts, stops, or needs a local copy of the inference model or Qwen weights.
+It defaults to the seven-task subset above, 25 episodes per task, RTC `s=8,d=6`,
+and video enabled. A single server slot evaluates tasks sequentially.
+
+### 1. On the remote server
+
+The current SSH login is `ssh root@10.15.171.204 -p 30183`. The example paths
+below use the training workspace `/2025233210/lmx`; replace the checkpoint
+path with the actual step5000 training export if it is stored elsewhere.
+Use the statistics generated for that training run, not a guessed replacement.
+The remote Python environment may be `lingbotvla-train` from RTC training;
+set `INFERENCE_ENV` to the environment actually installed there.
+
+```bash
+cd /2025233210/lmx/lingbot-vla-v2
+git switch lmx_rtc
+git pull --ff-only origin lmx_rtc
+
+CUDA_VISIBLE_DEVICES=0 \
+INFERENCE_ENV=lingbotvla-train \
+LINGBOT_NORM_STATS_FILE=/2025233210/lmx/training-data/robotwin_clean_norm_stats.json \
+bash serve_rtc.sh \
+  /2025233210/lmx/checkpoints/rtc_moge_run01/checkpoints/global_step_5000/hf_ckpt \
+  /2025233210/lmx/checkpoints/Qwen3-VL-4B-Instruct \
+  --host 127.0.0.1 --port 8000
+```
+
+This uses BF16, compilation off, and selects 12 MLP offload layers only for
+GPUs up to 18 GiB. Set `LINGBOT_CPU_OFFLOAD_MLP_LAYERS` explicitly for another
+memory/performance tradeoff. No RoboTwin simulator or teacher weights are
+loaded on the server for inference. A complete exported checkpoint config and
+Qwen config/tokenizer are required. If using an explicit
+`LINGBOT_INFERENCE_CONFIG`, ensure its `data.norm_stats_file` is the actual
+training statistics; generated-config environment variables do not override
+an existing explicit YAML.
+
+### 2. Keep a tunnel open on this machine
+
+```bash
+ssh -p 30183 -N \
+  -o ExitOnForwardFailure=yes \
+  -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+  -L 127.0.0.1:18000:127.0.0.1:8000 \
+  root@10.15.171.204
+```
+
+The server listens on remote localhost; the simulator connects to local
+localhost:18000 through SSH. The server does not need to expose a public
+WebSocket port. Tunnel address/port can change between resumes because the
+checkpoint signature, rather than the network route, identifies the policy.
+
+### 3. Test one episode locally, then run the seven-task subset
+
+```bash
+bash /home/asus/lmx/lingbot-vla-v2/eval_rtc_remote.sh \
+  127.0.0.1 18000 demo_clean \
+  --checkpoint_id global_step_5000_rtc \
+  --task_name stack_bowls_three --num_episodes 1 \
+  --run_dir /home/asus/lmx/RoboTwin/eval_results/step5000_rtc_remote_stack_bowls_three
+```
+
+```bash
+bash /home/asus/lmx/lingbot-vla-v2/eval_rtc_remote.sh \
+  127.0.0.1 18000 demo_clean \
+  --checkpoint_id global_step_5000_rtc --seven --num_episodes 25 \
+  --run_dir /home/asus/lmx/RoboTwin/eval_results/step5000_rtc_remote_seven_clean
+
+bash /home/asus/lmx/lingbot-vla-v2/eval_rtc_remote.sh \
+  127.0.0.1 18000 demo_randomized \
+  --checkpoint_id global_step_5000_rtc --seven --num_episodes 25 \
+  --run_dir /home/asus/lmx/RoboTwin/eval_results/step5000_rtc_remote_seven_randomized
+```
+
+Rerun the identical evaluation command to resume. Fully completed tasks are
+skipped after the server compatibility check. Interrupted episodes repeat
+from their saved seed and instruction. RPC failures stop the local run and
+leave the remote server running. Extend episode counts in place, but use a
+new run directory for changed checkpoints/normalization/RTC parameters.
+`--tasks` accepts CSV or quoted space-separated names. Set `--rtc_timeout`
+for server startup and response deadlines, `--rtc_delay` and
+`--rtc_replan_steps` to tune the scheduler, and `--no_video` if needed.
+`SIM_ENV`, `CONDA_SH`, and `EVAL_WORKDIR` configure the local environment.
+
+The server publishes protocol version, trained delay limit, full horizon, and
+a checkpoint signature derived from model config, shard path/size/mtime,
+inference YAML and normalization content. The local preflight verifies this
+before launching simulation, and durable resume identity includes the server
+signature and RTC settings. Shards are not fully rehashed at every startup;
+replace/export changed weights normally so their metadata changes. Use a
+single evaluator per server slot; the wrapper also locks an endpoint on the
+local machine to prevent accidental concurrent runs.
+
+Validation so far: all unit/transport checks pass, and the actual step5000
+checkpoint loaded all 1,708 tensors and completed multiple full-plan RTC
+switches locally with six-action prefix checks. The local episode was stopped
+when deployment moved to the remote-server workflow; no full success-rate
+result or remote-GPU benchmark is claimed. Remote evaluation can start once
+the user launches the server and tunnel above.
