@@ -45,7 +45,7 @@ cd external/RoboTwin
 # smoke: 1 task, 1 episode, GPU 0
 bash policy/lingbot-vla-v2/eval.sh $WS/outputs/baseline_gbs128_5k/checkpoints/global_step_5000/hf_ckpt \
     stack_bowls_three demo_clean 1 0
-# full: 7 tasks x {clean, randomized} x 25 on 8 GPUs
+# full: 7 tasks x {clean, randomized} x 25 on 8 GPUs (= bash xsy_utils/eval_baseline.sh [hf_ckpt])
 MODEL_PATH=.../hf_ckpt TEST_NUM=25 GPUS="0 1 2 3 4 5 6 7" \
 TASKS="stack_blocks_three blocks_ranking_rgb hanging_mug pick_diverse_bottles open_laptop rotate_qrcode place_shoe" \
     bash policy/lingbot-vla-v2/eval_parallel.sh
