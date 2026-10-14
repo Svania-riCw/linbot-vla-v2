@@ -1,5 +1,6 @@
 import types
 import unittest
+from unittest.mock import patch
 
 import torch
 from torch import nn
@@ -201,24 +202,29 @@ class RTCMigrationTests(unittest.TestCase):
         model.embed_suffix = types.MethodType(capture_suffix, model)
         actions = torch.arange(batch * horizon * action_dim, dtype=torch.float32).reshape(batch, horizon, action_dim)
         noise = torch.full_like(actions, -1.0)
-        time = torch.full((batch, horizon), 0.5)
+        time = None
         delay = torch.tensor([2, 0])
         pad = torch.tensor([[False, False, False, True], [False, False, False, False]])
-        output = model.forward(
-            images=None,
-            img_masks=None,
-            lang_tokens=None,
-            lang_masks=None,
-            state=torch.zeros(batch, 3),
-            actions=actions,
-            noise=noise,
-            time=time,
-            action_is_pad=pad,
-            rtc_delay=delay,
-        )
+        with patch(
+            "lingbotvla.models.vla.lingbot_vla.modeling_lingbot_vla_v2.torch.rand",
+            return_value=torch.tensor([0.25, 0.75]),
+        ):
+            output = model.forward(
+                images=None,
+                img_masks=None,
+                lang_tokens=None,
+                lang_masks=None,
+                state=torch.zeros(batch, 3),
+                actions=actions,
+                noise=noise,
+                time=time,
+                action_is_pad=pad,
+                rtc_delay=delay,
+            )
         rtc_mask = output[-1]
         self.assertTrue(torch.equal(embedded["x"][0, :2], actions[0, :2]))
-        self.assertEqual(embedded["time"][0].tolist(), [0.0, 0.0, 0.5, 0.0])
+        self.assertEqual(embedded["time"][0].tolist(), [0.0, 0.0, 0.25, 0.0])
+        self.assertEqual(embedded["time"][1].tolist(), [0.75] * horizon)
         self.assertEqual(rtc_mask.tolist(), [[False, False, True, False], [True] * 4])
         self.assertEqual(embedded["ada_shape"], (batch, horizon + 1, width))
 

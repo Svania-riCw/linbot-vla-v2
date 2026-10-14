@@ -69,10 +69,12 @@ The `data.norm_stats_file` field is kept consistent as well.
 ## Model behavior and tests
 
 With RTC enabled, each training example samples a clean action prefix and
-tokenwise Beta(1.5, 1.0) flow times. Prefix time is zero. The action loss only
-includes suffix tokens, valid joints and non-padded timesteps. Existing time
-projections and adaptive-normalization weights are reused; no trainable
-parameter keys are added. RTC defaults to off for other recipes.
+one Uniform[0, 1) flow time shared by all action tokens, following the
+paper's training-time schedule. Prefix time is set to zero in this model's
+noise-to-action flow convention. The action loss only includes suffix tokens,
+valid joints and non-padded timesteps. Existing time projections and
+adaptive-normalization weights are reused; no trainable parameter keys are
+added. RTC defaults to off for other recipes.
 
 The optional sampling API accepts normalized `previous_actions` and
 `rtc_delay` and clamps the prefix throughout denoising. The helper

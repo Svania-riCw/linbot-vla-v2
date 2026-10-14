@@ -29,7 +29,6 @@ from .utils import (
     our_eager_attention_forward,
     prefix_query_segments,
     prefix_query_token_spans,
-    sample_beta,
 )
 from .rtc import (
     apply_rtc_prefix,
@@ -862,8 +861,10 @@ class FlowMatchingV2(FlowMatchingV1):
             if action_is_pad is not None:
                 action_is_pad = action_is_pad.to(device=device, dtype=torch.bool)
             if time is None:
-                time = sample_beta(1.5, 1.0, batch_size * horizon, device)
-                time = time.reshape(batch_size, horizon).mul(0.999).add(0.001).to(dtype)
+                # Match the paper's training-time RTC schedule: one uniform
+                # flow time per example, shared by all action tokens.
+                time = torch.rand((batch_size,), device=device).to(dtype)
+                time = time[:, None].expand(batch_size, horizon)
             else:
                 time = torch.as_tensor(time, device=device, dtype=dtype)
                 if time.ndim == 1 and time.shape[0] == batch_size:
