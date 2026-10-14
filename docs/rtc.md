@@ -61,8 +61,13 @@ run name is therefore the safe way to name a training checkpoint series.
 Start a new named run:
 
 ```bash
-bash train_rtc.sh --name rtc_moge_run01
+./run_rtc_moge_run01.sh
 ```
+
+This convenience script selects GPUs 0–7 by default and uses the run name
+`rtc_moge_run01`. It can be launched from any working directory; the training
+launcher activates the `lingbotvla-train` Conda environment. To choose a
+different visible GPU set, set `CUDA_VISIBLE_DEVICES` before running it.
 
 Resume its newest `global_step_N` snapshot:
 

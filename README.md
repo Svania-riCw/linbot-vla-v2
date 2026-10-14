@@ -147,7 +147,7 @@ For RTC training on the local clean RoboTwin LeRobot data, use the source
 repository's launcher on the `lmx_rtc` branch:
 
 ```bash
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 bash train_rtc.sh --name rtc_moge_run01
+bash run_rtc_moge_run01.sh
 ```
 
 This prepares the official base model and clean normalization statistics,
