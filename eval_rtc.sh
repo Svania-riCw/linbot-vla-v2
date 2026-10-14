@@ -23,8 +23,11 @@ source "$conda_sh"
 conda activate "$INFERENCE_ENV"
 export QWEN3VL_PATH="$qwen"
 export LINGBOT_LOAD_DTYPE=${LINGBOT_LOAD_DTYPE:-bfloat16}
-# 0 disables offload on larger GPUs; 12 was used on the local 16GB GPU.
-export LINGBOT_CPU_OFFLOAD_MLP_LAYERS=${LINGBOT_CPU_OFFLOAD_MLP_LAYERS:-12}
+# Leave space for three cameras, inference activations and RoboTwin rendering.
+if [[ -z "${LINGBOT_CPU_OFFLOAD_MLP_LAYERS:-}" ]]; then
+    export LINGBOT_CPU_OFFLOAD_MLP_LAYERS=$(python -c 'import torch; gb=torch.cuda.get_device_properties(0).total_memory / 2**30; print(24 if gb <= 18 else 12 if gb <= 24 else 0)')
+fi
+echo "CPU offload MLP layers: $LINGBOT_CPU_OFFLOAD_MLP_LAYERS"
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PYTHONNOUSERSITE=1
 if [[ -z "${LINGBOT_INFERENCE_CONFIG:-}" ]]; then
     config_id=$(printf '%s' "$checkpoint" | sha256sum | cut -c1-12)

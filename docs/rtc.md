@@ -189,7 +189,8 @@ bash /home/asus/lmx/lingbot-vla-v2/eval_rtc.sh \
 
 The standalone wrapper detects the Conda base directory. Defaults are
 `lingbotvla` for inference and `robotwin-eval` for simulation, BF16, compilation
-off, and CPU offload for the embedding and first 12 language MLP layers.
+off, and GPU-dependent CPU offload for the embedding and language MLP layers
+(24 layers up to 18 GiB, 12 layers up to 24 GiB, none above 24 GiB).
 For a larger GPU, set `LINGBOT_CPU_OFFLOAD_MLP_LAYERS=0`; for other environments
 or directories use `INFERENCE_ENV`, `SIM_ENV`, `CONDA_SH`, and `EVAL_WORKDIR`.
 Video is enabled by default, with success/fail filenames. This machine's
