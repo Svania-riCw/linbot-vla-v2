@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One-shot setup of everything the RoboTwin eval / training need that is NOT tracked in git.
 # Idempotent per step; pass step names to run a subset:
-#   bash xsy_utils/env/setup.sh [deps] [model_env] [sim_env] [assets] [gl]
+#   bash xsy_utils/env/setup.sh [deps] [model_env] [sim_env] [assets] [gl] [d4rt_env]
 #
 #   deps       third_party/utils3d @3fab839 and external/RoboTwin/envs/curobo @d64c4b0
 #   model_env  conda env `lingbotvla`    (py3.12, torch 2.8 cu128, flash-attn 2.8.3, this repo -e)
@@ -11,6 +11,9 @@
 #   gl         userspace NVIDIA GL/Vulkan libs for containers mounted without the `graphics`
 #              driver capability (sapien: "failed to find a rendering device"). Extracted, not
 #              installed, from the driver .run matching the kernel module into $WS/nvidia-gl-<ver>.
+#   d4rt_env   conda env `d4rt-prep` (py3.12) for xsy_utils/d4rt_data: upstream MoGe @74fbce0 (MoGe-3,
+#              needs FlexGEMM) + CoTracker3 @82e02e8 in third_party/, weights into $WS/checkpoints.
+#              Not part of the default step list; kept apart so lingbotvla's vendored MoGe-2 is untouched.
 #
 # Envs go to CONDA_ENVS_PATH on shared storage; /root/miniconda3/envs does not survive restarts.
 set -euo pipefail
@@ -116,6 +119,22 @@ PY
             "$dst/lib/libEGL_nvidia.so.0" > "$dst/icd/10_nvidia.json"
         rm -rf "$dst/_dl/x"
         echo "staged $dst"
+        ;;
+    d4rt_env)
+        clone_at https://github.com/microsoft/MoGe.git "$REPO/third_party/MoGe" 74fbce0
+        clone_at https://github.com/facebookresearch/co-tracker.git "$REPO/third_party/co-tracker" 82e02e8
+        # upstream bug: `coords` is an expand()ed view, so .view(B*T, ..) fails for batch > 1
+        sed -i 's/coords_init = coords.view(B \* T, N, 2)/coords_init = coords.reshape(B * T, N, 2)/' \
+            "$REPO/third_party/co-tracker/cotracker/models/core/cotracker/cotracker3_offline.py"
+        ensure_env d4rt-prep 3.12
+        pip install torch==2.8.0 torchvision==0.23.0 --index-url https://download.pytorch.org/whl/cu128
+        pip install -e "$REPO/third_party/MoGe"
+        pip install -e "$REPO/third_party/co-tracker" h5py pyarrow imageio
+        mkdir -p "$WS/checkpoints/moge-3-vitl" "$WS/checkpoints/cotracker3"
+        [ -f "$WS/checkpoints/moge-3-vitl/model.pt" ] || curl -sSfL -o "$WS/checkpoints/moge-3-vitl/model.pt" \
+            https://huggingface.co/Ruicheng/moge-3-vitl/resolve/main/model.pt
+        [ -f "$WS/checkpoints/cotracker3/scaled_offline.pth" ] || curl -sSfL -o "$WS/checkpoints/cotracker3/scaled_offline.pth" \
+            https://huggingface.co/facebook/cotracker3/resolve/main/scaled_offline.pth
         ;;
     *) echo "unknown step: $step" >&2; exit 2 ;;
     esac
