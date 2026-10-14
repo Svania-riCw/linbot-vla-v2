@@ -100,3 +100,24 @@ def atomic_save(path: pathlib.Path, write) -> None:
         raise
 
 
+
+
+def prefetch(load, n: int, workers: int = 4, ahead: int = 2):
+    """Yield ``load(0), .., load(n - 1)`` in order, computed ``workers`` threads ahead.
+
+    Threads, not a torch DataLoader: the container's /dev/shm is 4 GB and a whole episode
+    (RGB + per-frame plane maps, up to a few hundred MB) per in-flight item on 8 ranks overflowed
+    it (worker bus errors). JPEG decode, h5py reads and the numpy plane maths release the GIL.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    if workers <= 0:
+        yield from map(load, range(n))
+        return
+    with ThreadPoolExecutor(workers) as pool:
+        futs = {i: pool.submit(load, i) for i in range(min(workers + ahead, n))}
+        for i in range(n):
+            nxt = i + workers + ahead
+            if nxt < n:
+                futs[nxt] = pool.submit(load, nxt)
+            yield futs.pop(i).result()

@@ -82,7 +82,7 @@ def main() -> None:
     ap.add_argument("--stride", type=int, default=25, help="= chunk_size / 2")
     ap.add_argument("--grid-size", type=int, default=20)
     ap.add_argument("--batch", type=int, default=8, help="windows per CoTracker call")
-    ap.add_argument("--workers", type=int, default=4, help="decode processes")
+    ap.add_argument("--workers", type=int, default=4, help="decode threads")
     ap.add_argument("--bench", type=int, default=0, help="time this many episodes, write nothing")
     args = ap.parse_args()
 
@@ -101,9 +101,7 @@ def main() -> None:
 
     device = torch.device(args.device)
     model = CoTrackerPredictor(checkpoint=str(MODEL), v2=False, offline=True, window_len=60).to(device).eval()
-    loader = torch.utils.data.DataLoader(
-        _Decode(jobs), batch_size=None, num_workers=args.workers, prefetch_factor=2 if args.workers else None
-    )
+    loader = C.prefetch(_Decode(jobs).__getitem__, len(jobs), args.workers)
     t0, n_win = time.time(), 0
     for i, (task, ep, cam, video) in enumerate(loader, 1):
         starts = window_starts(video.shape[0], args.window, args.stride)

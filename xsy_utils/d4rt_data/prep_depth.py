@@ -110,7 +110,7 @@ def main() -> None:
     ap.add_argument("--num-tokens", type=int, default=1200, help="MoGe-3 base ViT tokens (range 1200..3600)")
     ap.add_argument("--refine-steps", type=int, default=3, help="MoGe-3 sparse refinement steps")
     ap.add_argument("--fp16", type=int, default=1)
-    ap.add_argument("--workers", type=int, default=4, help="decode processes")
+    ap.add_argument("--workers", type=int, default=4, help="decode threads")
     ap.add_argument("--bench", type=int, default=0, help="time this many episodes, write nothing")
     args = ap.parse_args()
 
@@ -129,14 +129,11 @@ def main() -> None:
 
     device = torch.device(args.device)
     model = MoGeModel.from_pretrained(str(MODEL)).to(device).eval()
-    loader = torch.utils.data.DataLoader(
-        _Decode(jobs), batch_size=None, num_workers=args.workers, prefetch_factor=2 if args.workers else None
-    )
+    loader = C.prefetch(_Decode(jobs).__getitem__, len(jobs), args.workers)
     t0, t_gpu, n_frames = time.time(), 0.0, 0
     for i, (task, ep, cam, fov_x, rgb, planes) in enumerate(loader, 1):
         g0 = time.time()
         raw, k, vf = infer_episode(model, rgb, fov_x, args, device)
-        planes = np.asarray(planes)  # DataLoader hands numpy back as a tensor
         t_gpu += time.time() - g0
         fits = [S.frame_scale(planes[t], raw[t]) for t in range(len(raw))]
         scale_raw = np.array([f[0] for f in fits], np.float32)
