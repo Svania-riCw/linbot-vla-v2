@@ -1,0 +1,14 @@
+# Basic experiment configuration (keep unchanged)
+policy_name: null
+task_name: null
+task_config: null
+ckpt_setting: null
+seed: null
+instruction_type: unseen
+
+# Add Parameters You Need
+# Websocket policy server started by eval_parallel.sh (policy/lingbot-vla-v2/serve.py).
+host: 127.0.0.1
+port: 9330
+# Robot config name; selects configs/robot_configs/<robo_name>.yaml on the server side.
+robo_name: robotwin
