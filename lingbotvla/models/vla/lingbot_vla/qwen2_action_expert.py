@@ -21,6 +21,7 @@ from transformers.utils import (
     auto_docstring
 )
 from transformers.utils.deprecation import deprecate_kwarg
+logger = logging.get_logger(__name__)
 from transformers.activations import ACT2FN
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 from transformers.modeling_flash_attention_utils import FlashAttentionKwargs, is_flash_attn_available
