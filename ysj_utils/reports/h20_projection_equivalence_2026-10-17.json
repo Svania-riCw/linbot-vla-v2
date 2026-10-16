@@ -1,0 +1,14 @@
+{
+  "status": "PASS",
+  "indices": [
+    0,
+    1,
+    30,
+    200,
+    7186,
+    7187
+  ],
+  "fast_seconds": 0.022455530241131783,
+  "old_seconds": 6.6607323214411736,
+  "scope": "Real image-bearing Parquet, exact transformed numerical equality, includes episode tail padding"
+}
