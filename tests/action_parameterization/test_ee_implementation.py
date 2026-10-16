@@ -327,6 +327,25 @@ class EELabelIntegrationTests(unittest.TestCase):
         receipt=json.loads((bundle/'JointEE/norm_stats.json.contract.json').read_text())
         self.assertEqual(receipt['stats_source_group'],'JointEE0')
 
+    def test_prepared_direct_training_checks_budget_and_stat_receipts(self):
+        from ysj_utils.run_joint_pair import validate_prepared_bundle
+        self.labels()
+        listing=self.root/'train.txt';listing.write_text(f'robotwin {self.dataset}\n')
+        bundle=self.root/'direct'
+        pair=prepare(ROOT/'xsy_utils/configs/robotwin_clean_baseline.yaml',ROOT/'configs/robot_configs/robotwin.yaml',
+                     listing,bundle,world_size=2,ee_sidecar_root=self.root/'labels',steps=5000)
+        for group in ('JDelta','JointEE0','JointEE'):
+            directory=bundle/group
+            robot=yaml.safe_load((directory/'robot_configs/robotwin.yaml').read_text())
+            fake_ee_stats(directory/'norm_stats.json',robot);record_receipt(directory,pair)
+        args=SimpleNamespace(bundle=bundle,steps=5000,gpus=['0','1'],micro_batch=16)
+        self.assertEqual(validate_prepared_bundle(args)['steps'],5000)
+        args.steps=10000
+        with self.assertRaisesRegex(ValueError,'budget'):validate_prepared_bundle(args)
+        args.steps=5000
+        with (bundle/'JointEE/norm_stats.json').open('a') as file:file.write(' ')
+        with self.assertRaisesRegex(ValueError,'receipt'):validate_prepared_bundle(args)
+
 
 if __name__=='__main__':
     unittest.main()

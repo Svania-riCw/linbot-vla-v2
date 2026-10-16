@@ -66,6 +66,24 @@ class JointQueueTests(unittest.TestCase):
                 run_stage(Stage('bad',[sys.executable,'-c','import sys; sys.exit(3)'],[]),root,state,os.environ.copy(),.02,False)
             self.assertEqual(json.loads((root/'status.json').read_text())['stages']['bad']['status'],'FAILED')
 
+    def test_explicit_direct_plan_uses_only_two_full_runs_and_two_350_evaluations(self):
+        root=Path(tempfile.gettempdir())/'ysj_queue_direct'
+        args=SimpleNamespace(bundle=root/'bundle',run_dir=root/'queue',train_list=root/'train.txt',raw_root=root/'raw',
+                             raw_setting='aloha-agilex_clean_50',ee_sidecar_root=root/'labels',base_config=root/'base.yaml',
+                             robot_config=root/'robot.yaml',gpus=['0','1'],micro_batch=16,steps=5000,eval_seed=0,port_base=19330,
+                             prepared_bundle=True,skip_smoke=True)
+        stages=build_plan(args)
+        self.assertEqual([stage.name for stage in stages],['full_JDelta','full_JointEE','eval_full_JDelta','eval_full_JointEE'])
+        for stage in stages[-2:]:
+            self.assertEqual(stage.command[stage.command.index('--mode')+1],'full')
+            self.assertIn('global_step_5000',next(value for value in stage.command if 'hf_ckpt' in value))
+
+    def test_stage_propagates_explicit_gpu_wait_budget(self):
+        with tempfile.TemporaryDirectory() as tmp,patch('ysj_utils.run_joint_pair.wait_idle',return_value={}) as idle:
+            run_stage(Stage('wait',[sys.executable,'-c','print("ok")'],['0']),Path(tmp),{'stages':{}},
+                      os.environ.copy(),poll_seconds=.02,gpu_wait_seconds=21600)
+            idle.assert_called_once_with(['0'],21600)
+
     def test_nonfinite_loss_stops_stage_even_when_process_exits_zero(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp); state={'stages':{}}

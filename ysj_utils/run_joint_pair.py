@@ -15,10 +15,12 @@ import signal
 import subprocess
 import sys
 import time
+import yaml
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
-from ysj_utils.action_experiment import environment
+from ysj_utils.action_experiment import environment,verify_pair,validate_stats
+from deploy.action_contract import digest
 
 
 @dataclass
@@ -51,6 +53,8 @@ def build_plan(args,python=sys.executable):
                    '--world-size',str(len(gpus)),'--micro-batch',str(args.micro_batch),'--steps',str(args.steps)],[])]
     for group in ('JDelta','JointEE0','JointEE'):
         stages.append(Stage('norm_'+group,prefix+['norm','--bundle',str(bundle),'--group',group],[]))
+    if getattr(args,'prepared_bundle',False):
+        stages=[]
     def train(group,kind):
         return Stage(kind+'_'+group,prefix+['train','--bundle',str(bundle),'--group',group,'--stage',kind],gpus[:1] if kind=='smoke' else gpus)
     def evaluate(group,kind):
@@ -62,14 +66,36 @@ def build_plan(args,python=sys.executable):
         return Stage('eval_'+mode+'_'+group,[python,str(ROOT/'ysj_utils/evaluate.py'),'--mode',mode,
                      '--checkpoint',str(checkpoint),'--gpus',','.join(ids),'--seed',str(args.eval_seed),
                      '--port-base',str(args.port_base),'--summary-output',str(run/f'eval_{mode}_{group}.json')],ids)
-    # Both candidates must pass short training+reload+simulation before full budget.
-    for group in ('JDelta','JointEE'):
-        stages.extend([train(group,'smoke'),evaluate(group,'smoke')])
+    if not getattr(args,'skip_smoke',False):
+        for group in ('JDelta','JointEE'):
+            stages.extend([train(group,'smoke'),evaluate(group,'smoke')])
     for group in ('JDelta','JointEE'):
         stages.append(train(group,'full'))
     for group in ('JDelta','JointEE'):
         stages.append(evaluate(group,'full'))
     return stages
+
+
+def validate_prepared_bundle(args):
+    """Reuse completed preprocessing without changing a prior run's plan/history."""
+    for group in ('JDelta','JointEE'):
+        pair,directory=verify_pair(args.bundle,group)
+        if (pair['steps'],pair['global_batch'],pair['world_size'],pair['micro_batch']) != (args.steps,128,len(args.gpus),args.micro_batch):
+            raise ValueError('Prepared bundle training budget / GPU count differs from requested run')
+        cfg=yaml.safe_load((directory/'train.yaml').read_text(encoding='utf-8'))
+        train=cfg['train']
+        if train['global_batch_size']!=128 or train['max_steps']!=args.steps or train['enable_fp32'] is not False or train['enable_mixed_precision'] is not True:
+            raise ValueError('Prepared bundle must use requested steps / BS128 / bf16')
+        robot_path=directory/'robot_configs/robotwin.yaml'
+        robot=yaml.safe_load(robot_path.read_text(encoding='utf-8'))
+        stats=directory/'norm_stats.json'
+        validate_stats(stats,robot)
+        receipt=json.loads(Path(str(stats)+'.contract.json').read_text(encoding='utf-8'))
+        if receipt['norm_sha256']!=digest(stats) or receipt['robot_sha256']!=digest(robot_path) or receipt['train_list_sha256']!=pair['train_list_sha256']:
+            raise ValueError('Prepared normalization receipt does not match this training run')
+        if (directory/'train').exists():
+            raise FileExistsError(f'Formal training output already exists: {directory}/train')
+    return pair
 
 
 def gpu_snapshot():
@@ -118,14 +144,14 @@ def stop_owned_process(process):
         process.wait(timeout=20)
 
 
-def run_stage(stage,run_dir,state,env,poll_seconds=10,check_gpu=True):
+def run_stage(stage,run_dir,state,env,poll_seconds=10,check_gpu=True,gpu_wait_seconds=300):
     path=Path(run_dir)/f'{stage.name}.log'
     if path.exists(): raise FileExistsError(f'Log exists for unfinished stage: {path}')
     info=dict(status='STARTING',started_at=timestamp(),command=stage.command,log=str(path))
     state['stages'][stage.name]=info; state['current_stage']=stage.name
     atomic_json(Path(run_dir)/'status.json',state)
     if stage.gpus and check_gpu:
-        info['gpu_before']=wait_idle(stage.gpus)
+        info['gpu_before']=wait_idle(stage.gpus,gpu_wait_seconds)
     stage_env=env.copy()
     if stage.gpus: stage_env['CUDA_VISIBLE_DEVICES']=','.join(stage.gpus)
     stage_env['PYTHONUNBUFFERED']='1'
@@ -194,17 +220,21 @@ def main():
     parser.add_argument('--port-base',type=int,default=19330)
     parser.add_argument('--dry-run',action='store_true')
     parser.add_argument('--resume',action='store_true')
+    parser.add_argument('--skip-smoke',action='store_true',help='Explicitly skip short training and smoke evaluations')
+    parser.add_argument('--prepared-bundle',action='store_true',help='Reuse verified complete statistics/configs; do not repeat preprocessing')
+    parser.add_argument('--gpu-wait-seconds',type=int,default=300,help='Wait for idle allocated GPUs without stopping other jobs')
     args=parser.parse_args()
     args.gpus=[value.strip() for value in args.gpus.split(',') if value.strip()]
     if not args.gpus or len(set(args.gpus))!=len(args.gpus) or any(not value.isdigit() for value in args.gpus):
         parser.error('gpus must be distinct numeric IDs')
-    if args.steps<5 or args.micro_batch<1 or 128%(len(args.gpus)*args.micro_batch):
+    if args.steps<5 or args.micro_batch<1 or 128%(len(args.gpus)*args.micro_batch) or args.gpu_wait_seconds<0:
         parser.error('steps must be >=5, and global BS128 must divide world_size * micro_batch')
     for name in ('base_config','robot_config','train_list','raw_root','ee_sidecar_root','bundle','run_dir'):
         setattr(args,name,getattr(args,name).resolve())
     stages=build_plan(args)
     plan=dict(stages=[asdict(stage) for stage in stages],steps=args.steps,global_batch=128,
               groups=['JDelta','JointEE'],total_formal_eval_episodes=700,
+              skipped_smoke=args.skip_smoke,prepared_bundle=args.prepared_bundle,gpu_wait_seconds=args.gpu_wait_seconds,
               code_commit=subprocess.check_output(['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip())
     if args.dry_run:
         print(json.dumps(plan,indent=2)); return
@@ -226,10 +256,16 @@ def main():
         state.pop('finished_at',None)
         atomic_json(status_path,state)
         try:
-            atomic_json(args.run_dir/'gpu_initial.json',wait_idle(args.gpus))
+            if args.prepared_bundle and not args.resume:
+                pair=validate_prepared_bundle(args)
+                atomic_json(args.run_dir/'prepared_bundle.json',dict(bundle=str(args.bundle),pair_sha256=digest(args.bundle/'pair.json'),
+                                                                   source_commit=pair['source_commit']))
+            state['current_stage']='WAIT_GPU'
+            atomic_json(status_path,state)
+            atomic_json(args.run_dir/'gpu_initial.json',wait_idle(args.gpus,args.gpu_wait_seconds))
             for stage in stages:
                 if state['stages'].get(stage.name,{}).get('status')=='COMPLETE': continue
-                run_stage(stage,args.run_dir,state,environment())
+                run_stage(stage,args.run_dir,state,environment(),gpu_wait_seconds=args.gpu_wait_seconds)
             result=finish_comparison(args.run_dir,args.steps)
             state.update(status='COMPLETE',finished_at=timestamp(),summary=result['summary'])
         except BaseException as exc:
