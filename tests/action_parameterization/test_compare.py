@@ -62,6 +62,21 @@ class ComparisonTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'identical state inputs'):
             compare(*self.runs)
 
+    def test_independent_supervision_comparison_and_norm_mismatch_rejection(self):
+        defaults=dict(flow_dimension_weights=None,flow_horizon_weights=None,spline_control_points=0,spline_degree=3)
+        for i,run in enumerate(self.runs):
+            path=run/'ysj_evaluation.json'; report=json.loads(path.read_text())
+            weights=[1.]*55; weights[28:30]=[2.,2.]
+            report.update(contract={'mode':'joint_delta'},state_features_sha256='same',norm_sha256='same',label_manifests={},
+                          action_loss=dict(mask_action_padding=True,joint_ee_aux_weight=-1.),
+                          action_supervision=dict(defaults,flow_dimension_weights=weights) if i else defaults)
+            path.write_text(json.dumps(report))
+        self.assertEqual(len(compare(*self.runs)['rows']),14)
+        path=self.runs[1]/'ysj_evaluation.json'; report=json.loads(path.read_text())
+        report['norm_sha256']='different'; path.write_text(json.dumps(report))
+        with self.assertRaisesRegex(ValueError,'norm_sha256'):
+            compare(*self.runs)
+
 
 if __name__ == '__main__':
     unittest.main()

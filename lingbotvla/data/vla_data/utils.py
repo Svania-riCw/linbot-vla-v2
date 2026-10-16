@@ -97,6 +97,10 @@ class FeatureTransform:
         if not return_item_befor_padding: self.check_robot_config(robot_config)
 
         self.model_config = model_config
+        if getattr(model_config, 'spline_control_points', 0):
+            from deploy.action_contract import action_mode
+            if action_mode(robot_config) != 'joint_delta':
+                raise ValueError('Spline actions currently require joint deltas plus absolute grippers')
         self.tokenizer = processor.tokenizer if processor is not None else None
         self.processor = processor
 

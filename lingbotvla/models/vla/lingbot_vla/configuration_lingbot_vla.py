@@ -58,6 +58,10 @@ class LingbotVLAConfig(PretrainedConfig):
         loss_type: str = "fm",
         joint_ee_aux_weight: float = -1.0,
         mask_action_padding: bool = False,
+        flow_dimension_weights: Optional[list] = None,
+        flow_horizon_weights: Optional[list] = None,
+        spline_control_points: int = 0,
+        spline_degree: int = 3,
         norm_qkv: bool = False,
         align_params: Optional[Dict[str, Any]] = None,
         use_compile: bool = False,
@@ -130,6 +134,21 @@ class LingbotVLAConfig(PretrainedConfig):
         self.loss_type = loss_type
         self.joint_ee_aux_weight = joint_ee_aux_weight
         self.mask_action_padding = mask_action_padding
+        self.flow_dimension_weights = flow_dimension_weights
+        self.flow_horizon_weights = flow_horizon_weights
+        self.spline_control_points = spline_control_points
+        self.spline_degree = spline_degree
+        weighted = flow_dimension_weights is not None or flow_horizon_weights is not None
+        if weighted:
+            from lingbotvla.action_spaces.loss import validate_weights
+            validate_weights(flow_dimension_weights,max_action_dim,'flow_dimension_weights')
+            validate_weights(flow_horizon_weights,chunk_size,'flow_horizon_weights')
+        if weighted or spline_control_points:
+            if training_time_rtc or joint_ee_aux_weight >= 0 or not mask_action_padding or loss_type not in ('fm','L1_fm'):
+                raise ValueError('Weighted/spline experiments require padding masks, fm/L1_fm and no RTC/JointEE')
+        if spline_control_points:
+            if weighted or not isinstance(spline_control_points,int) or not isinstance(spline_degree,int) or not (1 <= spline_degree < spline_control_points <= chunk_size):
+                raise ValueError('Spline requires integer 1 <= degree < points <= chunk_size and no weighted loss')
         if not (joint_ee_aux_weight == -1 or 0 <= joint_ee_aux_weight < float('inf')):
             raise ValueError('joint_ee_aux_weight must be -1 (disabled) or finite and nonnegative')
         if joint_ee_aux_weight >= 0 and (training_time_rtc or 'repeat' in loss_type or max_action_dim < 30):
@@ -142,7 +161,7 @@ class LingbotVLAConfig(PretrainedConfig):
         self.max_action_dim = max_action_dim
         self.max_state_dim = max_state_dim
         self.chunk_size = chunk_size
-        self.n_action_steps = chunk_size
+        self.n_action_steps = spline_control_points or chunk_size
         self.training_time_rtc = training_time_rtc
         self.training_time_rtc_max_delay = training_time_rtc_max_delay
         if self.training_time_rtc_max_delay < 1:

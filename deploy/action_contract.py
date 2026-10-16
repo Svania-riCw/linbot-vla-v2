@@ -55,6 +55,14 @@ def canonical_norm_types(value):
     return result
 
 
+def supervision_config(train):
+    """Serializable knobs needed to reproduce loss and spline decoding."""
+    return dict(flow_dimension_weights=train.get('flow_dimension_weights'),
+                flow_horizon_weights=train.get('flow_horizon_weights'),
+                spline_control_points=train.get('spline_control_points',0),
+                spline_degree=train.get('spline_degree',3))
+
+
 def resolve_contract(model_path, robo_name='robotwin', norm_override=None):
     cfg_path = training_config_path(model_path)
     config = yaml.safe_load(cfg_path.read_text(encoding='utf-8'))
@@ -84,6 +92,13 @@ def resolve_contract(model_path, robo_name='robotwin', norm_override=None):
         for key, value in expected.items():
             if receipt.get(key) != value:
                 raise ValueError(f'Action contract mismatch: {key}')
+        supervision = supervision_config(config['train'])
+        active = supervision['spline_control_points'] or supervision['flow_dimension_weights'] is not None or supervision['flow_horizon_weights'] is not None
+        if 'supervision' in receipt or active:
+            if receipt.get('supervision') != supervision:
+                raise ValueError('Action contract mismatch: supervision/codec configuration')
+        if supervision['spline_control_points'] and mode != 'joint_delta':
+            raise ValueError('Spline decoder currently supports joint deltas only')
     else:
         mode = 'legacy_absolute'
     return dict(robot_config_root=str(root), robot_config=str(robot_path),

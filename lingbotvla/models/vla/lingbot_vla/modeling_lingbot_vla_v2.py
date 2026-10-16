@@ -436,6 +436,10 @@ class FlowMatchingV2(FlowMatchingV1):
     def __init__(self, config, eval):
         nn.Module.__init__(self)
         self.config = config
+        self.action_spline = None
+        if getattr(config, 'spline_control_points', 0):
+            from lingbotvla.action_spaces.spline import SplineActionCodec
+            self.action_spline = SplineActionCodec(config.chunk_size, config.spline_control_points, config.spline_degree)
         qwenvl_with_export_config = QwenvlWithExpertV2Config(
             freeze_vision_encoder=self.config.freeze_vision_encoder,
             train_expert_only=self.config.train_expert_only,
@@ -1052,6 +1056,12 @@ class FlowMatchingV2(FlowMatchingV1):
             )
             noise = torch.randn(actions_shape, device=device, dtype=dtype)
 
+        if getattr(self.config, 'spline_control_points', 0):
+            if previous_actions is not None or rtc_delay is not None:
+                raise ValueError('Spline actions currently exclude RTC')
+            if noise.shape != (bsize, self.config.n_action_steps, self.config.max_action_dim):
+                raise ValueError('Spline noise must be sampled in control-point space')
+
         rtc_prefix = None
         if previous_actions is not None:
             if not getattr(self.config, "training_time_rtc", False):
@@ -1147,6 +1157,8 @@ class FlowMatchingV2(FlowMatchingV1):
                 x_t = apply_rtc_prefix(x_t, previous_actions, rtc_delay)
             time += dt
         print(f"Denoise {count} steps")
+        if getattr(self.config, 'spline_control_points', 0):
+            return self.action_spline.decode(x_t)
         return x_t
 
     def predict_velocity(
@@ -1408,6 +1420,22 @@ class LingbotVlaV2Policy(PreTrainedModel):
         if getattr(self.config, "action_fp32", False):
             state = state.float()
             actions = actions.float()
+        if getattr(self.config, 'spline_control_points', 0):
+            if joint_mask is None or action_is_pad is None:
+                raise ValueError('Spline training requires joint_mask and action_is_pad')
+            original_actions = actions
+            original_mask = joint_mask.bool() & ~action_is_pad.bool().unsqueeze(-1)
+            actions, joint_mask = self.model.action_spline.encode(actions, action_is_pad, joint_mask)
+            action_is_pad = ~joint_mask.any(-1)
+            if noise is not None and noise.shape != actions.shape:
+                raise ValueError('Spline training noise must have [B,K,D] shape')
+            with torch.no_grad():
+                reconstruction = self.model.action_spline.decode(actions).float()
+                error = torch.where(original_mask,reconstruction-original_actions.float(),0)
+                loss_dict['spline/target_rmse'] = (error.square().sum()/original_mask.sum().clamp_min(1)).sqrt()
+                loss_dict['spline/target_max_error'] = error.abs().max()
+                grip_mask = original_mask[...,28:30]
+                loss_dict['spline/gripper_target_mae'] = error[...,28:30].abs().sum()/grip_mask.sum().clamp_min(1)
         (
             losses,
             loss_depth,
@@ -1446,7 +1474,13 @@ class LingbotVlaV2Policy(PreTrainedModel):
                 raise ValueError('Padding-aware action loss requires joint_mask, action_is_pad and no repeat')
             joint_mask = joint_mask.bool() & ~action_is_pad.bool().unsqueeze(-1)
 
-        if getattr(self.config, "joint_ee_aux_weight", -1.0) >= 0:
+        if getattr(self.config, 'flow_dimension_weights', None) is not None or getattr(self.config, 'flow_horizon_weights', None) is not None:
+            from lingbotvla.action_spaces.loss import weighted_flow_loss
+            if joint_mask is None or getattr(self.config,'training_time_rtc',False) or getattr(self.config,'joint_ee_aux_weight',-1) >= 0:
+                raise ValueError('Weighted flow loss requires joint_mask and excludes RTC/JointEE')
+            loss_vla, batch_mean_losses = weighted_flow_loss(losses, joint_mask,
+                getattr(self.config,'flow_dimension_weights',None), getattr(self.config,'flow_horizon_weights',None))
+        elif getattr(self.config, "joint_ee_aux_weight", -1.0) >= 0:
             from lingbotvla.action_spaces.loss import joint_ee_loss
             if joint_mask is None or getattr(self.config, 'training_time_rtc', False):
                 raise ValueError('Joint+EE requires joint_mask and currently excludes RTC')

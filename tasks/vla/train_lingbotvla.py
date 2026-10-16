@@ -118,6 +118,10 @@ def get_moe_param_groups(model: "torch.nn.Module", args_train) -> Optional[List[
 
 @dataclass
 class MyTrainingArguments(TrainingArguments):
+    flow_dimension_weights: Optional[List[float]] = field(default=None, metadata={"help": "Nonnegative weights for canonical action channels."})
+    flow_horizon_weights: Optional[List[float]] = field(default=None, metadata={"help": "Nonnegative weights for future action steps."})
+    spline_control_points: int = field(default=0, metadata={"help": "0 disables spline actions; otherwise predict K control points."})
+    spline_degree: int = field(default=3, metadata={"help": "Degree of clamped uniform B-spline actions."})
     joint_ee_aux_weight: float = field(default=-1.0, metadata={"help": "-1 disables grouped EE loss; >=0 uses joint mean + weight * EE mean."})
     mask_action_padding: bool = field(default=False, metadata={"help": "Exclude padded timesteps for matched action-space experiments."})
     freeze_vit: bool = field(

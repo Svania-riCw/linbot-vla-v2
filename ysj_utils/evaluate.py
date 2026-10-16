@@ -11,7 +11,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from deploy.action_contract import resolve_contract, digest
+from deploy.action_contract import resolve_contract, digest, supervision_config
 
 TASKS = ['blocks_ranking_rgb', 'hanging_mug', 'open_laptop', 'pick_diverse_bottles',
          'rotate_qrcode', 'stack_blocks_three', 'place_shoe']
@@ -108,9 +108,11 @@ def main():
                   label_manifests=receipt.get('label_manifests', {}),
                   action_loss=dict(joint_ee_aux_weight=training['train'].get('joint_ee_aux_weight', -1.0),
                                    mask_action_padding=training['train'].get('mask_action_padding', False)),
+                  action_supervision=supervision_config(training['train']),
                   training_summary={key:training['train'].get(key) for key in
                                     ['global_batch_size','max_steps','enable_fp32','enable_mixed_precision',
-                                     'seed','chunk_size','lr','lr_min','lr_decay_style','optimizer','training_time_rtc']},
+                                     'seed','chunk_size','lr','lr_min','lr_decay_style','optimizer','training_time_rtc',
+                                     'loss_type','align_params','use_compile']},
                   initial_model=training['model']['model_path'],
                   train_list_sha256=digest(training['data']['train_path']))
     try:

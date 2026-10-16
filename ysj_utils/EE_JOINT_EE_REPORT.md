@@ -147,7 +147,7 @@ python ysj_utils/compare_results.py \
 
 测试隔离图像/语言处理、LeRobot依赖构造和完整VLM。前向归约使用可控预测张量替代重模型内部计算；合成数据用于逻辑检查，不能证明真实FK关系。尚未运行真实标签审计、完整模型bf16前向反向、torch.compile、多GPU、checkpoint重载或RoboTwin IK与350条评测。
 
-本次没有加入通用Weighted Flow-matching或Spline Action。JointEE的lambda是该路径的组间监督权重；后续可独立设计通用加权，避免多项改动混成一组结果。
+本文件记录的EE阶段没有加入通用Weighted Flow-matching或Spline Action。后续两项已经独立接入，见 [加权与样条说明](WEIGHTED_SPLINE_REPORT.md)。JointEE的lambda仍是其组间监督权重；各项改动应独立对照。
 
 ## 可直接汇报
 

@@ -4,6 +4,7 @@ All execution is explicit (norm/train subcommands). Prepare never starts trainin
 Run from the team's configured lingbotvla environment on Linux.
 """
 import argparse
+import ast
 import copy
 import json
 import os
@@ -15,7 +16,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from deploy.action_contract import action_mode, canonical_norm_types, digest
+from deploy.action_contract import action_mode, canonical_norm_types, digest, supervision_config
 
 
 def write_yaml(path, value):
@@ -39,10 +40,20 @@ def ee_robot_config(robot, group):
 
 
 def prepare(base_config, robot_config, train_list, output, world_size=8, micro_batch=16,
-            ee_sidecar_root=None, ee_weight=0.1):
+            ee_sidecar_root=None, ee_weight=0.1, family='action', spline_points=16):
     if world_size < 1 or micro_batch < 1 or 128 % (world_size * micro_batch):
         raise ValueError('128 must be divisible by world_size * micro_batch')
     base = yaml.safe_load(Path(base_config).read_text(encoding='utf-8'))
+    if family not in ('action','supervision') or (family == 'supervision' and ee_sidecar_root is not None):
+        raise ValueError('Choose action family or an independent supervision family without EE sidecars')
+    if family == 'supervision' or ee_sidecar_root is not None:
+        entries = [ast.literal_eval(v) if isinstance(v,str) else v for v in base['data']['joints']]
+        if entries != [{'arm.position':14},{'end.position':14},{'effector.position':2}]:
+            raise ValueError('These experiments require ordered arm14/end14/effector2 canonical slots')
+    if family == 'supervision' and not (isinstance(spline_points,int) and 3 < spline_points <= 50):
+        raise ValueError('Cubic spline points must be an integer in [4,50]')
+    if family == 'supervision' and base['train'].get('max_action_dim') != 55:
+        raise ValueError('Supervision presets require the audited 55-channel RoboTwin model')
     robot = yaml.safe_load(Path(robot_config).read_text(encoding='utf-8'))
     if action_mode(robot) != 'joint_absolute':
         raise ValueError('Start from the verified absolute joint robot config')
@@ -59,8 +70,6 @@ def prepare(base_config, robot_config, train_list, output, world_size=8, micro_b
     if ee_sidecar_root is not None:
         if not 0 < ee_weight < float('inf'):
             raise ValueError('EE weight must be finite and positive')
-        if canonical_norm_types(base['data']['joints']) != {'arm.position':14, 'end.position':14, 'effector.position':2}:
-            raise ValueError('EE experiments require the audited canonical 14+14+2 slots')
         for line in lines:
             dataset = Path(line.split()[1])
             path = Path(ee_sidecar_root).resolve()/dataset.name/'manifest.json'
@@ -79,9 +88,14 @@ def prepare(base_config, robot_config, train_list, output, world_size=8, micro_b
         'world_size': world_size, 'micro_batch': micro_batch, 'global_batch': 128,
         'steps': 10000, 'precision': 'bf16', 'status': 'PREPARED_NOT_TRAINED',
         'label_manifests': label_manifests,
+        'family': family,
     }
     groups = ['B0', 'JDelta'] if ee_sidecar_root is None else ['B0','JDelta','EEDelta','JointEE0','JointEE']
+    if family == 'supervision':
+        groups = ['JDelta','WUniform','WGrip','WTime','Spline']
     manifest['groups'] = groups
+    manifest['stats_sources'] = ({g:'JDelta' for g in groups if g != 'JDelta'} if family == 'supervision'
+                                else {'JointEE':'JointEE0'} if ee_sidecar_root is not None else {})
     for group in groups:
         directory = out / group
         norm_path = directory / 'norm_stats.json'
@@ -104,7 +118,22 @@ def prepare(base_config, robot_config, train_list, output, world_size=8, micro_b
         )
         # Explicitly override inherited research settings, including for controls.
         cfg['train'].update(joint_ee_aux_weight=(ee_weight if group == 'JointEE' else 0.0 if group == 'JointEE0' else -1.0),
-                            mask_action_padding=ee_sidecar_root is not None)
+                            mask_action_padding=ee_sidecar_root is not None or family == 'supervision',
+                            flow_dimension_weights=None, flow_horizon_weights=None,
+                            spline_control_points=0, spline_degree=3)
+        if family == 'supervision':
+            cfg['data'].pop('ee_sidecar_root',None)
+            cfg['train']['use_compile'] = False  # Establish eager GPU validity before compiler experiments.
+        if group == 'WUniform':
+            cfg['train'].update(flow_dimension_weights=[1.]*55,flow_horizon_weights=[1.]*50)
+        elif group == 'WGrip':
+            weights = [1.]*55
+            weights[28:30] = [2.,2.]
+            cfg['train']['flow_dimension_weights'] = weights
+        elif group == 'WTime':
+            cfg['train']['flow_horizon_weights'] = [1.-0.5*t/49 for t in range(50)]
+        elif group == 'Spline':
+            cfg['train']['spline_control_points'] = spline_points
         write_yaml(directory / 'train.yaml', cfg)
         norm = {'data': copy.deepcopy(cfg['data']), 'train': copy.deepcopy(cfg['train'])}
         norm['data'].update(robot_name='robotwin', norm_path=str(norm_path),
@@ -168,7 +197,8 @@ def record_receipt(directory, pair):
                    norm_type=canonical_norm_types(cfg['data']['norm_type']),
                    train_list_sha256=pair['train_list_sha256'],
                    norm_yaml_sha256=digest(directory/'norm.yaml'), label_manifests=pair.get('label_manifests', {}),
-                   stats_source_group=('JointEE0' if directory.name == 'JointEE' and pair.get('label_manifests') else directory.name))
+                   stats_source_group=pair.get('stats_sources',{}).get(directory.name,directory.name),
+                   supervision=supervision_config(cfg['train']))
     Path(str(stats_path)+'.contract.json').write_text(json.dumps(receipt, indent=2), encoding='utf-8')
     return receipt
 
@@ -182,13 +212,16 @@ def environment():
 
 
 def equivalent_stats_source(bundle, pair, directory):
-    """JointEE0 and JointEE differ only in supervision weight, so share numbers."""
-    if directory.name != 'JointEE' or not pair.get('label_manifests'):
+    """Reuse numbers only across exactly equivalent physical target transforms."""
+    source_group = pair.get('stats_sources',{}).get(directory.name)
+    if source_group is None and directory.name == 'JointEE' and pair.get('label_manifests'):
+        source_group = 'JointEE0'  # Compatibility with existing prepared EE bundles.
+    if source_group is None:
         return None
-    _, source = verify_pair(bundle, 'JointEE0')
+    _, source = verify_pair(bundle, source_group)
     receipt = json.loads((source/'norm_stats.json.contract.json').read_text(encoding='utf-8'))
-    if receipt['norm_sha256'] != digest(source/'norm_stats.json') or receipt['robot_sha256'] != pair['JointEE0']['robot_sha256']:
-        raise ValueError('JointEE0 statistics changed after normalization')
+    if receipt['norm_sha256'] != digest(source/'norm_stats.json') or receipt['robot_sha256'] != pair[source_group]['robot_sha256']:
+        raise ValueError(f'{source_group} statistics changed after normalization')
     robots = [yaml.safe_load((d/'robot_configs/robotwin.yaml').read_text(encoding='utf-8')) for d in (source,directory)]
     for robot in robots:
         robot.pop('norm_stats')
@@ -209,10 +242,12 @@ def main():
     p.add_argument('--micro-batch', type=int, default=16)
     p.add_argument('--ee-sidecar-root', type=Path, help='Enable matched B0/JDelta/EEDelta/JointEE0/JointEE bundle')
     p.add_argument('--ee-weight', type=float, default=0.1)
+    p.add_argument('--family', choices=['action','supervision'], default='action')
+    p.add_argument('--spline-points', type=int, default=16)
     for name in ('norm', 'train'):
         p = commands.add_parser(name)
         p.add_argument('--bundle', type=Path, required=True)
-        p.add_argument('--group', choices=['B0','JDelta','EEDelta','JointEE0','JointEE'], required=True)
+        p.add_argument('--group', choices=['B0','JDelta','EEDelta','JointEE0','JointEE','WUniform','WGrip','WTime','Spline'], required=True)
         p.add_argument('--dry-run', action='store_true')
         if name == 'train':
             p.add_argument('--stage', choices=['smoke', 'full'], default='smoke')
@@ -220,7 +255,7 @@ def main():
     if args.command == 'prepare':
         print(json.dumps(prepare(args.base_config, args.robot_config, args.train_list,
                                  args.output, args.world_size, args.micro_batch,
-                                 args.ee_sidecar_root, args.ee_weight), indent=2))
+                                 args.ee_sidecar_root, args.ee_weight,args.family,args.spline_points), indent=2))
         return
     pair, directory = verify_pair(args.bundle, args.group)
     reuse_stats = None

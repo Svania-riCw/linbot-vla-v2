@@ -23,10 +23,23 @@ def compare(baseline_run, delta_run):
             raise ValueError('Compare step-10000 checkpoints, not earlier snapshots')
     modes = tuple(report['contract']['mode'] for report in reports)
     allowed = {('joint_absolute','joint_delta'), ('legacy_absolute','joint_delta'),
+               ('joint_delta','joint_delta'),
                ('joint_absolute','ee_delta'), ('joint_delta','ee_delta'),
                ('joint_delta','joint_ee_delta'), ('joint_ee_delta','joint_ee_delta')}
     if modes not in allowed:
         raise ValueError('Unsupported action-space comparison')
+    if modes == ('joint_delta','joint_delta'):
+        defaults=dict(flow_dimension_weights=None,flow_horizon_weights=None,spline_control_points=0,spline_degree=3)
+        controls=[report.get('action_supervision') for report in reports]
+        if controls[0] != defaults or not controls[1] or controls[1] == defaults:
+            raise ValueError('Supervision comparison requires plain JDelta control and weighted/spline candidate')
+        for field in ('state_features_sha256','norm_sha256','action_loss','label_manifests'):
+            if field not in reports[0] or field not in reports[1] or reports[0][field] != reports[1][field]:
+                raise ValueError(f'Supervision comparison mismatch: {field}')
+        if not reports[0]['norm_sha256'] or reports[0]['action_loss'].get('mask_action_padding') is not True:
+            raise ValueError('Supervision comparison requires shared normalization and padding masks')
+    elif reports[0].get('action_supervision') != reports[1].get('action_supervision'):
+        raise ValueError('Action-space comparison must not change weighted/spline supervision at the same time')
     if 'ee_delta' in modes or 'joint_ee_delta' in modes:
         for field in ('state_features_sha256','label_manifests','action_loss'):
             if not all(report.get(field) for report in reports):
@@ -65,6 +78,7 @@ def compare(baseline_run, delta_run):
                              candidate=sum(r['candidate'] for r in selected)/7,
                              difference_pp=sum(r['difference_pp'] for r in selected)/7)
     return dict(rows=rows, summary=summary, action_modes=modes,
+                action_supervision=[r.get('action_supervision') for r in reports],
                 limitation='Descriptive single-training-seed comparison. Same eval seed is recorded but scene identity and per-episode pairing still require verification. No significance or guaranteed improvement claim.')
 
 

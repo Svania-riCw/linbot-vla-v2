@@ -1,5 +1,7 @@
 # 姚苏珈：动作表示实验
 
+最新更新：通用Weighted Flow-matching与Spline Action已接入，见 [加权与样条实验说明](WEIGHTED_SPLINE_REPORT.md)。包含独立配置、真实Parquet压缩误差检查和现有evaluation接入。
+
 2026-10-16更新：EE Delta、Joint+EE实现、五组匹配对照与服务器命令见 [EE / Joint+EE说明](EE_JOINT_EE_REPORT.md)。以下保留第一阶段Joint Delta说明；两阶段状态输入和padding设置不同，不能混用checkpoint做因果对照。
 
 状态：**开发和本地检查版本，尚未通过 GPU 训练及 RoboTwin 实测。**
