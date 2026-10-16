@@ -1,0 +1,134 @@
+{
+  "verified_at": "2026-10-16T17:45:19.031982+00:00",
+  "state": {
+    "status": "RUNNING",
+    "started_at": "2026-10-16T17:43:46.539302+00:00",
+    "plan_sha256": "cb92486be467823611d981b4907baa9980090049b9c84a8a22721ca5df3de12c",
+    "stages": {},
+    "current_stage": "WAIT_GPU"
+  },
+  "queue_pids": [
+    252618
+  ],
+  "plan": {
+    "stages": [
+      {
+        "name": "full_JDelta",
+        "command": [
+          "/2025233210/xiesy/lingbot_ws/conda_envs/lingbotvla/bin/python",
+          "/2025233210/ysj/lingbot_ws/linbot-vla-v2/ysj_utils/action_experiment.py",
+          "train",
+          "--bundle",
+          "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle",
+          "--group",
+          "JDelta",
+          "--stage",
+          "full"
+        ],
+        "gpus": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7"
+        ]
+      },
+      {
+        "name": "full_JointEE",
+        "command": [
+          "/2025233210/xiesy/lingbot_ws/conda_envs/lingbotvla/bin/python",
+          "/2025233210/ysj/lingbot_ws/linbot-vla-v2/ysj_utils/action_experiment.py",
+          "train",
+          "--bundle",
+          "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle",
+          "--group",
+          "JointEE",
+          "--stage",
+          "full"
+        ],
+        "gpus": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7"
+        ]
+      },
+      {
+        "name": "eval_full_JDelta",
+        "command": [
+          "/2025233210/xiesy/lingbot_ws/conda_envs/lingbotvla/bin/python",
+          "/2025233210/ysj/lingbot_ws/linbot-vla-v2/ysj_utils/evaluate.py",
+          "--mode",
+          "full",
+          "--checkpoint",
+          "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle/JDelta/train/checkpoints/global_step_5000/hf_ckpt",
+          "--gpus",
+          "0,1,2,3,4,5,6,7",
+          "--seed",
+          "0",
+          "--port-base",
+          "19330",
+          "--summary-output",
+          "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_direct/queue/eval_full_JDelta.json"
+        ],
+        "gpus": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7"
+        ]
+      },
+      {
+        "name": "eval_full_JointEE",
+        "command": [
+          "/2025233210/xiesy/lingbot_ws/conda_envs/lingbotvla/bin/python",
+          "/2025233210/ysj/lingbot_ws/linbot-vla-v2/ysj_utils/evaluate.py",
+          "--mode",
+          "full",
+          "--checkpoint",
+          "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle/JointEE/train/checkpoints/global_step_5000/hf_ckpt",
+          "--gpus",
+          "0,1,2,3,4,5,6,7",
+          "--seed",
+          "0",
+          "--port-base",
+          "19330",
+          "--summary-output",
+          "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_direct/queue/eval_full_JointEE.json"
+        ],
+        "gpus": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7"
+        ]
+      }
+    ],
+    "steps": 5000,
+    "global_batch": 128,
+    "groups": [
+      "JDelta",
+      "JointEE"
+    ],
+    "total_formal_eval_episodes": 700,
+    "skipped_smoke": true,
+    "prepared_bundle": true,
+    "gpu_wait_seconds": 21600,
+    "code_commit": "74c9bdc5bc10aec62dce86e04d7ae416e5d02ac3"
+  }
+}
