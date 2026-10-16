@@ -178,6 +178,10 @@ class MyTrainingArguments(TrainingArguments):
         default_factory=dict,
         metadata={"help": "The config of vaco"},
     )
+    d4rt_params: Optional[Dict[str, Any]] = field(
+        default_factory=dict,
+        metadata={"help": "xsy_utils/spatial-exp d4rt probe; off unless {enable: true}. See d4rt_lingbot/hooks.py."},
+    )
     attention_implementation: str = field(
         default="flex",
         metadata={"help": "Attention implementation: flex, flex_cached, or eager."},
@@ -759,6 +763,7 @@ def main():
             future_video_current_dino = None
             future_video_current_rgb, future_video_target_rgb = None, None
             ignore_batch_num = 0
+            d4rt_log = {}
             torch.cuda.synchronize()
             start_time = time.time()
             for micro_batch in micro_batches:
@@ -844,6 +849,9 @@ def main():
                 with model_bwd_context:
                     loss.backward()
 
+                for _k, _v in loss_log.items():
+                    if _k.startswith("d4rt/"):
+                        d4rt_log[_k] = d4rt_log.get(_k, 0.0) + float(_v) / len(micro_batches)
                 total_loss += loss.item()
                 total_vla_loss += vla_loss.item()
                 if not (isinstance(depth_loss, int) or isinstance(depth_loss, float)):
@@ -922,6 +930,19 @@ def main():
             else:
                 lr = max(all_lrs)
                 expert_lr = None
+            d4rt_str = ""
+            if d4rt_log:
+                _keys = sorted(d4rt_log)
+                _vals = torch.tensor([d4rt_log[_k] for _k in _keys], device="cuda")
+                dist.all_reduce(_vals, op=dist.ReduceOp.AVG, group=get_parallel_state().fsdp_group)
+                d4rt_log = dict(zip(_keys, _vals.tolist()))
+                d4rt_str = (
+                    f"D4rt_Loss {d4rt_log.get('d4rt/loss', 0):.4f}, D4rt_Base {d4rt_log.get('d4rt/baseline', 0):.4f}, "
+                    f"D4rt_mm {d4rt_log.get('d4rt/xyz_l2_mm', 0):.1f} "
+                    f"(dep {d4rt_log.get('d4rt/xyz_l2_mm_depth', 0):.1f} tim {d4rt_log.get('d4rt/xyz_l2_mm_time', 0):.1f} "
+                    f"he {d4rt_log.get('d4rt/xyz_l2_mm_handeye', 0):.1f} reg {d4rt_log.get('d4rt/xyz_l2_mm_reg', 0):.1f}), "
+                    f"D4rt_Mask {d4rt_log.get('d4rt/mask_frac', 0):.3f}, "
+                )
             train_metrics = environ_meter.step(delta_time, global_step=global_step)
             data_loader_tqdm.set_postfix(
                 loss=f"{total_loss:.4f}", lr=f"{lr:.2e}", refresh=False
@@ -942,6 +963,7 @@ def main():
                 f"FutureVideo_Loss {total_future_video_loss:.4f}, "
                 f"SeqWise_Loss {total_seq_wise_loss:.4f}, "
                 f"RouterZ_Loss {total_router_z_loss:.4f}, "
+                f"{d4rt_str}"
                 f"{maxvio_str}"
                 f"{sigmoid_str}"
                 f"GradNorm {grad_norm:.4f}, "
@@ -956,6 +978,8 @@ def main():
             if args.train.global_rank == 0:
                 writer.add_scalar("training/loss", total_loss, global_step)
                 writer.add_scalar("training/vla_loss", total_vla_loss, global_step)
+                for _k, _v in d4rt_log.items():
+                    writer.add_scalar(f"training/{_k}", _v, global_step)
                 writer.add_scalar("training/depth_loss", total_depth_loss, global_step)
                 writer.add_scalar("training/future_depth_loss", total_future_depth_loss, global_step)
                 writer.add_scalar("training/future_video_loss", total_future_video_loss, global_step)

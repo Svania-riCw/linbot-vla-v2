@@ -38,6 +38,7 @@ from .rtc import (
     sample_rtc_delay,
 )
 from .flex_attention import build_block_mask, flex_attention_forward, flex_attention_with_block_mask
+from lingbotvla.spatial_exp import d4rt, d4rt_enabled
 from lingbotvla.models.loader import LingBotVLAWeightLoader
 from lingbotvla.ops.triton_moe_loss import triton_sequence_wise_balance_loss
 from lingbotvla.models.vla.lingbot_vla.qwen2_action_expert import (
@@ -500,6 +501,12 @@ class FlowMatchingV2(FlowMatchingV1):
             self.future_video_share_future_depth_query = False
             self.block_future_depth_to_action = False
 
+        # xsy_utils/spatial-exp d4rt probe (off unless config.d4rt_params.enable)
+        if d4rt_enabled(self.config):
+            vlm_cfg = self.qwenvl_with_expert.qwenvl.config
+            vlm_width = getattr(getattr(vlm_cfg, "text_config", vlm_cfg), "hidden_size")
+            self.d4rt_probe = d4rt().build_probe(self.config, context_width=vlm_width)
+
         self.set_requires_grad()
 
     def embed_suffix(self, state, noisy_actions, timestep, action_is_pad=None):
@@ -850,6 +857,7 @@ class FlowMatchingV2(FlowMatchingV1):
         future_video_current_patch=None,
         action_is_pad=None,
         rtc_delay=None,
+        d4rt_batch=None,
     ) -> Tensor:
         dtype = state.dtype
         device = state.device
@@ -953,6 +961,12 @@ class FlowMatchingV2(FlowMatchingV1):
             deepstack_visual_embeds=deepstack_visual_embeds,
         )
         align_metrics = {}
+        if getattr(self, "d4rt_probe", None) is not None and d4rt_batch is not None:
+            loss_d4rt, d4rt_metrics = d4rt().model_loss(
+                self.config, self.d4rt_probe, outputs_embeds, prefix_pad_masks, d4rt_batch
+            )
+            align_metrics.update(d4rt_metrics)
+            align_metrics["_d4rt_loss"] = loss_d4rt  # carries grad; popped by LingbotVlaV2Policy.forward
         if self.config.align_params != {}:
             loss_depth, loss_future_depth, depth_preds, future_depth_preds = self.depth_emb_forward(outputs_embeds, depth_targets, img_masks,future_depth_targets,)
             loss_depth = loss_depth * self.config.align_params["depth_loss_weight"]
@@ -1405,6 +1419,7 @@ class LingbotVlaV2Policy(PreTrainedModel):
         **kwargs
     ) -> tuple[Tensor, dict[str, Tensor]]:
         loss_dict = {}
+        d4rt_batch = d4rt().pop_batch(kwargs) if d4rt_enabled(self.config) else None
         if getattr(self.config, "action_fp32", False):
             state = state.float()
             actions = actions.float()
@@ -1439,7 +1454,9 @@ class LingbotVlaV2Policy(PreTrainedModel):
             future_video_current_patch=future_video_current_patch,
             action_is_pad=action_is_pad,
             rtc_delay=rtc_delay,
+            d4rt_batch=d4rt_batch,
         )
+        loss_d4rt = moe_metrics.pop("_d4rt_loss", 0.0) if moe_metrics else 0.0
 
         if getattr(self.config, "training_time_rtc", False):
             if rtc_loss_mask is None:
@@ -1476,6 +1493,7 @@ class LingbotVlaV2Policy(PreTrainedModel):
             + loss_future_video
             + seq_wise_loss
             + router_z_loss
+            + loss_d4rt
         )
         loss_dict["router_z_loss"] = router_z_loss.detach() if torch.is_tensor(router_z_loss) else router_z_loss
         if moe_metrics:

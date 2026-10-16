@@ -37,6 +37,7 @@ from datasets import load_dataset as _hf_load_dataset
 from ...utils import logging
 from .utils import FeatureTransform
 from .video_utils import decode_video_frames
+from ...spatial_exp import d4rt, d4rt_enabled
 
 
 logger = logging.get_logger(__name__)
@@ -214,6 +215,7 @@ class VLADataset(Dataset):
 
         self.return_item = return_item
         self.transform = transform
+        self.repo_id = repo_id
 
     def __len__(self):
         return len(self.dataset)
@@ -276,9 +278,14 @@ class VLADataset(Dataset):
                 float(self.dataset_meta.fps) / float(max(1, self.chunk_size - 1)),
                 dtype=torch.float32,
             )
+        use_d4rt = d4rt_enabled(self.config)
+        if use_d4rt:  # xsy_utils/spatial-exp d4rt probe targets; indices read before the transform
+            index_item = {k: raw_item[k] for k in ("episode_index", "frame_index")}
         item = self.feature_transform.apply(raw_item)
         if self.transform is not None:
             item = self.transform(item, raw_item, self.feature_transform.feature_config.images, self.feature_transform.key_mapping)
+        if use_d4rt:
+            item.update(d4rt().dataset_fields(self.config, self.repo_id, index_item, item))
         return item
 
     def __getitem__(self, idx):

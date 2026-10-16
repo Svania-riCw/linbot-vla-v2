@@ -58,6 +58,7 @@ class LingbotVLAConfig(PretrainedConfig):
         loss_type: str = "fm",
         norm_qkv: bool = False,
         align_params: Optional[Dict[str, Any]] = None,
+        d4rt_params: Optional[Dict[str, Any]] = None,  # xsy_utils/spatial-exp d4rt probe
         use_compile: bool = False,
 
         use_moe: bool = False,
@@ -141,6 +142,7 @@ class LingbotVLAConfig(PretrainedConfig):
             raise ValueError("training_time_rtc_max_delay must be at least 1")
         self.vlm_causal = vlm_causal
         self.align_params = align_params
+        self.d4rt_params = d4rt_params or {}
         self.use_moe = use_moe
         if self.use_moe:
             self.token_moe_layers = token_moe_layers

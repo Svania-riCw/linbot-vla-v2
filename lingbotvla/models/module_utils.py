@@ -333,6 +333,11 @@ def load_model_weights(
     for name, buffer in buffer_dict.items():
         _dispatch_buffer(model, name, buffer)
 
+    # xsy_utils/spatial-exp d4rt probe: not in the pretrained checkpoint, initialized by itself.
+    from lingbotvla.spatial_exp import d4rt, d4rt_enabled
+    if d4rt_enabled(getattr(model, "config", None)):
+        parameter_names = d4rt().init_missing(model, parameter_names)
+
     if post_training:
         assert len(parameter_names) == 0, f"Missing {parameter_names} during Post-Training. This is not allowed!!!"
         if adanorm_time:
