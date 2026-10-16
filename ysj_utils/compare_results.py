@@ -21,8 +21,27 @@ def compare(baseline_run, delta_run):
             raise ValueError('Expected global BS128 / 10000 steps / bf16 training')
         if Path(report['checkpoint']).parent.name != 'global_step_10000':
             raise ValueError('Compare step-10000 checkpoints, not earlier snapshots')
-    if reports[0]['contract']['mode'] not in ('joint_absolute','legacy_absolute') or reports[1]['contract']['mode'] != 'joint_delta':
-        raise ValueError('Expected absolute-joint baseline and joint-delta candidate')
+    modes = tuple(report['contract']['mode'] for report in reports)
+    allowed = {('joint_absolute','joint_delta'), ('legacy_absolute','joint_delta'),
+               ('joint_absolute','ee_delta'), ('joint_delta','ee_delta'),
+               ('joint_delta','joint_ee_delta'), ('joint_ee_delta','joint_ee_delta')}
+    if modes not in allowed:
+        raise ValueError('Unsupported action-space comparison')
+    if 'ee_delta' in modes or 'joint_ee_delta' in modes:
+        for field in ('state_features_sha256','label_manifests','action_loss'):
+            if not all(report.get(field) for report in reports):
+                raise ValueError(f'EE comparison requires recorded {field}; rerun evaluation with this version')
+        if reports[0]['state_features_sha256'] != reports[1]['state_features_sha256'] or reports[0]['label_manifests'] != reports[1]['label_manifests']:
+            raise ValueError('EE comparison requires identical state inputs and audited labels')
+        if not all(report['action_loss']['mask_action_padding'] for report in reports):
+            raise ValueError('EE comparison requires padding-aware loss in both groups')
+        weights = [report['action_loss']['joint_ee_aux_weight'] for report in reports]
+        if modes == ('joint_ee_delta','joint_ee_delta') and not (weights[0] == 0 and weights[1] > 0):
+            raise ValueError('Expected zero-weight JointEE0 control and positive-weight JointEE candidate')
+        if modes == ('joint_ee_delta','joint_ee_delta') and (not reports[0].get('norm_sha256') or reports[0]['norm_sha256'] != reports[1].get('norm_sha256')):
+            raise ValueError('JointEE0/JointEE ablation requires identical normalization numbers')
+        if modes[1] == 'joint_ee_delta' and modes[0] == 'joint_delta' and weights[1] <= 0:
+            raise ValueError('JointEE candidate requires positive EE supervision')
     for field in ['tasks','configs','episodes','seed','inference_precision','use_length',
                   'training_summary','initial_model','train_list_sha256','code_commit']:
         if reports[0][field] != reports[1][field]:
@@ -38,21 +57,21 @@ def compare(baseline_run, delta_run):
         values.append(units)
     for key in sorted(values[0]):
         b, d = values[0][key], values[1][key]
-        rows.append(dict(task=key[0], setting=key[1], baseline=b, joint_delta=d, difference_pp=100*(d-b)))
+        rows.append(dict(task=key[0], setting=key[1], baseline=b, candidate=d, difference_pp=100*(d-b)))
     summary = {}
     for case in ('clean','random'):
         selected = [r for r in rows if r['setting']==case]
         summary[case] = dict(baseline=sum(r['baseline'] for r in selected)/7,
-                             joint_delta=sum(r['joint_delta'] for r in selected)/7,
+                             candidate=sum(r['candidate'] for r in selected)/7,
                              difference_pp=sum(r['difference_pp'] for r in selected)/7)
-    return dict(rows=rows, summary=summary,
+    return dict(rows=rows, summary=summary, action_modes=modes,
                 limitation='Descriptive single-training-seed comparison. Same eval seed is recorded but scene identity and per-episode pairing still require verification. No significance or guaranteed improvement claim.')
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--baseline-run', type=Path, required=True)
-    parser.add_argument('--delta-run', type=Path, required=True)
+    parser.add_argument('--candidate-run', '--delta-run', dest='delta_run', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     result = compare(args.baseline_run, args.delta_run)

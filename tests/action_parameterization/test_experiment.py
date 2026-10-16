@@ -124,7 +124,7 @@ class PairTests(unittest.TestCase):
         calls = []
         def feature_transform(path, *args, **kwargs):
             calls.append((path, kwargs))
-            return SimpleNamespace(org_features={'actions': ['action']})
+            return SimpleNamespace(org_features={'actions': ['action']}, actions=['action.arm.position'])
         namespace.update(Path=Path, yaml=yaml, FeatureTransform=feature_transform)
         obj = SimpleNamespace(robot_config_root=str(self.bundle/'JDelta/robot_configs'),
                               vla=SimpleNamespace(), data_config=None, config=SimpleNamespace(chunk_size=50),

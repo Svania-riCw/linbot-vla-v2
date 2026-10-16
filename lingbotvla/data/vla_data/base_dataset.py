@@ -203,6 +203,13 @@ class VLADataset(Dataset):
             {"repo_id": lerobot_repo_id, "root": lerobot_root},
         )
         self.dataset_meta = LeRobotDatasetMetadata(**metadata_kwargs)
+        self.ee_sidecar = None
+        ee_root = getattr(dataset_config, 'ee_sidecar_root', None)
+        if ee_root:
+            from lingbotvla.action_spaces.ee_labels import EESidecar
+            if self.feature_transform.actions_convert_from_state:
+                raise ValueError('EE sidecars require action-row targets, not convert_from_state')
+            self.ee_sidecar = EESidecar(ee_root, repo_id)
         merged_delta = {**self.get_delta_timestamps(), **self.get_video_delta_timestamps()}
 
         self.dataset = LeRobotDataset(
@@ -233,6 +240,8 @@ class VLADataset(Dataset):
         fps = None if return_indices else self.dataset_meta.fps
         if not len(self.feature_transform.actions_convert_from_state)>0:
             for action_feature in self.feature_transform.org_features['actions']:
+                if action_feature == 'action.ee_pose' and self.ee_sidecar is not None:
+                    continue  # Supplied after LeRobot queries the matching joint action chunk.
                 delta_timestamps[action_feature] = [t / fps if fps else t for t in range(self.chunk_size)]
         else:
             for state_feature in self.feature_transform.org_features['states']:
@@ -266,7 +275,10 @@ class VLADataset(Dataset):
         return item
 
     def getitem(self, idx):
-        raw_item = self.check_lerobot_item(self.dataset[idx])
+        raw_item = self.dataset[idx]
+        if self.ee_sidecar is not None:
+            raw_item = self.ee_sidecar.attach(raw_item, self.chunk_size)
+        raw_item = self.check_lerobot_item(raw_item)
         if (
             self.use_future_image
             and "future_video_effective_fps" not in raw_item

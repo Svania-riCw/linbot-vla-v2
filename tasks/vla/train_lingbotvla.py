@@ -118,6 +118,8 @@ def get_moe_param_groups(model: "torch.nn.Module", args_train) -> Optional[List[
 
 @dataclass
 class MyTrainingArguments(TrainingArguments):
+    joint_ee_aux_weight: float = field(default=-1.0, metadata={"help": "-1 disables grouped EE loss; >=0 uses joint mean + weight * EE mean."})
+    mask_action_padding: bool = field(default=False, metadata={"help": "Exclude padded timesteps for matched action-space experiments."})
     freeze_vit: bool = field(
         default=False,
         metadata={"help": "Whether or not to freeze the vit parameters."},

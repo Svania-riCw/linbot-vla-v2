@@ -164,6 +164,7 @@ class DataArguments:
         default=10_000_000,
         metadata={"help": "Number of tokens for training to compute training steps for dynamic batch dataloader."},
     )
+    ee_sidecar_root: str = field(default=None, metadata={"help": "Audited RoboTwin EE labels; optional."})
     data_type: Literal["plaintext", "conversation", "diffusion"] = field(
         default="conversation",
         metadata={"help": "Type of the training data."},

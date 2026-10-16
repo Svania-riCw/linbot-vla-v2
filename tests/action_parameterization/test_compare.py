@@ -47,6 +47,21 @@ class ComparisonTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'Missing'):
             compare(*self.runs)
 
+    def test_joint_ee_comparison_checks_common_inputs_labels_and_zero_weight_control(self):
+        for index,run in enumerate(self.runs):
+            path=run/'ysj_evaluation.json'
+            report=json.loads(path.read_text())
+            report.update(contract={'mode':'joint_ee_delta'},state_features_sha256='same-states',norm_sha256='same-statistics',
+                          label_manifests={'labels':'same-audit'},
+                          action_loss={'mask_action_padding':True,'joint_ee_aux_weight':0. if index==0 else .1})
+            path.write_text(json.dumps(report))
+        self.assertEqual(len(compare(*self.runs)['rows']),14)
+        path=self.runs[1]/'ysj_evaluation.json'
+        report=json.loads(path.read_text()); report['state_features_sha256']='different'
+        path.write_text(json.dumps(report))
+        with self.assertRaisesRegex(ValueError,'identical state inputs'):
+            compare(*self.runs)
+
 
 if __name__ == '__main__':
     unittest.main()

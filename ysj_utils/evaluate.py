@@ -1,5 +1,6 @@
 """Use the team eval engine, then reject incomplete/duplicate result grids."""
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -90,6 +91,9 @@ def main():
         raise FileNotFoundError('Missing checkpoint shards')
     contract = resolve_contract(args.checkpoint)
     training = yaml.safe_load(Path(contract['config']).read_text(encoding='utf-8'))
+    robot = yaml.safe_load(Path(contract['robot_config']).read_text(encoding='utf-8'))
+    receipt_path = Path(contract['norm_stats']+'.contract.json')
+    receipt = json.loads(receipt_path.read_text(encoding='utf-8')) if receipt_path.exists() else {}
     result = subprocess.run(command, env=env, cwd=ROOT)
     output_parent = ROOT/'external/RoboTwin/eval_result'/model_name
     runs = list(output_parent.glob('run_*'))
@@ -100,6 +104,10 @@ def main():
                   code_commit=subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip(),
                   norm_sha256=digest(contract['norm_stats']), robot_sha256=digest(contract['robot_config']),
                   training_config_sha256=digest(contract['config']),
+                  state_features_sha256=hashlib.sha256(json.dumps(robot['states'],sort_keys=True).encode()).hexdigest(),
+                  label_manifests=receipt.get('label_manifests', {}),
+                  action_loss=dict(joint_ee_aux_weight=training['train'].get('joint_ee_aux_weight', -1.0),
+                                   mask_action_padding=training['train'].get('mask_action_padding', False)),
                   training_summary={key:training['train'].get(key) for key in
                                     ['global_batch_size','max_steps','enable_fp32','enable_mixed_precision',
                                      'seed','chunk_size','lr','lr_min','lr_decay_style','optimizer','training_time_rtc']},

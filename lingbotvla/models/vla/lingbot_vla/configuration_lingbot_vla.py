@@ -56,6 +56,8 @@ class LingbotVLAConfig(PretrainedConfig):
         vlm_causal: bool = False,
         tokenizer_max_length: int = 48,
         loss_type: str = "fm",
+        joint_ee_aux_weight: float = -1.0,
+        mask_action_padding: bool = False,
         norm_qkv: bool = False,
         align_params: Optional[Dict[str, Any]] = None,
         use_compile: bool = False,
@@ -126,6 +128,12 @@ class LingbotVLAConfig(PretrainedConfig):
         self.norm_qkv = norm_qkv
         self.use_compile = use_compile
         self.loss_type = loss_type
+        self.joint_ee_aux_weight = joint_ee_aux_weight
+        self.mask_action_padding = mask_action_padding
+        if not (joint_ee_aux_weight == -1 or 0 <= joint_ee_aux_weight < float('inf')):
+            raise ValueError('joint_ee_aux_weight must be -1 (disabled) or finite and nonnegative')
+        if joint_ee_aux_weight >= 0 and (training_time_rtc or 'repeat' in loss_type or max_action_dim < 30):
+            raise ValueError('Joint+EE currently requires >=30 channels and no RTC/repeat loss')
         self.separate_time_proj = separate_time_proj
         self.final_norm_adanorm = final_norm_adanorm
         self.freeze_vision_encoder = freeze_vision_encoder

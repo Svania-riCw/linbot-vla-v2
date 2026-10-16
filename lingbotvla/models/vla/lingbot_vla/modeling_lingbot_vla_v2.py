@@ -1441,7 +1441,20 @@ class LingbotVlaV2Policy(PreTrainedModel):
             rtc_delay=rtc_delay,
         )
 
-        if getattr(self.config, "training_time_rtc", False):
+        if getattr(self.config, "mask_action_padding", False):
+            if joint_mask is None or action_is_pad is None or 'repeat' in self.config.loss_type:
+                raise ValueError('Padding-aware action loss requires joint_mask, action_is_pad and no repeat')
+            joint_mask = joint_mask.bool() & ~action_is_pad.bool().unsqueeze(-1)
+
+        if getattr(self.config, "joint_ee_aux_weight", -1.0) >= 0:
+            from lingbotvla.action_spaces.loss import joint_ee_loss
+            if joint_mask is None or getattr(self.config, 'training_time_rtc', False):
+                raise ValueError('Joint+EE requires joint_mask and currently excludes RTC')
+            loss_vla, batch_mean_losses, main_loss, ee_loss = joint_ee_loss(
+                losses, joint_mask, self.config.joint_ee_aux_weight)
+            loss_dict['action/joint_gripper_loss'] = main_loss
+            loss_dict['action/ee_loss'] = ee_loss
+        elif getattr(self.config, "training_time_rtc", False):
             if rtc_loss_mask is None:
                 raise RuntimeError("RTC is enabled but the action-prefix loss mask was not returned")
             if joint_mask is None:

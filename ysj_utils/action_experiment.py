@@ -8,6 +8,7 @@ import copy
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import yaml
@@ -23,7 +24,22 @@ def write_yaml(path, value):
         yaml.safe_dump(value, file, allow_unicode=True, sort_keys=False)
 
 
-def prepare(base_config, robot_config, train_list, output, world_size=8, micro_batch=16):
+def ee_robot_config(robot, group):
+    """All five EE-bundle groups receive identical joint + EE state inputs."""
+    robot = copy.deepcopy(robot)
+    robot['states'].append({'observation.state.end.position': {'origin_keys': 'observation.ee_pose'}})
+    if group != 'B0':
+        robot['actions'][0]['action.arm.position']['subtract_state'] = True
+    if group in ('EEDelta', 'JointEE', 'JointEE0'):
+        robot['actions'].append({'action.end.position': {
+            'origin_keys': 'action.ee_pose', 'subtract_state': True, 'relative_type': 'quaternion_local'}})
+    if group == 'EEDelta':
+        robot['actions'] = [f for f in robot['actions'] if 'action.arm.position' not in f]
+    return robot
+
+
+def prepare(base_config, robot_config, train_list, output, world_size=8, micro_batch=16,
+            ee_sidecar_root=None, ee_weight=0.1):
     if world_size < 1 or micro_batch < 1 or 128 % (world_size * micro_batch):
         raise ValueError('128 must be divisible by world_size * micro_batch')
     base = yaml.safe_load(Path(base_config).read_text(encoding='utf-8'))
@@ -39,6 +55,19 @@ def prepare(base_config, robot_config, train_list, output, world_size=8, micro_b
         raise ValueError('Expected nonempty robotwin training manifest, two columns per line')
     if len(set(lines)) != len(lines):
         raise ValueError('Duplicate dataset in training manifest')
+    label_manifests = {}
+    if ee_sidecar_root is not None:
+        if not 0 < ee_weight < float('inf'):
+            raise ValueError('EE weight must be finite and positive')
+        if canonical_norm_types(base['data']['joints']) != {'arm.position':14, 'end.position':14, 'effector.position':2}:
+            raise ValueError('EE experiments require the audited canonical 14+14+2 slots')
+        for line in lines:
+            dataset = Path(line.split()[1])
+            path = Path(ee_sidecar_root).resolve()/dataset.name/'manifest.json'
+            labels = json.loads(path.read_text(encoding='utf-8'))
+            if labels.get('schema') != 'robotwin-world-tool-xyzw-v1' or Path(labels['dataset']).resolve() != dataset.resolve() or not labels['episodes']:
+                raise ValueError(f'Invalid EE label manifest: {path}')
+            label_manifests[str(path)] = digest(path)
     out = Path(output).resolve()
     out.mkdir(parents=True, exist_ok=False)
     copied_list = out / 'train.txt'
@@ -49,25 +78,33 @@ def prepare(base_config, robot_config, train_list, output, world_size=8, micro_b
         'train_list_sha256': digest(copied_list), 'datasets': len(lines),
         'world_size': world_size, 'micro_batch': micro_batch, 'global_batch': 128,
         'steps': 10000, 'precision': 'bf16', 'status': 'PREPARED_NOT_TRAINED',
+        'label_manifests': label_manifests,
     }
-    for group, delta in [('B0', False), ('JDelta', True)]:
+    groups = ['B0', 'JDelta'] if ee_sidecar_root is None else ['B0','JDelta','EEDelta','JointEE0','JointEE']
+    manifest['groups'] = groups
+    for group in groups:
         directory = out / group
         norm_path = directory / 'norm_stats.json'
         root = directory / 'robot_configs'
-        group_robot = copy.deepcopy(robot)
+        group_robot = copy.deepcopy(robot) if ee_sidecar_root is None else ee_robot_config(robot, group)
         for feature in group_robot['actions']:
             if 'action.arm.position' in feature:
-                feature['action.arm.position']['subtract_state'] = delta
+                feature['action.arm.position']['subtract_state'] = group != 'B0'
         group_robot['norm_stats'] = str(norm_path)
         write_yaml(root / 'robotwin.yaml', group_robot)
         cfg = copy.deepcopy(base)
         cfg['data'].update(train_path=str(copied_list), robot_config_root=str(root), norm_stats_file=str(norm_path))
+        if ee_sidecar_root is not None:
+            cfg['data']['ee_sidecar_root'] = str(Path(ee_sidecar_root).resolve())
         cfg['train'].update(
             output_dir=str(directory / 'train'), global_batch_size=128,
             micro_batch_size=micro_batch, gradient_accumulation_steps=128//(world_size*micro_batch),
             max_steps=10000, save_steps=1000, enable_fp32=False, enable_mixed_precision=True,
             enable_resume=False, training_time_rtc=False, chunk_size=50, seed=42,
         )
+        # Explicitly override inherited research settings, including for controls.
+        cfg['train'].update(joint_ee_aux_weight=(ee_weight if group == 'JointEE' else 0.0 if group == 'JointEE0' else -1.0),
+                            mask_action_padding=ee_sidecar_root is not None)
         write_yaml(directory / 'train.yaml', cfg)
         norm = {'data': copy.deepcopy(cfg['data']), 'train': copy.deepcopy(cfg['train'])}
         norm['data'].update(robot_name='robotwin', norm_path=str(norm_path),
@@ -93,15 +130,23 @@ def verify_pair(bundle, group):
             raise ValueError(f'Prepared file changed: {path}; create a new experiment bundle')
     if digest(bundle/'train.txt') != pair['train_list_sha256']:
         raise ValueError('Training manifest changed')
+    for path, expected in pair.get('label_manifests', {}).items():
+        if digest(path) != expected:
+            raise ValueError('EE label manifest changed; create a new bundle and normalization statistics')
     return pair, directory
 
 
-def validate_stats(path):
+def validate_stats(path, robot=None):
     import numpy as np
     payload = json.loads(Path(path).read_text(encoding='utf-8'))
     stats = payload['norm_stats']
-    for key, dim in [('action.arm.position', 12), ('observation.state.arm.position', 12),
-                     ('action.effector.position', 2), ('observation.state.effector.position', 2)]:
+    required = [('action.arm.position', 12), ('observation.state.arm.position', 12),
+                ('action.effector.position', 2), ('observation.state.effector.position', 2)]
+    if robot is not None:
+        dims = {'arm.position':12, 'end.position':14, 'effector.position':2}
+        required = [(key, dims[key.removeprefix('observation.state.').removeprefix('action.')])
+                    for category in ('states','actions') for group in robot[category] for key in group]
+    for key, dim in required:
         for name in ('mean', 'std', 'q01', 'q99'):
             value = np.asarray(stats[key][name])
             if value.shape != (dim,) or not np.isfinite(value).all():
@@ -114,15 +159,16 @@ def validate_stats(path):
 
 def record_receipt(directory, pair):
     stats_path = directory/'norm_stats.json'
-    validate_stats(stats_path)
     cfg = yaml.safe_load((directory/'train.yaml').read_text(encoding='utf-8'))
     robot_path = directory/'robot_configs/robotwin.yaml'
     robot = yaml.safe_load(robot_path.read_text(encoding='utf-8'))
+    validate_stats(stats_path, robot)
     receipt = dict(norm_sha256=digest(stats_path), robot_sha256=digest(robot_path),
                    mode=action_mode(robot), chunk_size=cfg['train']['chunk_size'],
                    norm_type=canonical_norm_types(cfg['data']['norm_type']),
                    train_list_sha256=pair['train_list_sha256'],
-                   norm_yaml_sha256=digest(directory/'norm.yaml'))
+                   norm_yaml_sha256=digest(directory/'norm.yaml'), label_manifests=pair.get('label_manifests', {}),
+                   stats_source_group=('JointEE0' if directory.name == 'JointEE' and pair.get('label_manifests') else directory.name))
     Path(str(stats_path)+'.contract.json').write_text(json.dumps(receipt, indent=2), encoding='utf-8')
     return receipt
 
@@ -135,6 +181,22 @@ def environment():
     return env
 
 
+def equivalent_stats_source(bundle, pair, directory):
+    """JointEE0 and JointEE differ only in supervision weight, so share numbers."""
+    if directory.name != 'JointEE' or not pair.get('label_manifests'):
+        return None
+    _, source = verify_pair(bundle, 'JointEE0')
+    receipt = json.loads((source/'norm_stats.json.contract.json').read_text(encoding='utf-8'))
+    if receipt['norm_sha256'] != digest(source/'norm_stats.json') or receipt['robot_sha256'] != pair['JointEE0']['robot_sha256']:
+        raise ValueError('JointEE0 statistics changed after normalization')
+    robots = [yaml.safe_load((d/'robot_configs/robotwin.yaml').read_text(encoding='utf-8')) for d in (source,directory)]
+    for robot in robots:
+        robot.pop('norm_stats')
+    if robots[0] != robots[1]:
+        raise ValueError('Cannot reuse statistics across different action representations')
+    return source/'norm_stats.json'
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
@@ -145,23 +207,30 @@ def main():
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--world-size', type=int, default=8)
     p.add_argument('--micro-batch', type=int, default=16)
+    p.add_argument('--ee-sidecar-root', type=Path, help='Enable matched B0/JDelta/EEDelta/JointEE0/JointEE bundle')
+    p.add_argument('--ee-weight', type=float, default=0.1)
     for name in ('norm', 'train'):
         p = commands.add_parser(name)
         p.add_argument('--bundle', type=Path, required=True)
-        p.add_argument('--group', choices=['B0', 'JDelta'], required=True)
+        p.add_argument('--group', choices=['B0','JDelta','EEDelta','JointEE0','JointEE'], required=True)
         p.add_argument('--dry-run', action='store_true')
         if name == 'train':
             p.add_argument('--stage', choices=['smoke', 'full'], default='smoke')
     args = parser.parse_args()
     if args.command == 'prepare':
         print(json.dumps(prepare(args.base_config, args.robot_config, args.train_list,
-                                 args.output, args.world_size, args.micro_batch), indent=2))
+                                 args.output, args.world_size, args.micro_batch,
+                                 args.ee_sidecar_root, args.ee_weight), indent=2))
         return
     pair, directory = verify_pair(args.bundle, args.group)
+    reuse_stats = None
     if args.command == 'norm':
         if (directory/'norm_stats.json').exists():
             raise FileExistsError('Stats already exist; use a fresh bundle to avoid replacing training statistics')
         command = [sys.executable, str(ROOT/'scripts/compute_norm_stats.py'), str(directory/'norm.yaml')]
+        reuse_stats = equivalent_stats_source(args.bundle, pair, directory)
+        if reuse_stats is not None:
+            command = None
     else:
         receipt_path = directory/'norm_stats.json.contract.json'
         receipt = json.loads(receipt_path.read_text(encoding='utf-8'))
@@ -182,10 +251,14 @@ def main():
             command += ['--train.max_steps', '5', '--train.save_steps', '5', '--train.micro_batch_size', '1',
                         '--train.global_batch_size', '1', '--train.gradient_accumulation_steps', '1',
                         '--train.use_compile', 'False', '--data.num_workers', '0']
-    print(json.dumps({'command': command, 'cwd': str(ROOT)}, indent=2))
+    print(json.dumps({'command': command, 'reuse_equivalent_stats': str(reuse_stats) if reuse_stats else None,
+                      'cwd': str(ROOT)}, indent=2))
     if args.dry_run:
         return
-    subprocess.run(command, cwd=ROOT, env=environment(), check=True)
+    if reuse_stats is not None:
+        shutil.copyfile(reuse_stats, directory/'norm_stats.json')
+    else:
+        subprocess.run(command, cwd=ROOT, env=environment(), check=True)
     if args.command == 'norm':
         record_receipt(directory, pair)
 

@@ -19,6 +19,7 @@ if str(LINGBOT_ROOT) not in sys.path:
     sys.path.append(str(LINGBOT_ROOT))
 
 from deploy.websocket_client_policy import WebsocketClientPolicy
+from deploy.ee_actions import observation_pose, execution_actions
 
 
 class LingbotClient:
@@ -37,13 +38,16 @@ class LingbotClient:
 
 
 def encode_obs(TASK_ENV, observation):
-    return {
+    encoded = {
         "observation.images.cam_high": observation["observation"]["head_camera"]["rgb"],
         "observation.images.cam_left_wrist": observation["observation"]["left_camera"]["rgb"],
         "observation.images.cam_right_wrist": observation["observation"]["right_camera"]["rgb"],
         "observation.state": observation["joint_action"]["vector"],
         "task": TASK_ENV.get_instruction(),
     }
+    if observation.get('endpose'):
+        encoded['observation.ee_pose'] = observation_pose(observation)
+    return encoded
 
 
 def get_model(usr_args):
@@ -56,11 +60,9 @@ def get_model(usr_args):
 
 def eval(TASK_ENV, model, observation):
     ret = model.infer(encode_obs(TASK_ENV, observation))
-    actions = np.asarray(ret["action"])
-    if actions.ndim == 1:
-        actions = actions[None]
+    actions, control = execution_actions(ret)
     for action in actions:
-        TASK_ENV.take_action(action)
+        TASK_ENV.take_action(action, action_type=control)
         # Stop executing the chunk as soon as the task is solved; eval_policy.py checks
         # eval_success after we return.
         if TASK_ENV.eval_success:

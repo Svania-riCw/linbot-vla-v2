@@ -29,8 +29,14 @@ def main():
               'external/RoboTwin/policy/lingbot-vla-v2/serve.py', 'ysj_utils/action_experiment.py', 'ysj_utils/evaluate.py',
               'ysj_utils/compare_results.py', 'configs/robot_configs/robotwin.yaml']
     files += [str(path.relative_to(ROOT)).replace('\\', '/') for path in Path(__file__).parent.glob('*.py')]
+    files += ['deploy/ee_actions.py','lingbotvla/action_spaces/ee_labels.py','lingbotvla/action_spaces/loss.py',
+              'lingbotvla/data/vla_data/base_dataset.py',
+              'lingbotvla/models/vla/lingbot_vla/modeling_lingbot_vla_v2.py',
+              'lingbotvla/models/vla/lingbot_vla/configuration_lingbot_vla.py',
+              'lingbotvla/utils/arguments.py','tasks/vla/train_lingbotvla.py',
+              'external/RoboTwin/policy/lingbot-vla-v2/deploy_policy.py','ysj_utils/prepare_ee_labels.py']
     packages = {}
-    for name in ('torch', 'numpy', 'scipy', 'PyYAML'):
+    for name in ('torch', 'numpy', 'scipy', 'PyYAML', 'pyarrow', 'h5py'):
         try:
             packages[name] = version(name)
         except PackageNotFoundError:

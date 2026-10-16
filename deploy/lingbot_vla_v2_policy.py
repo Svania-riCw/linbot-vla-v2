@@ -411,6 +411,8 @@ class LingbotVLAv2Server:
         # Load data processors
         self.vla.feature_transform = feature_transform
         self.action_key = feature_transform.org_features["actions"]
+        self.control_space = ('ee' if 'action.end.position' in feature_transform.actions
+                              and 'action.arm.position' not in feature_transform.actions else 'qpos')
     def resize_image(self, observation):
         image_features  = self.vla.feature_transform.org_features['images']
         image_size = getattr(self.data_config, 'img_size', 256)
@@ -452,6 +454,10 @@ class LingbotVLAv2Server:
     def _prepare_model_input(self, observation):
         # not modify input observation
         observation = dict(observation)
+        required = self.vla.feature_transform.org_features['states']
+        missing = set(required) - set(observation)
+        if missing:
+            raise ValueError(f'Missing required robot state fields: {sorted(missing)}')
         self.resize_image(observation)
         for k, v in list(observation.items()):
             if isinstance(v, np.ndarray):
@@ -586,7 +592,8 @@ class LingbotVLAv2Server:
             if normalized_action is not None:
                 normalized_action = normalized_action[0]
 
-        result = action
+        result = dict(action)
+        result['_control_space'] = getattr(self, 'control_space', 'qpos')
         if return_normalized:
             result = dict(result)
             result["_normalized_actions"] = normalized_action.numpy() if normalized_action is not None else None

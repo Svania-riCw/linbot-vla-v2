@@ -25,15 +25,26 @@ def resolve_path(value):
 
 def action_mode(robot):
     actions = {k: v for group in robot['actions'] for k, v in group.items()}
-    if set(actions) != {'action.arm.position', 'action.effector.position'}:
-        raise ValueError('Joint experiment requires arm.position plus effector.position only')
+    allowed = {'action.arm.position', 'action.end.position', 'action.effector.position'}
+    if not set(actions) <= allowed or 'action.effector.position' not in actions or len(actions) < 2:
+        raise ValueError('Expected joint and/or EE actions plus absolute grippers')
     if actions['action.effector.position'].get('subtract_state') is not False:
         raise ValueError('Grippers must remain absolute')
     if any(v.get('convert_from_state', False) for v in actions.values()):
         raise ValueError('Changing target timestamps via convert_from_state is not supported')
+    ee = actions.get('action.end.position')
+    if ee is not None:
+        if ee.get('subtract_state') is not True or ee.get('relative_type') != 'quaternion_local':
+            raise ValueError('EE experiments require chunk-anchor quaternion_local deltas')
+        if 'action.arm.position' not in actions:
+            return 'ee_delta'
     flag = actions['action.arm.position'].get('subtract_state')
     if not isinstance(flag, bool):
         raise ValueError('subtract_state must be a boolean')
+    if ee is not None:
+        if not flag:
+            raise ValueError('Joint+EE experiment requires joint deltas')
+        return 'joint_ee_delta'
     return 'joint_delta' if flag else 'joint_absolute'
 
 
