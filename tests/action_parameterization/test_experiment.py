@@ -1,4 +1,6 @@
 import ast
+from contextlib import redirect_stdout
+import io
 from collections import OrderedDict
 import copy
 import json
@@ -61,6 +63,16 @@ class PairTests(unittest.TestCase):
             cfg['data'].pop('norm_stats_file')
         self.assertEqual(configs[0], configs[1])
         self.assertEqual(self.pair['datasets'], 50)
+
+    def test_norm_launch_injects_required_distributed_rank_environment(self):
+        from ysj_utils.action_experiment import main
+        output=io.StringIO()
+        with patch.object(sys,'argv',['action_experiment.py','norm','--bundle',str(self.bundle),
+                                      '--group','JDelta','--dry-run']),redirect_stdout(output):
+            main()
+        command=json.loads(output.getvalue())['command']
+        self.assertEqual(command[1:5],['-m','torch.distributed.run','--standalone','--nproc-per-node=1'])
+        self.assertTrue(command[-2].endswith('compute_norm_stats.py'))
 
     def test_five_k_preparation_keeps_both_groups_matched(self):
         out=Path(self.temp.name)/'five_k'

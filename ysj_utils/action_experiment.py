@@ -265,7 +265,10 @@ def main():
     if args.command == 'norm':
         if (directory/'norm_stats.json').exists():
             raise FileExistsError('Stats already exist; use a fresh bundle to avoid replacing training statistics')
-        command = [sys.executable, str(ROOT/'scripts/compute_norm_stats.py'), str(directory/'norm.yaml')]
+        # Upstream TrainingArguments requires torchrun's rank environment even
+        # for a single CPU statistics worker (no CUDA process group is needed).
+        command = [sys.executable, '-m', 'torch.distributed.run', '--standalone', '--nproc-per-node=1',
+                   str(ROOT/'scripts/compute_norm_stats.py'), str(directory/'norm.yaml')]
         reuse_stats = equivalent_stats_source(args.bundle, pair, directory)
         if reuse_stats is not None:
             command = None
