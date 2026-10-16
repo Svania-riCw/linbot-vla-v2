@@ -248,6 +248,16 @@ class EELabelIntegrationTests(unittest.TestCase):
             self.labels()
         self.assertFalse((self.root/'labels'/self.dataset.name/'manifest.json').exists())
 
+    def test_completed_label_audit_reuse_rejects_changed_sources(self):
+        from ysj_utils.prepare_ee_labels import verify_existing
+        self.labels()
+        result=verify_existing(self.dataset,self.root/'labels')
+        self.assertEqual(len(result['episodes']),1)
+        path=self.dataset/'data/chunk-000/episode_000000.parquet'
+        with path.open('ab') as file: file.write(b'changed')
+        with self.assertRaisesRegex(ValueError,'changed'):
+            verify_existing(self.dataset,self.root/'labels')
+
     def test_actual_loader_attaches_before_transform_and_queries_only_real_columns(self):
         import torch
         from types import MethodType

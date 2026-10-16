@@ -62,6 +62,16 @@ class PairTests(unittest.TestCase):
         self.assertEqual(configs[0], configs[1])
         self.assertEqual(self.pair['datasets'], 50)
 
+    def test_five_k_preparation_keeps_both_groups_matched(self):
+        out=Path(self.temp.name)/'five_k'
+        pair=prepare(ROOT/'xsy_utils/configs/robotwin_clean_baseline.yaml',ROOT/'configs/robot_configs/robotwin.yaml',
+                     ROOT/'xsy_utils/configs/robotwin_clean.txt',out,steps=5000)
+        self.assertEqual(pair['steps'],5000)
+        for group in pair['groups']:
+            cfg=yaml.safe_load((out/group/'train.yaml').read_text())
+            self.assertEqual(cfg['train']['max_steps'],5000)
+            self.assertEqual(cfg['train']['global_batch_size'],128)
+
     def test_robot_diff_only_arm_delta_and_stats_path(self):
         a, b = [yaml.safe_load((self.bundle/g/'robot_configs/robotwin.yaml').read_text(encoding='utf-8')) for g in ('B0','JDelta')]
         a.pop('norm_stats'); b.pop('norm_stats')

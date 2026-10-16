@@ -9,7 +9,9 @@ sys.path.insert(0, str(ROOT))
 from ysj_utils.evaluate import scheme, validate_results
 
 
-def compare(baseline_run, delta_run):
+def compare(baseline_run, delta_run, expected_steps=10000):
+    if expected_steps<1:
+        raise ValueError('expected_steps must be positive')
     runs = [Path(baseline_run), Path(delta_run)]
     reports = [json.loads((run/'ysj_evaluation.json').read_text(encoding='utf-8')) for run in runs]
     for run, report in zip(runs, reports):
@@ -17,10 +19,10 @@ def compare(baseline_run, delta_run):
             raise ValueError('Both runs must be complete full evaluations')
         validate_results(run/'_result.txt', **scheme('full'))
         training = report['training_summary']
-        if training['global_batch_size'] != 128 or training['max_steps'] != 10000 or training['enable_fp32'] is not False or training['enable_mixed_precision'] is not True:
-            raise ValueError('Expected global BS128 / 10000 steps / bf16 training')
-        if Path(report['checkpoint']).parent.name != 'global_step_10000':
-            raise ValueError('Compare step-10000 checkpoints, not earlier snapshots')
+        if training['global_batch_size'] != 128 or training['max_steps'] != expected_steps or training['enable_fp32'] is not False or training['enable_mixed_precision'] is not True:
+            raise ValueError(f'Expected global BS128 / {expected_steps} steps / bf16 training')
+        if Path(report['checkpoint']).parent.name != f'global_step_{expected_steps}':
+            raise ValueError(f'Compare step-{expected_steps} checkpoints, not earlier snapshots')
     modes = tuple(report['contract']['mode'] for report in reports)
     allowed = {('joint_absolute','joint_delta'), ('legacy_absolute','joint_delta'),
                ('joint_delta','joint_delta'),
@@ -87,8 +89,9 @@ def main():
     parser.add_argument('--baseline-run', type=Path, required=True)
     parser.add_argument('--candidate-run', '--delta-run', dest='delta_run', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--expected-steps',type=int,default=10000)
     args = parser.parse_args()
-    result = compare(args.baseline_run, args.delta_run)
+    result = compare(args.baseline_run, args.delta_run,args.expected_steps)
     with args.output.open('x',encoding='utf-8') as f:
         json.dump(result,f,indent=2)
     print(json.dumps(result['summary'],indent=2))

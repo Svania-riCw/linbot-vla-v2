@@ -35,7 +35,7 @@ def main():
               'lingbotvla/models/vla/lingbot_vla/configuration_lingbot_vla.py',
               'lingbotvla/utils/arguments.py','tasks/vla/train_lingbotvla.py',
               'external/RoboTwin/policy/lingbot-vla-v2/deploy_policy.py','ysj_utils/prepare_ee_labels.py']
-    files += ['lingbotvla/action_spaces/spline.py','ysj_utils/check_spline_fit.py']
+    files += ['lingbotvla/action_spaces/spline.py','ysj_utils/check_spline_fit.py','ysj_utils/run_joint_pair.py']
     packages = {}
     for name in ('torch', 'numpy', 'scipy', 'PyYAML', 'pyarrow', 'h5py'):
         try:

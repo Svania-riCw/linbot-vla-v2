@@ -746,13 +746,13 @@ def main():
         data_iterator = iter(train_dataloader)
         for epoch_step in range(start_step, args.train.train_steps):
             current_epoch_step_for_eval = epoch_step + 1
-            global_step += 1
             try:
                 micro_batches: List[Dict[str, Any]] = next(data_iterator)
             except StopIteration:
                 logger.info(f"epoch:{epoch} Dataloader finished with drop_last {args.data.drop_last}")
                 break
 
+            global_step += 1
             if global_step == 1:
                 helper.print_example(example=micro_batches[0], rank=args.train.local_rank)
 
@@ -990,6 +990,7 @@ def main():
                     # every step: cross-layer summaries + seq-wise average + legacy V1 keys
                     if (key.startswith("moe_summary/")
                             or key in ("moe_seqwise/avg", "moe_zloss/avg_raw", "moe_zloss/weighted")
+                            or key.startswith(("action/", "spline/"))
                             or key.startswith("token_moe/")):
                         scalar = _tb_scalar(value)
                         if scalar is not None:

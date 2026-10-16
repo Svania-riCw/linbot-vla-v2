@@ -40,7 +40,9 @@ def ee_robot_config(robot, group):
 
 
 def prepare(base_config, robot_config, train_list, output, world_size=8, micro_batch=16,
-            ee_sidecar_root=None, ee_weight=0.1, family='action', spline_points=16):
+            ee_sidecar_root=None, ee_weight=0.1, family='action', spline_points=16, steps=10000):
+    if not isinstance(steps,int) or steps<1:
+        raise ValueError('steps must be a positive number of optimizer updates')
     if world_size < 1 or micro_batch < 1 or 128 % (world_size * micro_batch):
         raise ValueError('128 must be divisible by world_size * micro_batch')
     base = yaml.safe_load(Path(base_config).read_text(encoding='utf-8'))
@@ -86,7 +88,7 @@ def prepare(base_config, robot_config, train_list, output, world_size=8, micro_b
         'base_config_sha256': digest(base_config), 'source_robot_sha256': digest(robot_config),
         'train_list_sha256': digest(copied_list), 'datasets': len(lines),
         'world_size': world_size, 'micro_batch': micro_batch, 'global_batch': 128,
-        'steps': 10000, 'precision': 'bf16', 'status': 'PREPARED_NOT_TRAINED',
+        'steps': steps, 'precision': 'bf16', 'status': 'PREPARED_NOT_TRAINED',
         'label_manifests': label_manifests,
         'family': family,
     }
@@ -113,7 +115,7 @@ def prepare(base_config, robot_config, train_list, output, world_size=8, micro_b
         cfg['train'].update(
             output_dir=str(directory / 'train'), global_batch_size=128,
             micro_batch_size=micro_batch, gradient_accumulation_steps=128//(world_size*micro_batch),
-            max_steps=10000, save_steps=1000, enable_fp32=False, enable_mixed_precision=True,
+            max_steps=steps, save_steps=min(1000,steps), enable_fp32=False, enable_mixed_precision=True,
             enable_resume=False, training_time_rtc=False, chunk_size=50, seed=42,
         )
         # Explicitly override inherited research settings, including for controls.
@@ -244,6 +246,7 @@ def main():
     p.add_argument('--ee-weight', type=float, default=0.1)
     p.add_argument('--family', choices=['action','supervision'], default='action')
     p.add_argument('--spline-points', type=int, default=16)
+    p.add_argument('--steps',type=int,default=10000,help='Formal optimizer updates; use 5000 for the 5k comparison')
     for name in ('norm', 'train'):
         p = commands.add_parser(name)
         p.add_argument('--bundle', type=Path, required=True)
@@ -255,7 +258,7 @@ def main():
     if args.command == 'prepare':
         print(json.dumps(prepare(args.base_config, args.robot_config, args.train_list,
                                  args.output, args.world_size, args.micro_batch,
-                                 args.ee_sidecar_root, args.ee_weight,args.family,args.spline_points), indent=2))
+                                 args.ee_sidecar_root, args.ee_weight,args.family,args.spline_points,args.steps), indent=2))
         return
     pair, directory = verify_pair(args.bundle, args.group)
     reuse_stats = None

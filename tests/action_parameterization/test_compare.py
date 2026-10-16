@@ -32,6 +32,15 @@ class ComparisonTests(unittest.TestCase):
         self.assertEqual(len(report['rows']),14)
         self.assertAlmostEqual(report['summary']['random']['difference_pp'],8.)
 
+    def test_explicit_five_k_budget_and_checkpoint_match(self):
+        for run in self.runs:
+            path=run/'ysj_evaluation.json'; report=json.loads(path.read_text())
+            report['training_summary']['max_steps']=5000
+            report['checkpoint']=report['checkpoint'].replace('global_step_10000','global_step_5000')
+            path.write_text(json.dumps(report))
+        self.assertEqual(len(compare(*self.runs,expected_steps=5000)['rows']),14)
+        with self.assertRaises(ValueError): compare(*self.runs)
+
     def test_mismatched_training_or_eval_seed_rejected(self):
         path = self.runs[1]/'ysj_evaluation.json'
         original = json.loads(path.read_text(encoding='utf-8'))

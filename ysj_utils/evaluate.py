@@ -59,7 +59,10 @@ def main():
     p.add_argument('--seed', type=int, default=0)
     p.add_argument('--port-base', type=int, default=19330)
     p.add_argument('--dry-run', action='store_true')
+    p.add_argument('--summary-output',type=Path,help='Write a machine-readable result including the actual run directory')
     args = p.parse_args()
+    if args.summary_output and args.summary_output.exists():
+        raise FileExistsError(args.summary_output)
     gpu_ids = args.gpus.replace(',', ' ').split()
     if not gpu_ids or any(not s.isdigit() for s in gpu_ids) or len(set(gpu_ids)) != len(gpu_ids):
         p.error('--gpus must contain distinct numeric GPU IDs')
@@ -100,7 +103,7 @@ def main():
     if len(runs) != 1:
         raise RuntimeError(f'Expected one run directory, found {runs}; eval exit={result.returncode}')
     run = runs[0]
-    report = dict(plan, contract=contract, process_exit_code=result.returncode,
+    report = dict(plan, contract=contract, process_exit_code=result.returncode,run_dir=str(run.resolve()),
                   code_commit=subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip(),
                   norm_sha256=digest(contract['norm_stats']), robot_sha256=digest(contract['robot_config']),
                   training_config_sha256=digest(contract['config']),
@@ -124,6 +127,10 @@ def main():
         raise
     finally:
         (run/'ysj_evaluation.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
+        if args.summary_output:
+            args.summary_output.parent.mkdir(parents=True,exist_ok=True)
+            with args.summary_output.open('x',encoding='utf-8') as file:
+                json.dump(report,file,indent=2)
     print(json.dumps(report, indent=2))
 
 
