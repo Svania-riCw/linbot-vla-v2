@@ -205,6 +205,7 @@ class LingbotVLAv2Server:
         use_bf16=True,
         use_fp32=False,
         use_compile=False,
+        robot_config_root=None,
     ) -> None:
         assert not (use_bf16 and use_fp32), 'Bfloat16 or Float32!!!'
         self.adaptive_ensemble_alpha = adaptive_ensemble_alpha
@@ -212,6 +213,8 @@ class LingbotVLAv2Server:
         self.use_length = use_length
         self.chunk_ret = chunk_ret
         self.robot_norm_path = robot_norm_path
+        # The action representation must match training, not just its norm stats.
+        self.robot_config_root = robot_config_root
 
         self.task_description = None
 
@@ -377,7 +380,7 @@ class LingbotVLAv2Server:
             self.sample_actions_fn = torch.compile(self.vla.model.sample_actions)
 
         if self.robot_norm_path is None:
-            self.robot_norm_path = data_config.norm_stats_file
+            self.robot_norm_path = getattr(data_config, 'norm_stats_file', None)
 
         print('Model initialized ... ')
 
@@ -398,7 +401,7 @@ class LingbotVLAv2Server:
         self.last_action_chunk = None
         self.last_normalized_action_chunk = None
 
-        robot_config = f'configs/robot_configs/{robo_name}.yaml'
+        robot_config = str(Path(self.robot_config_root or 'configs/robot_configs') / f'{robo_name}.yaml')
         
         with open(robot_config, 'r') as f:
           self.robot_config = yaml.safe_load(f)

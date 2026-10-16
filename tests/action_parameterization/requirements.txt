@@ -1,0 +1,6 @@
+numpy>=1.24
+scipy>=1.11
+PyYAML>=6.0
+# Use the team's existing torch 2.8.0 environment when available.
+# CPU-only testing needs no CUDA, model weights, transformers or pytest.
+torch==2.8.0

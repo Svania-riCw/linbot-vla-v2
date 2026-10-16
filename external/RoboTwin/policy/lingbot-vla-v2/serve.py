@@ -1,14 +1,8 @@
-"""LingBot-VLA-v2 websocket policy server for RoboTwin eval (runs in the `lingbotvla` env).
+"""LingBot-VLA-v2 websocket policy server for RoboTwin eval.
 
-Thin wrapper over deploy/lingbot_vla_v2_policy.py. The only thing it adds is pinning the
-action/state normalization stats to the ones the checkpoint was *trained* with. The stock
-server falls back to configs/robot_configs/<robo_name>.yaml of this repo, whose norm_stats is
-the published assets/norm_stats/robotwin.json (clean+randomized) -- not what a run trained
-with `data.robot_config_root=.../robot_config_clean` normalized against. Resolution order:
-  1. --norm_stats (explicit)
-  2. data.norm_stats_file in the run's lingbotvla_cli.yaml
-  3. norm_stats of <data.robot_config_root>/<robo_name>.yaml from the same yaml
-  4. None -> stock fallback (repo robot config)
+Pins both robot action representation and norm statistics to the checkpoint's
+training config. Delta checkpoints also validate a norm provenance receipt.
+An explicitly configured but missing training robot root is an error.
 """
 
 import argparse
@@ -58,10 +52,13 @@ def main():
     parser.add_argument("--use_compile", type=str2bool, default=False)
     args = parser.parse_args()
 
-    norm_stats, source = (args.norm_stats, "--norm_stats") if args.norm_stats else \
-        resolve_norm_stats(args.model_path, args.robo_name)
+    sys.path.insert(0, str(LINGBOT_ROOT))
+    from deploy.action_contract import resolve_contract
+    contract = resolve_contract(args.model_path, args.robo_name, args.norm_stats)
+    norm_stats, source = contract['norm_stats'], contract['config']
     print(f"[serve] model      : {args.model_path}", flush=True)
     print(f"[serve] norm_stats : {norm_stats}  (from {source})", flush=True)
+    print(f"[serve] robot config: {contract['robot_config']}  mode={contract['mode']}", flush=True)
     print(f"[serve] precision  : {'fp32' if args.use_fp32 else 'bf16'}  compile={args.use_compile}", flush=True)
 
     # The stock server resolves configs/robot_configs/<robo_name>.yaml relative to cwd.
@@ -73,6 +70,7 @@ def main():
     model = LingbotVLAv2Server(
         args.model_path,
         robot_norm_path=norm_stats,
+        robot_config_root=contract['robot_config_root'],
         use_length=args.use_length,
         chunk_ret=True,
         use_bf16=not args.use_fp32,

@@ -1,0 +1,52 @@
+import copy
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from ysj_utils.compare_results import compare
+from ysj_utils.evaluate import scheme
+
+
+class ComparisonTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.runs = [Path(self.temp.name)/name for name in ('B0','JDelta')]
+        full = scheme('full')
+        common = dict(status='COMPLETE', mode='full', **full, seed=0,
+                      inference_precision='fp32', use_length=50, code_commit='same-code',
+                      initial_model='same-pretrained-model', train_list_sha256='same-training-data',
+                      training_summary=dict(global_batch_size=128,max_steps=10000,
+                                            enable_fp32=False,enable_mixed_precision=True))
+        for run, mode, successes in zip(self.runs,['joint_absolute','joint_delta'],[10,12]):
+            run.mkdir()
+            report = copy.deepcopy(common)
+            report.update(checkpoint=f'/run/{run.name}/checkpoints/global_step_10000/hf_ckpt',contract={'mode':mode})
+            (run/'ysj_evaluation.json').write_text(json.dumps(report),encoding='utf-8')
+            (run/'_result.txt').write_text('\n'.join(
+                f'{task}\t{case}\t{successes}/25\t{successes/25}'
+                for task in full['tasks'] for case in ('clean','random')),encoding='utf-8')
+
+    def test_complete_matched_comparison(self):
+        report = compare(*self.runs)
+        self.assertEqual(len(report['rows']),14)
+        self.assertAlmostEqual(report['summary']['random']['difference_pp'],8.)
+
+    def test_mismatched_training_or_eval_seed_rejected(self):
+        path = self.runs[1]/'ysj_evaluation.json'
+        original = json.loads(path.read_text(encoding='utf-8'))
+        for mutation in ({'seed':1},{'training_summary':dict(original['training_summary'],max_steps=5000)}):
+            path.write_text(json.dumps(dict(original,**mutation)),encoding='utf-8')
+            with self.assertRaises(ValueError):
+                compare(*self.runs)
+
+    def test_partial_results_rejected(self):
+        path = self.runs[1]/'_result.txt'
+        lines = path.read_text(encoding='utf-8').splitlines()
+        path.write_text('\n'.join(lines[:-1]),encoding='utf-8')
+        with self.assertRaisesRegex(ValueError,'Missing'):
+            compare(*self.runs)
+
+
+if __name__ == '__main__':
+    unittest.main()

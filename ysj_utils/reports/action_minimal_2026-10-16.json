@@ -1,0 +1,37 @@
+{
+  "status": "PASS",
+  "passed": 44,
+  "tests_run": 44,
+  "skipped": [],
+  "failures": [],
+  "reviewed_base": "56952d10a8ce9c1224e7c639c17fae92dfe78a94",
+  "head": "56952d10a8ce9c1224e7c639c17fae92dfe78a94",
+  "python": "3.13.2 (tags/v3.13.2:4f8bb39, Feb  4 2025, 15:23:48) [MSC v.1942 64 bit (AMD64)]",
+  "packages": {
+    "torch": "2.8.0",
+    "numpy": "2.2.3",
+    "scipy": "1.15.3",
+    "PyYAML": "6.0.2"
+  },
+  "source_sha256": {
+    "lingbotvla/data/vla_data/utils.py": "3f8f1fb10b15a806e7b32927e4abf55088c665d83fb16779f618d63843925ab6",
+    "lingbotvla/data/vla_data/transform.py": "6d4fa0eab532e35ff18c30429ba6d923c94158cc90de3861470586bb0c51a1c2",
+    "lingbotvla/data/vla_data/ee_pose_transform.py": "f62b508a59d441da2e53bf3a491e8dacca178eaa01a7fcbabf52d99fa2816b3b",
+    "deploy/lingbot_vla_v2_policy.py": "125b26739e4c85740281215711af717bc93f7cdc636dbe20750e504f7c1dc13b",
+    "deploy/action_contract.py": "f9bfd37a9cbc59401f1d736eb29f823cb722fbc07c512aa0821bb47e5bb0ca3c",
+    "external/RoboTwin/policy/lingbot-vla-v2/serve.py": "524c1ee6a0aeccce684dfb2fc79d76af1b2ee1ecf622324505e0f11f72e95233",
+    "ysj_utils/action_experiment.py": "3f1bf6297e4b35c4da1b59934ccc43a3a7cae8bd69922ead56971e7d22af7853",
+    "ysj_utils/evaluate.py": "37e7da9243ff4115ffaa36586edec23bb901625537b2f064d25397589bfcfa1c",
+    "ysj_utils/compare_results.py": "aed267f92cb2373bf60ec093b44a5d47d10687d45988d6adc7945ba733fcbb7b",
+    "configs/robot_configs/robotwin.yaml": "2b8c1a8b321571803f0117688db6a9c244a844d353250415dde7553c1d035b99",
+    "tests/action_parameterization/action_contracts.py": "a76efd06cd40cd8a0d00879f202add9eb4cb4bdce2efcad4cae42e17fb4125ee",
+    "tests/action_parameterization/check_dataset.py": "498ca7e1ffcb9cd43608767537558ff57441532d0e71f864df572d60a288a6d4",
+    "tests/action_parameterization/run_checks.py": "95354515bdf03d0c5191d275a0840bb74ff9cdc1b40c4422898b295efc7f64ed",
+    "tests/action_parameterization/test_compare.py": "3ff6f44b9feb0bb3c9e015d3356e3768bde9b13120c4aad08e3cbdc0b82fbfd9",
+    "tests/action_parameterization/test_contracts.py": "9732ab33d052e5c5697586177b077f20f2c354ea2e55a799ba1bc90d9b8a7095",
+    "tests/action_parameterization/test_experiment.py": "c3d335ec516f20445473ac81868375d74769236ea21d8e56145e3640c69d6a67",
+    "tests/action_parameterization/test_tensor_pipeline.py": "e623e0560e0da9f5f61362f2cb52eb944188b5f247f61b726ea2efea9735bef8",
+    "tests/action_parameterization/test_upstream.py": "bc8a814a618417509a5f5fbfc73c55c2f170956733464ad5068a1820f2036616"
+  },
+  "scope": "Local contract/config/source tests. No GPU training or RoboTwin rollout."
+}
