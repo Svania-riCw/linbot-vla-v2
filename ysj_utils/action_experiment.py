@@ -210,6 +210,8 @@ def environment():
     vm = ROOT/'lingbotvla/models/vla/vision_models'
     env['PYTHONPATH'] = os.pathsep.join(map(str, [ROOT, vm/'MoGe', vm/'lingbot-depth', ROOT/'third_party/utils3d']))
     env['PYTHONNOUSERSITE'] = '1'
+    for key in ('OMP_NUM_THREADS','MKL_NUM_THREADS','OPENBLAS_NUM_THREADS'):
+        env.setdefault(key,'1')
     return env
 
 

@@ -77,12 +77,19 @@ class LeRobotDataset(BaseLeRobotDataset):
     ):
         super().__init__(repo_id, **kwargs)
         self.load_image = load_image
+        if not load_image:
+            # HF Image features decode at row access, independently of video
+            # loading. Statistics need numerical columns only.
+            cameras = [key for key in self.meta.camera_keys if key in self.hf_dataset.column_names]
+            if cameras:
+                self.hf_dataset = self.hf_dataset.remove_columns(cameras)
 
     def _query_hf_dataset(self, query_indices: dict[str, list[int]]) -> dict:
         """
         Query dataset for indices across keys, skipping video keys.
 
-        Tries column-first [key][indices] for speed, falls back to row-first.
+        Project the requested column before selecting rows so action queries
+        cannot decode unrelated PNG/image features for every future step.
 
         Args:
             query_indices: Dict mapping keys to index lists to retrieve
@@ -96,7 +103,7 @@ class LeRobotDataset(BaseLeRobotDataset):
                 continue
             # Map absolute indices to relative indices if needed
             relative_indices = _to_relative_indices(self, q_idx)
-            result[key] = torch.stack(self.hf_dataset[relative_indices][key])
+            result[key] = torch.stack(self.hf_dataset.select_columns([key])[relative_indices][key])
         return result
 
     def _query_videos(self, query_timestamps: dict[str, list[float]], ep_idx: int) -> dict[str, torch.Tensor]:

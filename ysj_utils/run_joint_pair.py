@@ -222,6 +222,8 @@ def main():
             state=dict(status='RUNNING',started_at=timestamp(),plan_sha256=fingerprint,stages={})
             atomic_json(args.run_dir/'plan.json',plan)
         state['status']='RUNNING'
+        state.pop('error',None)
+        state.pop('finished_at',None)
         atomic_json(status_path,state)
         try:
             atomic_json(args.run_dir/'gpu_initial.json',wait_idle(args.gpus))
