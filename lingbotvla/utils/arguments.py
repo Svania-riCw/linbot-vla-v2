@@ -959,6 +959,12 @@ def parse_args(rootclass: T) -> T:
                 if f"{base}.{arg_name}" in list_fields and arg_value is None:
                     continue
 
+                # Resolved checkpoint configs contain explicit nulls and empty
+                # lists. They cannot be serialized as nargs='+' CLI arguments.
+                if arg_value is None or (f"{base}.{arg_name}" in list_fields and arg_value == []):
+                    parser.set_defaults(**{f"{base}.{arg_name}": arg_value})
+                    continue
+
                 cmd_args.append(f"--{base}.{arg_name}")
                 if f"{base}.{arg_name}" in list_fields and isinstance(arg_value, list):
                     # For list fields, extend the arguments with individual elements

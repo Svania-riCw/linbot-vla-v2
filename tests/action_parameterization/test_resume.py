@@ -8,11 +8,47 @@ from types import SimpleNamespace
 import tempfile
 import unittest
 from unittest.mock import patch
+from dataclasses import dataclass, field
+from typing import Optional
 
 from ysj_utils.resume_joint_delta import continuation_config, build_commands, inspect_checkpoint, select_checkpoint, ROOT
 
+@dataclass
+class SavedOptions:
+    basic_modules: list[str] = field(default_factory=list)
+    optional_steps: Optional[int] = None
+    labels: Optional[list[str]] = None
+
+@dataclass
+class SavedRoot:
+    train: SavedOptions = field(default_factory=SavedOptions)
+
 
 class ResumeTests(unittest.TestCase):
+    def test_resolved_yaml_empty_list_and_null_round_trip(self):
+        import argparse,dataclasses,typing,types,inspect,os,sys,yaml
+        from collections import defaultdict
+        from enum import Enum
+        tree=ast.parse((ROOT/'lingbotvla/utils/arguments.py').read_text())
+        names={'parse_args','_string_to_bool','_make_choice_type_function','_convert_str_dict'}
+        nodes=[n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name in names]
+        module=ast.fix_missing_locations(ast.Module(body=nodes,type_ignores=[]))
+        scope=dict(argparse=argparse,fields=dataclasses.fields,MISSING=dataclasses.MISSING,
+                   get_type_hints=typing.get_type_hints,Union=typing.Union,Literal=typing.Literal,
+                   Optional=typing.Optional,List=typing.List,Dict=typing.Dict,Any=typing.Any,
+                   Callable=typing.Callable,T=object,types=types,isclass=inspect.isclass,
+                   Enum=Enum,sys=sys,os=os,json=json,yaml=yaml,defaultdict=defaultdict)
+        exec(compile(module,'actual_yaml_parser','exec'),scope)
+        with tempfile.TemporaryDirectory() as directory:
+            p=Path(directory)/'saved.yaml'
+            p.write_text('train:\n  basic_modules: []\n  optional_steps: null\n  labels: null\n')
+            with patch('sys.argv',['train.py',str(p)]):out=scope['parse_args'](SavedRoot)
+            self.assertEqual(out.train.basic_modules,[])
+            self.assertIsNone(out.train.optional_steps)
+            with patch('sys.argv',['train.py',str(p),'--train.basic_modules','x']):
+                out=scope['parse_args'](SavedRoot)
+            self.assertEqual(out.train.basic_modules,['x'])
+
     def test_continuation_preserves_experimental_variables(self):
         original = dict(train=dict(max_steps=5000, enable_fp32=False, mask_action_padding=True,
                                    global_batch_size=128, use_compile=True),
