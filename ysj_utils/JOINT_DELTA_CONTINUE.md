@@ -25,6 +25,8 @@ bash ysj_utils/resume_joint_delta.sh
 
 本轮从现有Joint Delta的完整5k DCP继续，新增5000次参数更新，到全局10000步停止。保留原`enable_fp32=False`、`enable_mixed_precision=True`、`mask_action_padding=True`、BS128、8卡micro16、seed42、chunk50、数据列表、EE输入、norm、优化器、训练compile及所有模型配置。新输出目录、总步数和恢复参数会变化。
 
+H20真实恢复检查发现该容器`/dev/shm`只有4GB且不能重挂载扩容，原prefetch=2会在恢复后首步编译期间导致DataLoader worker Bus error。脚本明确将`data.prefetch_factor`从2降到1，保留8个worker和加载器恢复状态；它减少在途batch，不改变batch大小、数据集或优化目标。这个资源配置差异也记录在continuation.json中，可用`--prefetch-factor 2`保留原值，但需先解决共享内存容量。
+
 学习率必须单独说明：原5k余弦已降至主组5e-5，Muon专家组约1.4142e-4。本脚本将scheduler原始horizon固定为5000，后续维持其末端值，避免仅改max_steps=10000导致LR回升。因此这是“原5k计划之后续训5k”，不等于从第1步按10k余弦训练；比较历史10k baseline时需注明。
 
 ## 与原absolute-joint baseline相比，已有的其他差异

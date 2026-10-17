@@ -62,6 +62,8 @@ class ResumeTests(unittest.TestCase):
         self.assertEqual(result['train']['max_steps'], 10000)
         self.assertEqual(result['train']['lr_schedule_steps'], 5000)
         self.assertTrue(result['train']['require_resume'])
+        reduced = continuation_config(original,Path('/new'),'/old/global_step_5000',10000,prefetch_factor=1)
+        self.assertEqual(reduced['data'],dict(original['data'],prefetch_factor=1))
 
     def test_compiled_evaluation_is_explicit_and_recorded(self):
         train, evaluate = build_commands(Path('/cfg'), Path('/out'), ['0','1'], 10000)

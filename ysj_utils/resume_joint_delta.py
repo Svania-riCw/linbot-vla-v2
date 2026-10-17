@@ -65,7 +65,7 @@ def select_checkpoint(source, output, world_size, source_steps):
     return inspect_checkpoint(source / 'checkpoints' / f'global_step_{source_steps}', world_size), rejected
 
 
-def continuation_config(source_config, output, checkpoint, target):
+def continuation_config(source_config, output, checkpoint, target, prefetch_factor=None):
     import copy
     config = copy.deepcopy(source_config)
     train = config['train']
@@ -73,6 +73,8 @@ def continuation_config(source_config, output, checkpoint, target):
                  load_checkpoint_path=checkpoint, require_resume=True,
                  allow_partial_checkpoint=False,
                  lr_schedule_steps=source_config['train'].get('lr_schedule_steps') or source_config['train']['max_steps'])
+    if prefetch_factor is not None:
+        config['data']['prefetch_factor'] = prefetch_factor
     return config
 
 
@@ -94,6 +96,7 @@ def main():
     parser.add_argument('--additional-steps', type=int, default=5000)
     parser.add_argument('--gpus', default='0,1,2,3,4,5,6,7')
     parser.add_argument('--gpu-wait-seconds', type=int, default=259200)
+    parser.add_argument('--prefetch-factor', type=int, default=1, help='Reduce in-flight batches for the current 4GB /dev/shm; keep worker count and sampler')
     parser.add_argument('--dry-run', action='store_true')
     parser.add_argument('--no-eval', action='store_true')
     args = parser.parse_args()
@@ -103,7 +106,7 @@ def main():
     gpus = args.gpus.split(',')
     if len(set(gpus)) != len(gpus) or not all(x.isdigit() for x in gpus):
         parser.error('GPUs must be distinct numeric IDs')
-    if args.additional_steps < 1 or args.gpu_wait_seconds < 0:
+    if args.additional_steps < 1 or args.gpu_wait_seconds < 0 or args.prefetch_factor < 1:
         parser.error('additional steps must be positive; GPU wait must be nonnegative')
     original_path = source / 'lingbotvla_cli.yaml'
     original = yaml.safe_load(original_path.read_text(encoding='utf-8'))
@@ -129,6 +132,7 @@ def main():
                     receipt_sha256=digest(receipt_path),
                     train_list_sha256=digest(original['data']['train_path']),
                     lr_schedule_steps=t.get('lr_schedule_steps') or source_steps,
+                    prefetch_factor=args.prefetch_factor,
                     inference_compile=True)
     config_path = output / 'continuation.yaml'
     train_cmd, eval_cmd = build_commands(config_path, output, gpus, target)
@@ -160,7 +164,7 @@ def main():
         plan = prepare_plan()
         output.mkdir(exist_ok=True)
         (output / 'continuation.json').write_text(json.dumps(identity, indent=2))
-        config = continuation_config(original, output, plan['checkpoint']['path'], target)
+        config = continuation_config(original, output, plan['checkpoint']['path'], target, args.prefetch_factor)
         config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding='utf-8')
         stamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
         (output / f'launch_{stamp}.json').write_text(json.dumps(plan, indent=2))
