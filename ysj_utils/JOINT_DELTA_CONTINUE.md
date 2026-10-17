@@ -48,3 +48,5 @@ H20真实恢复检查发现该容器`/dev/shm`只有4GB且不能重挂载扩容�
 H20环境通过96项回归检查，报告 `reports/h20_resume_checks_2026-10-17.json`。真实8卡检查从原DCP5000完整恢复到5001、5002：loss分别0.0241、0.0265，GradNorm分别0.3514、0.3898，主组LR均5e-5；已保存新DCP和完整HF，进程退出码0。归一化和机器人配置SHA256与原模型一致。记录为 `reports/h20_resume_gpu_2026-10-17.json`，诊断产物位于 `/2025233210/ysj/lingbot_ws/outputs/joint_delta_resume_check_5002`。
 
 该检查验证了恢复状态、两次更新及保存；它没有执行完整额外5000步或compile=True的仿真rollout。原prefetch=2检查因4GB共享内存不足退出的日志保留在同级`joint_delta_resume_check_5002_failed_prefetch2`，没有覆盖原5k模型。
+
+正式续训已在30375的`ysj-jdelta10k`会话启动，输出目录为本文默认目录；已确认从5000恢复并完成5001及后续多次更新，loss/梯度有限。检查快照为`reports/h20_joint_delta_continue_started_2026-10-17.json`，它只证明启动时运行正常，不代表后续10k训练和350次评测已完成。查看使用`tmux attach -t ysj-jdelta10k`，默认选中logs窗口；断开后重连即可，只有进程确实退出才重复启动脚本。

@@ -1,0 +1,61 @@
+{
+  "status": "RUNNING_VERIFIED",
+  "verified_at": "2026-10-17T15:50:55.214773+00:00",
+  "host": "30375",
+  "session": "ysj-jdelta10k",
+  "output": "/2025233210/ysj/lingbot_ws/outputs/joint_delta_5k_to_10k",
+  "target_steps": 10000,
+  "plan": {
+    "source_run": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle/JDelta/train",
+    "source_config_sha256": "672db6ab5a94669fc25c40f57b503699898398c265f40d15c276baf1c5975e49",
+    "target_steps": 10000,
+    "source_steps": 5000,
+    "gpus": [
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7"
+    ],
+    "norm_sha256": "98571430a9607b50e8664f1c6bca6b5dac342c2dd9bbc4859f60ed2934c99f5c",
+    "robot_sha256": "ffe525d746875fee91ce353916a6b6ba0d2096fffc30aa3600d6607e8c8bf269",
+    "receipt_sha256": "b6cdddd56be4663eda8aa4a7978cb464a18a6b7f8dde4af8bf84ac28091d3540",
+    "train_list_sha256": "8ff079a9d23511b7b47c774243422c9e11ae69752fc6b2268e239b74d26e9f44",
+    "lr_schedule_steps": 5000,
+    "prefetch_factor": 1,
+    "inference_compile": true
+  },
+  "updates": [
+    {
+      "step": 5001,
+      "loss": 0.0241,
+      "grad_norm": 0.3514
+    },
+    {
+      "step": 5002,
+      "loss": 0.0265,
+      "grad_norm": 0.3898
+    },
+    {
+      "step": 5003,
+      "loss": 0.0263,
+      "grad_norm": 0.469
+    },
+    {
+      "step": 5004,
+      "loss": 0.027,
+      "grad_norm": 0.2198
+    },
+    {
+      "step": 5005,
+      "loss": 0.0329,
+      "grad_norm": 0.4806
+    }
+  ],
+  "log": "/2025233210/ysj/lingbot_ws/outputs/joint_delta_5k_to_10k/train_20261017_154752.log",
+  "eval_compile": true,
+  "eval_episodes": 350
+}
