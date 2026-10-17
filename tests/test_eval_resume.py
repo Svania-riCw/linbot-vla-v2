@@ -2,6 +2,7 @@
 import argparse
 import ast
 import contextlib
+from concurrent.futures import ThreadPoolExecutor
 import io
 import json
 from pathlib import Path
@@ -10,6 +11,7 @@ import subprocess
 import os
 import sys
 import tempfile
+import time
 import unittest
 
 import numpy as np
@@ -104,9 +106,92 @@ class ResumeTest(unittest.TestCase):
         self.assertEqual(plan['pending'], [])
         self.assertEqual((run/'eval_results/two/_result.txt').read_text().splitlines()[-1],'0.0')
         self.assertIn('success 1/2, overall rate 50.0%', (run/'stats.txt').read_text())
+        table = (run/'success_rate.md').read_text()
+        self.assertIn('| one | clean | 1 | 1 | 1 | 100.0% |', table)
+        self.assertIn('| two | clean | 0 | 1 | 1 | 0.0% |', table)
         config.write_text('model: changed')
         with self.assertRaisesRegex(ValueError, 'settings differ'):
             resume.prepare(args)
+
+    def test_markdown_table_refreshes_after_each_episode_commit(self):
+        run = self.directory / 'live-run'
+        run.mkdir()
+        resume.atomic_json(run/'run_manifest.json', dict(identity=dict(task_config='demo_randomized')))
+        cp = resume.EpisodeCheckpoint(run/'eval_results'/'hanging_mug',
+            resume.task_identity('run-A', 'hanging_mug', 'demo_randomized', 'seen'), 2)
+        try:
+            cp.begin(100000, 'first')
+            cp.commit(True, 10)
+            table = (run/'success_rate.md').read_text()
+            self.assertIn('| hanging_mug | random | 1 | 1 | 2 | 100.0% |', table)
+            cp.begin(100001, 'second')
+            cp.commit(False, 20)
+            table = (run/'success_rate.md').read_text()
+            self.assertIn('| hanging_mug | random | 1 | 2 | 2 | 50.0% |', table)
+        finally:
+            cp.close()
+
+    def test_parallel_tasks_keep_all_results_in_the_markdown_table(self):
+        run = self.directory / 'parallel-run'
+        run.mkdir()
+        resume.atomic_json(run/'run_manifest.json', dict(identity=dict(task_config='demo_clean')))
+
+        def evaluate(task):
+            cp = resume.EpisodeCheckpoint(run/'eval_results'/task,
+                resume.task_identity('run-A', task, 'demo_clean', 'seen'), 3)
+            try:
+                for index, success in enumerate([True, False, True]):
+                    cp.begin(100000 + index, 'instruction')
+                    cp.commit(success, 10)
+            finally:
+                cp.close()
+
+        tasks = [f'task_{index}' for index in range(7)]
+        with ThreadPoolExecutor(max_workers=7) as pool:
+            list(pool.map(evaluate, tasks))
+        table = (run/'success_rate.md').read_text()
+        for task in tasks:
+            self.assertIn(f'| {task} | clean | 2 | 3 | 3 | 66.7% |', table)
+        self.assertIn('| **Total** | — | 14 | 21 | 21 | **66.7%** |', table)
+
+    def test_report_watch_reads_legacy_progress_without_modifying_it(self):
+        run = self.directory / 'existing-run'
+        run.mkdir()
+        resume.atomic_json(run/'run_manifest.json', dict(identity=dict(task_config='demo_randomized')))
+        progress = run/'eval_results/open_laptop/_progress.json'
+        state = dict(identity=resume.task_identity('run-A', 'open_laptop', 'demo_randomized', 'seen'),
+                     episodes=[dict(success=True)], pending=dict(episode=1))
+        resume.atomic_json(progress, state)
+        worker = subprocess.Popen([sys.executable, str(ROOT/'experiment/robotwin/eval_checkpoint.py'),
+            'report', '--run-dir', str(run), '--episodes', '3', '--watch', '--interval', '0.02'],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        table_path = run/'success_rate.md'
+
+        def wait_for_row(expected):
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                if table_path.exists() and expected in table_path.read_text():
+                    return
+                if worker.poll() is not None:
+                    self.fail(f'Report watcher exited: {worker.communicate()}')
+                time.sleep(0.02)
+            self.fail(f'Report did not contain {expected}')
+
+        try:
+            wait_for_row('| open_laptop | random | 1 | 1 | 3 | 100.0% |')
+            self.assertEqual(json.loads(progress.read_text()), state)
+            state['episodes'].append(dict(success=False))
+            resume.atomic_json(progress, state)
+            wait_for_row('| open_laptop | random | 1 | 2 | 3 | 50.0% |')
+            self.assertEqual(json.loads(progress.read_text()), state)
+            self.assertFalse(resume.success_report_complete(run, 3))
+            state['episodes'].append(dict(success=True))
+            resume.atomic_json(progress, state)
+            wait_for_row('| open_laptop | random | 2 | 3 | 3 | 66.7% |')
+            self.assertTrue(resume.success_report_complete(run, 3))
+        finally:
+            worker.terminate()
+            worker.communicate(timeout=5)
 
     def test_control_loop_restart_reuses_seed_and_does_not_double_count(self):
         # Load the real eval_policy function, excluding heavy simulator imports.

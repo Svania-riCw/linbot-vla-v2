@@ -22,6 +22,8 @@
 #   --list_tasks        print available task names and exit
 #   --num_gpus          total GPUs (default: 1)
 #   --num_per_gpu       inference servers per GPU (default: 1)
+#   --inference_gpu_ids comma-separated physical GPU IDs for inference servers
+#   --sim_gpu_ids       comma-separated physical GPU IDs for RoboTwin clients
 #   --use_length        chunk length (default: 50)
 #   --robo_name         robot config name (default: robotwin)
 #   --video_fps         video recording fps (default: 30)
@@ -31,6 +33,7 @@
 #   --use_fp32          use float32 inference (default: True; release reproduction setting)
 #   --use_compile       enable model compile in policy inference (default: True)
 #   --task_config       RoboTwin task config (default: demo_clean, or $TASK_CONFIG)
+#   --no_rtc            disable RTC (overrides an earlier --rtc_async)
 #   --keep_inference    keep inference servers resident after simulation
 #
 # Examples:
@@ -60,6 +63,8 @@ selected_tasks=""
 list_tasks=false
 num_gpus=1
 num_per_gpu=1
+inference_gpu_ids=""
+sim_gpu_ids=""
 use_length=50
 use_bf16=False
 use_fp32=True
@@ -68,6 +73,8 @@ robo_name="robotwin"
 video_fps=30
 enable_video=True
 rtc_async=False
+rtc_mode=off
+rtc_guidance_beta=5.0
 rtc_replan_steps=8
 rtc_delay=6
 rtc_timeout=180
@@ -96,7 +103,12 @@ while [[ $# -gt 0 ]]; do
         --list_tasks)        list_tasks=true;         shift ;;
         --num_gpus)          num_gpus="$2";          shift 2 ;;
         --num_per_gpu)       num_per_gpu="$2";       shift 2 ;;
-        --rtc_async)         rtc_async=True; shift ;;
+        --inference_gpu_ids) inference_gpu_ids="$2"; shift 2 ;;
+        --sim_gpu_ids)       sim_gpu_ids="$2";       shift 2 ;;
+        --rtc_async)         rtc_async=True; rtc_mode=fixed_prefix; shift ;;
+        --no_rtc)            rtc_async=False; rtc_mode=off; shift ;;
+        --rtc_mode)          rtc_mode="$2"; shift 2 ;;
+        --rtc_guidance_beta) rtc_guidance_beta="$2"; shift 2 ;;
         --rtc_replan_steps)  rtc_replan_steps="$2"; shift 2 ;;
         --rtc_delay)         rtc_delay="$2"; shift 2 ;;
         --rtc_timeout)       rtc_timeout="$2"; shift 2 ;;
@@ -134,9 +146,14 @@ while [[ $# -gt 0 ]]; do
             echo "  --list_tasks        print available task names and exit"
             echo "  --num_gpus          total GPUs (default: 1)"
             echo "  --num_per_gpu       inference servers per GPU (default: 1)"
+            echo "  --inference_gpu_ids physical GPU IDs for inference, e.g. 0,1,2,3"
+            echo "  --sim_gpu_ids       physical GPU IDs for simulation, e.g. 4,5,6,7"
             echo "  --rtc_async         overlap inference with committed old-plan actions"
-            echo "  --rtc_replan_steps  new actions before replanning (default: 8)"
-            echo "  --rtc_delay         committed prefix targets (default: 6; trained range: 0..9)"
+            echo "  --rtc_mode          off, fixed_prefix (RTC-trained), or paper (training-free VJP guidance)"
+            echo "  --rtc_guidance_beta maximum guidance weight for paper RTC (default: 5.0)"
+            echo "  --no_rtc            disable RTC; overrides an earlier --rtc_async"
+            echo "  --rtc_replan_steps  target actions between inference requests, including delay (default: 8)"
+            echo "  --rtc_delay         old-plan prefix actions executed during inference (default: 6; trained range: 0..9)"
             echo "  --rtc_timeout       request timeout seconds (default: 180)"
             echo "  --use_length        chunk length (default: 50)"
             echo "  --use_bf16          use bfloat16 inference (default: False)"
@@ -154,6 +171,15 @@ while [[ $# -gt 0 ]]; do
             echo -e "\033[31mUnknown argument: $1\033[0m"; exit 1 ;;
     esac
 done
+
+case "$rtc_mode" in
+    off) rtc_async=False ;;
+    fixed_prefix|paper) rtc_async=True ;;
+    *) echo 'rtc_mode must be off, fixed_prefix, or paper' >&2; exit 2 ;;
+esac
+if [[ "$rtc_mode" == paper && "$use_compile" != False ]]; then
+    echo 'Paper RTC requires --use_compile False for VJP autograd' >&2; exit 2
+fi
 
 if [ -z "$instruction_type" ]; then
     if [ "$task_config" = demo_clean ]; then
@@ -173,6 +199,9 @@ fi
 
 if ! [[ "$rtc_replan_steps" =~ ^[1-9][0-9]*$ && "$rtc_delay" =~ ^[0-9]+$ ]]; then
     echo 'RTC replan steps must be positive and delay nonnegative integers' >&2; exit 2
+fi
+if [[ "$rtc_async" == True ]] && (( rtc_delay > rtc_replan_steps )); then
+    echo 'RTC delay cannot exceed the interval between inference requests' >&2; exit 2
 fi
 # ===== Select and validate tasks before starting environments or services =====
 task_list_all=("lift_pot" "hanging_mug" "stack_bowls_three" "scan_object" "handover_block" "click_bell" "put_object_cabinet" "open_microwave" "stack_blocks_three" "place_shoe" "adjust_bottle" "beat_block_hammer" "blocks_ranking_rgb" "blocks_ranking_size" "click_alarmclock" "dump_bin_bigbin" "grab_roller" "handover_mic" "move_can_pot" "move_pillbottle_pad" "move_playingcard_away" "place_cans_plasticbox" "place_container_plate" "place_dual_shoes" "place_empty_cup" "place_fan" "place_mouse_pad" "place_object_basket" "place_object_scale" "place_object_stand" "place_phone_stand" "move_stapler_pad" "open_laptop" "pick_diverse_bottles" "pick_dual_bottles" "place_a2b_left" "place_a2b_right" "place_bread_basket" "place_bread_skillet" "place_burger_fries" "place_can_basket" "press_stapler" "rotate_qrcode" "shake_bottle_horizontally" "shake_bottle" "stack_blocks_two" "stack_bowls_two" "stamp_seal" "turn_switch" "put_bottles_dustbin")
@@ -215,10 +244,62 @@ else
 fi
 echo -e "\033[36mTasks this run (${num_tasks}): ${task_queue[*]}\033[0m"
 
+# Optional dedicated GPU pools. Without these options the original behavior is
+# preserved: each inference slot and its paired simulator share the same GPU.
+declare -a inference_gpu_list=()
+declare -a sim_gpu_list=()
+if [[ -n "$inference_gpu_ids" || -n "$sim_gpu_ids" ]]; then
+    if [[ -z "$inference_gpu_ids" || -z "$sim_gpu_ids" ]]; then
+        echo "--inference_gpu_ids and --sim_gpu_ids must be provided together." >&2
+        exit 2
+    fi
+    if ! [[ "$num_gpus" =~ ^[1-9][0-9]*$ && "$num_per_gpu" =~ ^[1-9][0-9]*$ ]]; then
+        echo "num_gpus and num_per_gpu must be positive integers." >&2
+        exit 2
+    fi
+    IFS=',' read -r -a inference_gpu_list <<< "$inference_gpu_ids"
+    IFS=',' read -r -a sim_gpu_list <<< "$sim_gpu_ids"
+    if (( ${#inference_gpu_list[@]} != num_gpus )); then
+        echo "num_gpus (${num_gpus}) must match the number of --inference_gpu_ids (${#inference_gpu_list[@]})." >&2
+        exit 2
+    fi
+    if (( ${#sim_gpu_list[@]} != ${#inference_gpu_list[@]} )); then
+        echo "--sim_gpu_ids must contain the same number of IDs as --inference_gpu_ids." >&2
+        exit 2
+    fi
+    # The inference and simulator pools may intentionally share a GPU when
+    # running one slot on an isolated device. Reject duplicates within either
+    # pool, but allow the same physical ID in both pools.
+    declare -A seen_inference_gpu_ids=()
+    declare -A seen_sim_gpu_ids=()
+    for gpu_id in "${inference_gpu_list[@]}"; do
+        if ! [[ "$gpu_id" =~ ^(0|[1-9][0-9]*)$ ]]; then
+            echo "GPU IDs must be nonnegative integers; got '${gpu_id}'." >&2
+            exit 2
+        fi
+        if [[ -n "${seen_inference_gpu_ids[$gpu_id]:-}" ]]; then
+            echo "Inference GPU ID ${gpu_id} is repeated." >&2
+            exit 2
+        fi
+        seen_inference_gpu_ids[$gpu_id]=1
+    done
+    for gpu_id in "${sim_gpu_list[@]}"; do
+        if ! [[ "$gpu_id" =~ ^(0|[1-9][0-9]*)$ ]]; then
+            echo "GPU IDs must be nonnegative integers; got '${gpu_id}'." >&2
+            exit 2
+        fi
+        if [[ -n "${seen_sim_gpu_ids[$gpu_id]:-}" ]]; then
+            echo "Simulation GPU ID ${gpu_id} is repeated." >&2
+            exit 2
+        fi
+        seen_sim_gpu_ids[$gpu_id]=1
+    done
+fi
+
 # Prepare resume state before loading the model or initializing the simulator.
 requested_task_queue=("${task_queue[@]}")
 batch_time=$(date +%Y%m%d_%H%M%S)
-_exp_name=$(echo "$model_path" | grep -oP '[^/]+(?=/checkpoints)')
+_exp_name=$(basename -- "$(dirname -- "$(dirname -- "$(dirname -- "$model_path")")")")
 _step_num=$(echo "$model_path" | grep -oP 'global_step_\K\d+')
 _step_k=$(( _step_num / 1000 ))k
 run_dir="${run_dir:-${output_base}/${_exp_name}_${_step_k}_${task_config}_${batch_time}}"
@@ -236,6 +317,7 @@ python3 "$checkpoint_tool" prepare --run-dir "$run_dir" --model "$model_path" \
     --config "$inference_config" --setting "$task_config" --instruction "$instruction_type" \
     --task-config-file "$eval_workdir/task_config/$task_config.yml" \
     --rtc-async "$rtc_async" --rtc-replan-steps "$rtc_replan_steps" --rtc-delay "$rtc_delay" \
+    --rtc-mode "$rtc_mode" --rtc-guidance-beta "$rtc_guidance_beta" \
     --length "$use_length" --robo-name "$robo_name" \
     --precision "$use_bf16/$use_fp32/$use_compile" --episodes "$num_episodes" \
     --tasks "${requested_task_queue[@]}" || exit $?
@@ -341,6 +423,11 @@ if [ "$num_tasks" -lt "$num_slots" ]; then
     num_slots=$num_tasks
 fi
 
+if (( ${#inference_gpu_list[@]} > 0 )); then
+    echo -e "\033[36mDedicated GPU pools: inference=[${inference_gpu_list[*]}], simulation=[${sim_gpu_list[*]}]\033[0m"
+else
+    echo -e "\033[36mInference/simulation share GPUs: 0..$((num_gpus - 1))\033[0m"
+fi
 echo -e "\033[36mInference config: ${num_gpus} GPU x ${num_per_gpu} servers/GPU = ${num_slots} slots\033[0m"
 echo -e "\033[36mInference precision: use_bf16=${use_bf16}, use_fp32=${use_fp32}, use_compile=${use_compile}\033[0m"
 
@@ -368,7 +455,11 @@ echo -e "\033[32m========== Starting inference side: ${num_slots} QwenPi servers
 cd "$inference_workdir" || { echo -e "\033[31mError: inference workdir ${inference_workdir} missing\033[0m"; exit 1; }
 
 for slot in $(seq 0 $((num_slots-1))); do
-    gpu_id=$(( slot % num_gpus ))
+    if (( ${#inference_gpu_list[@]} > 0 )); then
+        gpu_id=${inference_gpu_list[$((slot % ${#inference_gpu_list[@]}))]}
+    else
+        gpu_id=$(( slot % num_gpus ))
+    fi
     port=$(( start_port + slot ))
 
     export CUDA_VISIBLE_DEVICES=${gpu_id}
@@ -389,6 +480,7 @@ for slot in $(seq 0 $((num_slots-1))); do
         --use_bf16 "${use_bf16}" \
         --use_fp32 "${use_fp32}" \
         --use_compile "${use_compile}" \
+        --rtc_mode '${rtc_mode}' \
         --port '${port}'" > "$log_file" 2>&1 &
 
     pid=$!
@@ -442,7 +534,7 @@ fi
 deploy_pkg_src="${inference_workdir}deploy"
 deploy_pkg_dst="${eval_workdir}/script/deploy"
 mkdir -p "$deploy_pkg_dst"
-for f in __init__.py websocket_client_policy.py msgpack_numpy.py async_rtc.py; do
+for f in __init__.py websocket_client_policy.py msgpack_numpy.py async_rtc.py rtc_protocol.py; do
     if [ ! -f "$deploy_pkg_dst/$f" ] || ! cmp -s "$deploy_pkg_src/$f" "$deploy_pkg_dst/$f"; then
         if [ ! -f "$deploy_pkg_src/$f" ]; then
             echo -e "\033[31mError: deploy helper source not found: ${deploy_pkg_src}/${f}\033[0m"
@@ -510,7 +602,12 @@ done
 launch_task() {
     local slot=$1
     local task_name=$2
-    local gpu_id=$(( slot % num_gpus ))
+    local gpu_id
+    if (( ${#sim_gpu_list[@]} > 0 )); then
+        gpu_id=${sim_gpu_list[$((slot % ${#sim_gpu_list[@]}))]}
+    else
+        gpu_id=$(( slot % num_gpus ))
+    fi
     local port=$(( start_port + slot ))
 
     export CUDA_VISIBLE_DEVICES=${gpu_id}
@@ -543,6 +640,8 @@ launch_task() {
         --task_name ${task_name} \
         --num_episodes ${num_episodes} \
         --rtc_async ${rtc_async} \
+        --rtc_mode ${rtc_mode} \
+        --rtc_guidance_beta ${rtc_guidance_beta} \
         --rtc_replan_steps ${rtc_replan_steps} \
         --rtc_delay ${rtc_delay} \
         --rtc_timeout ${rtc_timeout} \

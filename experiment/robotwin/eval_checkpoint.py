@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import sys
 import time
 
 
@@ -23,6 +24,100 @@ def atomic_json(path, value):
         os.fsync(directory)
     finally:
         os.close(directory)
+
+
+def atomic_text(path, value):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + f'.tmp.{os.getpid()}.{time.time_ns()}')
+    with temporary.open('w', encoding='utf-8') as stream:
+        stream.write(value)
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temporary, path)
+    directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
+
+
+def update_success_rate_table(run_dir, default_episodes=None):
+    """Atomically refresh a VS Code-friendly Markdown table for a run."""
+    root = Path(run_dir)
+    result_root = root / 'eval_results'
+    if not (root / 'run_manifest.json').exists():
+        return
+
+    lock_path = root / '.success_rate.lock'
+    with lock_path.open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        manifest = json.loads((root / 'run_manifest.json').read_text(encoding='utf-8'))
+        default_setting = manifest.get('identity', {}).get('task_config', '')
+        rows = []
+        task_dirs = sorted(result_root.iterdir()) if result_root.exists() else []
+        for task_dir in task_dirs:
+            progress_path = task_dir / '_progress.json'
+            if not task_dir.is_dir() or not progress_path.exists():
+                continue
+            state = json.loads(progress_path.read_text(encoding='utf-8'))
+            identity = state.get('identity', {})
+            setting = identity.get('task_config', default_setting)
+            setting_label = {
+                'demo_clean': 'clean',
+                'demo_randomized': 'random',
+            }.get(setting, setting or 'unknown')
+            episodes = state.get('episodes', [])
+            completed = len(episodes)
+            successes = sum(bool(item['success']) for item in episodes)
+            target = state.get('target_episodes') or default_episodes or '—'
+            rate = f'{successes / completed * 100:.1f}%' if completed else '—'
+            rows.append((task_dir.name.replace('|', '\\|'), setting_label,
+                         successes, completed, target, rate))
+
+        lines = [
+            '# Success rate',
+            '',
+            '| Task | Setting | Successes | Completed | Target | Success rate |',
+            '| --- | --- | ---: | ---: | ---: | ---: |',
+        ]
+        lines.extend(
+            f'| {task} | {setting} | {successes} | {completed} | {target} | {rate} |'
+            for task, setting, successes, completed, target, rate in rows
+        )
+        if not rows:
+            lines.append('| — | — | 0 | 0 | 0 | — |')
+        successes = sum(row[2] for row in rows)
+        completed = sum(row[3] for row in rows)
+        target = sum(row[4] for row in rows) if all(isinstance(row[4], int) for row in rows) else '—'
+        rate = f'{successes / completed * 100:.1f}%' if completed else '—'
+        lines.extend([
+            f'| **Total** | — | {successes} | {completed} | {target} | **{rate}** |',
+            '',
+            'Success rate = successes / completed episodes. Pending episodes are excluded.',
+            '',
+        ])
+        output = '\n'.join(lines)
+        table = root / 'success_rate.md'
+        if not table.exists() or table.read_text(encoding='utf-8') != output:
+            atomic_text(table, output)
+        return table
+
+
+def success_report_complete(run_dir, default_episodes=None):
+    result_root = Path(run_dir) / 'eval_results'
+    task_dirs = sorted(path for path in result_root.iterdir() if path.is_dir()) if result_root.exists() else []
+    if not task_dirs:
+        return False
+    for task_dir in task_dirs:
+        progress_path = task_dir / '_progress.json'
+        if not progress_path.exists():
+            return False
+        state = json.loads(progress_path.read_text(encoding='utf-8'))
+        target = state.get('target_episodes') or default_episodes
+        if target is None or len(state.get('episodes', [])) < target:
+            return False
+    return True
 
 
 def digest(value):
@@ -53,9 +148,13 @@ class EpisodeCheckpoint:
                 if (self.directory / '_result.txt').exists() or list(self.directory.glob('episode*.mp4')):
                     raise ValueError(f'Legacy results without resume state: {self.directory}; use a new run directory')
                 self.state = dict(version=1, identity=identity, episodes=[],
-                                  next_seed=start_seed, pending=None)
+                                  next_seed=start_seed, pending=None,
+                                  target_episodes=episodes)
                 self.save()
             self.validate()
+            if self.state.get('target_episodes') != episodes:
+                self.state['target_episodes'] = episodes
+                self.save()
         except Exception:
             self.lock.close()
             raise
@@ -119,6 +218,10 @@ class EpisodeCheckpoint:
         self.state['next_seed'] = pending['seed'] + 1
         self.state['pending'] = None
         self.save()
+        try:
+            update_success_rate_table(self.directory.parent.parent, self.target)
+        except (OSError, ValueError, KeyError) as error:
+            print(f'Unable to update success_rate.md: {error}', file=sys.stderr, flush=True)
 
     def close(self):
         self.lock.close()
@@ -144,8 +247,13 @@ def prepare(args):
                     instruction_type=args.instruction, seed=0, use_length=args.length,
                     robo_name=args.robo_name, precision=args.precision,
                     denoiser=os.environ.get('ROBOTWIN_DENOISER', 'default'))
-    if getattr(args, 'rtc_async', 'False') == 'True':
-        identity['rtc'] = dict(mode='async_fixed_prefix_v1', replan_steps=args.rtc_replan_steps, delay=args.rtc_delay)
+    rtc_mode = getattr(args, 'rtc_mode', None)
+    if rtc_mode == 'paper':
+        identity['rtc'] = dict(mode='paper_softmask_v1', replan_steps=args.rtc_replan_steps,
+                               delay=args.rtc_delay, guidance_beta=args.rtc_guidance_beta,
+                               delay_buffer_size=4, scheduler='asap_adaptive_delay')
+    elif rtc_mode == 'fixed_prefix' or (rtc_mode is None and getattr(args, 'rtc_async', 'False') == 'True'):
+        identity['rtc'] = dict(mode='async_fixed_prefix_v2', replan_steps=args.rtc_replan_steps, delay=args.rtc_delay)
     prepare_run(args, identity)
 
 
@@ -176,6 +284,7 @@ def prepare_run(args, identity):
         finally:
             checkpoint.close()
     atomic_json(root / 'resume_plan.json', dict(run_id=run_id, pending=pending, complete=complete))
+    update_success_rate_table(root, args.episodes)
     print(f'Resume: {len(complete)} tasks complete, {len(pending)} tasks pending; {root}', flush=True)
 
 
@@ -205,12 +314,19 @@ def stats(args):
                   f'Completed episodes: {completed}/{len(args.tasks) * args.episodes}'])
     output = '\n'.join(lines) + '\n'
     (root / 'stats.txt').write_text(output)
+    update_success_rate_table(root, args.episodes)
     print(output, end='')
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
+    report = sub.add_parser('report', help='Refresh success_rate.md from saved episode results')
+    report.add_argument('--run-dir', required=True)
+    report.add_argument('--episodes', type=int, help='Target for older progress files without a saved target')
+    report.add_argument('--watch', action='store_true', help='Keep refreshing an already running evaluation')
+    report.add_argument('--until-complete', action='store_true', help='Stop watching when every task reaches its target')
+    report.add_argument('--interval', type=float, default=5, help='Refresh interval in seconds (default: 5)')
     for name in ('prepare', 'stats'):
         item = sub.add_parser(name)
         item.add_argument('--run-dir', required=True)
@@ -220,14 +336,29 @@ def main():
             for option in ('model', 'config', 'setting', 'instruction', 'task-config-file', 'robo-name', 'precision'):
                 item.add_argument('--' + option, required=True)
             item.add_argument('--rtc-async', choices=['True', 'False'], default='False')
+            item.add_argument('--rtc-mode', choices=['off', 'fixed_prefix', 'paper'])
+            item.add_argument('--rtc-guidance-beta', type=float, default=5.0)
             item.add_argument('--rtc-replan-steps', type=int, default=8)
             item.add_argument('--rtc-delay', type=int, default=6)
             item.add_argument('--length', type=int, required=True)
     args = parser.parse_args()
     try:
-        if args.episodes < 1:
+        if args.episodes is not None and args.episodes < 1:
             raise ValueError('Episode target must be positive')
+        if args.command == 'report':
+            if args.interval <= 0:
+                raise ValueError('Refresh interval must be positive')
+            if not (Path(args.run_dir) / 'run_manifest.json').exists():
+                raise ValueError(f'No run_manifest.json in {args.run_dir}')
+            print(f'Success rate table: {Path(args.run_dir) / "success_rate.md"}', flush=True)
+            while True:
+                update_success_rate_table(args.run_dir, args.episodes)
+                if not args.watch or (args.until_complete and success_report_complete(args.run_dir, args.episodes)):
+                    return
+                time.sleep(args.interval)
         (prepare if args.command == 'prepare' else stats)(args)
+    except KeyboardInterrupt:
+        return
     except (ValueError, KeyError, OSError) as error:
         parser.exit(2, f'Error: {error}\n')
 
