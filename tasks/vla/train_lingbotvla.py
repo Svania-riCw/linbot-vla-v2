@@ -204,6 +204,8 @@ class MyTrainingArguments(TrainingArguments):
         default=True,
         metadata={"help": "Whether to resume dataloader."},
     )
+    require_resume: bool = field(default=False, metadata={"help": "Require complete DCP optimizer/state restore; never fall back to fresh training."})
+    lr_schedule_steps: Optional[int] = field(default=None, metadata={"help": "Preserve the original LR schedule horizon when extending max_steps."})
     use_moe: bool = field(
         default=False,
         metadata={"help": "Whether to use MoE."},
@@ -569,9 +571,12 @@ def main():
     total_train_steps = args.train.train_steps * args.train.num_train_epochs
     if args.train.max_steps is not None:
         total_train_steps = min(total_train_steps, args.train.max_steps)
+    schedule_steps = total_train_steps if args.train.lr_schedule_steps is None else args.train.lr_schedule_steps
+    if schedule_steps < 1:
+        raise ValueError('lr_schedule_steps must be positive')
     lr_scheduler = build_lr_scheduler(
         optimizer,
-        train_steps=total_train_steps,
+        train_steps=schedule_steps,
         lr=args.train.lr,
         lr_min=args.train.lr_min,
         lr_decay_style=args.train.lr_decay_style,
@@ -672,13 +677,18 @@ def main():
                 load_checkpoint_path = candidates[0]
             else:
                 logger.info_rank0(f"No checkpoints in {args.train.output_dir} now!")
+    if args.train.require_resume and (not candidates or args.train.ckpt_manager != 'dcp' or args.train.allow_partial_checkpoint):
+        raise RuntimeError('require_resume needs an existing complete DCP checkpoint and disallows partial loading')
     if candidates:
         last_err = None
         loaded = False
         for cp in candidates:
             state = {"model": model, "ema": None, "optimizer": optimizer, "extra_state": {}}  # cannot be None
             try:
-                Checkpointer.load(cp, state, allow_partial_load=getattr(args.train, 'allow_partial_checkpoint', False))
+                load_options = dict(allow_partial_load=getattr(args.train, 'allow_partial_checkpoint', False))
+                if args.train.require_resume:
+                    load_options['strict_optimizer'] = True
+                Checkpointer.load(cp, state, **load_options)
                 global_step = state["extra_state"]["global_step"]
                 start_epoch = global_step // args.train.train_steps
                 start_step = global_step % args.train.train_steps
@@ -694,6 +704,8 @@ def main():
                 loaded = True
                 break
             except Exception as e:
+                if args.train.require_resume:
+                    raise RuntimeError(f'Required training-state restore failed: {cp}') from e
                 last_err = e
                 logger.info_rank0(f"Failed to load checkpoint {cp}: {repr(e)}. Trying older one...")
                 continue
@@ -701,6 +713,11 @@ def main():
             logger.info_rank0("Starting training from scratch. No valid checkpoint could be loaded.")
     else:
         logger.info_rank0("Starting training from scratch.")
+
+    if args.train.max_steps is not None and global_step >= args.train.max_steps:
+        logger.info_rank0(f'Checkpoint already reached max_steps={args.train.max_steps}; no further updates.')
+        hf_saver.wait_all_across_ranks()
+        return
 
     helper.empty_cache()
     model_fwd_context, model_bwd_context = build_activation_offloading_context(

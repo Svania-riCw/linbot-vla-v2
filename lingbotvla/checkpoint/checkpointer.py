@@ -394,6 +394,7 @@ class DistributedCheckpointer(CheckpointerBase):
         state: Dict[str, Any],
         process_group=None,
         allow_partial_load: bool = False,
+        strict_optimizer: bool = False,
     ) -> Dict[str, Any]:
         """
         load training state from distributed checkpoint
@@ -438,10 +439,12 @@ class DistributedCheckpointer(CheckpointerBase):
                 dcp.load(
                     state_dict={"state": OptimizerState(model=state["model"], optimizer=state["optimizer"])}, # 1043
                     storage_reader=FileSystemReader(optimizer_dir), # 1027
-                    planner = DefaultLoadPlanner(allow_partial_load=True),
+                    planner = DefaultLoadPlanner(allow_partial_load=not strict_optimizer),
                     process_group=process_group,
                 )
-            except:
+            except Exception:
+                if strict_optimizer:
+                    raise
                 logger.info_rank0(f"Skip loading Optimizer from {checkpoint_dir}")
         else:
             model_dir = os.path.join(checkpoint_dir, _MODEL_DIR)

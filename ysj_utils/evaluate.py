@@ -59,6 +59,7 @@ def main():
     p.add_argument('--seed', type=int, default=0)
     p.add_argument('--port-base', type=int, default=19330)
     p.add_argument('--dry-run', action='store_true')
+    p.add_argument('--use-compile', choices=['true','false'], default='false', help='Compile inference; recorded as a separate evaluation condition')
     p.add_argument('--summary-output',type=Path,help='Write a machine-readable result including the actual run directory')
     args = p.parse_args()
     if args.summary_output and args.summary_output.exists():
@@ -75,12 +76,12 @@ def main():
     env.update(MODEL_PATH=str(args.checkpoint.resolve()), MODEL_NAME=model_name,
                TEST_NUM=str(config['episodes']), TASKS=' '.join(config['tasks']),
                TASK_CONFIGS=' '.join(config['configs']), GPUS=' '.join(gpu_ids),
-               SEED=str(args.seed), USE_FP32='True', USE_COMPILE='False', USE_LENGTH='50',
+               SEED=str(args.seed), USE_FP32='True', USE_COMPILE=str(args.use_compile == 'true'), USE_LENGTH='50',
                ROBO_NAME='robotwin', PORT_BASE=str(args.port_base))
     command = ['bash', str(ROOT/'xsy_utils/eval_baseline.sh'), env['MODEL_PATH']]
     plan = dict(mode=args.mode, checkpoint=env['MODEL_PATH'], seed=args.seed, **config,
                 total_episodes=len(config['tasks'])*len(config['configs'])*config['episodes'],
-                inference_precision='fp32', use_length=50, gpus=gpu_ids, command=command)
+                inference_precision='fp32', use_compile=args.use_compile == 'true', use_length=50, gpus=gpu_ids, command=command)
     print(json.dumps(plan, indent=2))
     if args.dry_run:
         return
@@ -115,7 +116,7 @@ def main():
                   training_summary={key:training['train'].get(key) for key in
                                     ['global_batch_size','max_steps','enable_fp32','enable_mixed_precision',
                                      'seed','chunk_size','lr','lr_min','lr_decay_style','optimizer','training_time_rtc',
-                                     'loss_type','align_params','use_compile']},
+                                     'loss_type','align_params','use_compile','lr_schedule_steps']},
                   initial_model=training['model']['model_path'],
                   train_list_sha256=digest(training['data']['train_path']))
     try:

@@ -61,6 +61,8 @@ def compare(baseline_run, delta_run, expected_steps=10000):
                   'training_summary','initial_model','train_list_sha256','code_commit']:
         if reports[0][field] != reports[1][field]:
             raise ValueError(f'Experiment mismatch: {field}')
+    if reports[0].get('use_compile',False) != reports[1].get('use_compile',False):
+        raise ValueError('Experiment mismatch: inference use_compile')
     rows = []
     values = []
     for run in runs:

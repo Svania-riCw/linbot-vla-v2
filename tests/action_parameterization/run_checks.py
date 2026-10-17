@@ -36,6 +36,7 @@ def main():
               'lingbotvla/utils/arguments.py','tasks/vla/train_lingbotvla.py',
               'external/RoboTwin/policy/lingbot-vla-v2/deploy_policy.py','ysj_utils/prepare_ee_labels.py']
     files += ['lingbotvla/action_spaces/spline.py','ysj_utils/check_spline_fit.py','ysj_utils/run_joint_pair.py']
+    files += ['lingbotvla/checkpoint/checkpointer.py','ysj_utils/resume_joint_delta.py','ysj_utils/resume_joint_delta.sh']
     packages = {}
     for name in ('torch', 'numpy', 'scipy', 'PyYAML', 'pyarrow', 'h5py'):
         try:
