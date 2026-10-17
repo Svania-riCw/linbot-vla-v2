@@ -1,20 +1,41 @@
 """Validation for the single-flight RTC websocket protocol (no torch dependency)."""
 import numpy as np
 
+RTC_FIXED_PREFIX = 'async_fixed_prefix_v2'
+RTC_PAPER = 'paper'
+
 
 def validate_rtc_request(rtc, config, batch_size):
     if not isinstance(rtc, dict):
         raise ValueError('_rtc must be a mapping')
-    if not getattr(config, 'training_time_rtc', False):
-        raise ValueError('RTC inference requires an RTC-trained checkpoint')
+    mode = rtc.get('mode', RTC_FIXED_PREFIX)
+    if mode not in (RTC_FIXED_PREFIX, RTC_PAPER):
+        raise ValueError(f'Unsupported RTC mode: {mode!r}')
+    if mode == RTC_FIXED_PREFIX and not getattr(config, 'training_time_rtc', False):
+        raise ValueError('Fixed-prefix RTC requires an RTC-trained checkpoint')
     request_id = rtc.get('request_id')
     if not isinstance(request_id, str) or not request_id:
         raise ValueError('RTC request_id must be a nonempty string')
     delay = rtc.get('delay')
-    maximum = int(getattr(config, 'training_time_rtc_max_delay', 0))
     horizon, dim = config.n_action_steps, config.max_action_dim
-    if isinstance(delay, bool) or not isinstance(delay, int) or not 0 <= delay < min(maximum, horizon):
-        raise ValueError(f'RTC delay must be an integer in [0, {min(maximum, horizon) - 1}]')
+    if isinstance(delay, bool) or not isinstance(delay, int) or not 0 <= delay < horizon:
+        raise ValueError(f'RTC delay must be an integer in [0, {horizon - 1}]')
+    if mode == RTC_FIXED_PREFIX:
+        maximum = int(getattr(config, 'training_time_rtc_max_delay', 0))
+        if delay >= maximum:
+            raise ValueError(f'Fixed-prefix RTC delay must be in [0, {min(maximum, horizon) - 1}]')
+    else:
+        execution_horizon = rtc.get('execution_horizon')
+        if (isinstance(execution_horizon, bool) or not isinstance(execution_horizon, int)
+                or execution_horizon < 0 or execution_horizon > horizon):
+            raise ValueError('Paper RTC execution_horizon must be an integer in [0, horizon]')
+        if execution_horizon == 0 and delay == 0:
+            pass  # Initial inference has no previous chunk to inpaint against.
+        elif execution_horizon < 1 or delay > execution_horizon or execution_horizon + delay > horizon:
+            raise ValueError('Paper RTC requires delay <= execution_horizon <= horizon - delay')
+        beta = rtc.get('guidance_beta', 5.0)
+        if isinstance(beta, bool) or not isinstance(beta, (int, float)) or not np.isfinite(beta) or beta <= 0:
+            raise ValueError('Paper RTC guidance_beta must be a finite positive number')
     previous = rtc.get('previous_actions')
     if previous is None:
         if delay:

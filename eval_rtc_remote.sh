@@ -85,7 +85,7 @@ fi
 mkdir -p "$eval_workdir/script/deploy"
 cp "$repo/experiment/robotwin/eval_policy_client_lingbotvla.py" "$eval_workdir/script/eval_policy_client_lingbotvla.py"
 cp "$helper" "$eval_workdir/script/eval_checkpoint.py"
-for file in __init__.py websocket_client_policy.py msgpack_numpy.py async_rtc.py; do
+for file in __init__.py websocket_client_policy.py msgpack_numpy.py async_rtc.py rtc_protocol.py; do
     cp "$repo/deploy/$file" "$eval_workdir/script/deploy/$file"
 done
 echo "RTC inference: $host:$port; run directory: $run_dir; pending tasks: ${#pending[@]}"

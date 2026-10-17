@@ -14,6 +14,7 @@ class RTCServingTest(unittest.TestCase):
         server = LingbotVLAv2Server.__new__(LingbotVLAv2Server)
         server.config = types.SimpleNamespace(training_time_rtc=True,training_time_rtc_max_delay=10,
                                               n_action_steps=50,max_action_dim=55)
+        server.use_compile=False
         server._infer_batch = Mock(return_value=(dict(action=np.zeros((1,50,14),np.float32)),
                                                 torch.zeros(1,50,55)))
         server.chunk_ret=True
@@ -39,6 +40,20 @@ class RTCServingTest(unittest.TestCase):
         server.infer(request)
         self.assertEqual(server._infer_batch.call_count,2)
         self.assertIn('_rtc',request)  # no mutation of caller's message
+
+    def test_paper_rpc_accepts_baseline_config_and_forwards_guidance_parameters(self):
+        server=self.server()
+        server.config.training_time_rtc=False
+        request={'task':'test','_rtc':dict(request_id='episode:paper',delay=6,
+            mode='paper',execution_horizon=8,guidance_beta=5.0,
+            previous_actions=np.zeros((50,55),np.float32))}
+        response=server.infer(request)
+        self.assertEqual(response['_rtc_request_id'],'episode:paper')
+        args, kwargs=server._infer_batch.call_args
+        self.assertEqual(kwargs['rtc_mode'],'paper')
+        self.assertEqual(kwargs['rtc_delay'],6)
+        self.assertEqual(kwargs['rtc_execution_horizon'],8)
+        self.assertEqual(kwargs['rtc_guidance_beta'],5.0)
 
     def test_plain_request_retains_synchronous_chunk_slicing(self):
         server=self.server()

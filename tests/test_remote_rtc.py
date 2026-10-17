@@ -79,8 +79,10 @@ class RemoteRTCTest(unittest.TestCase):
 
     def test_protocol_and_trained_delay_are_validated_before_simulation(self):
         for metadata,delay,replan in (({},6,8),(dict(METADATA,training_time_rtc=False),6,8),
-            (METADATA,10,8),(METADATA,6,38),(METADATA,6,0)):
+            (METADATA,10,8),(METADATA,6,45),(METADATA,6,5),(METADATA,6,0)):
             with self.assertRaises(ValueError):validate_server(metadata,delay,replan)
+        # The final valid committed prefix may end exactly at the plan horizon.
+        validate_server(METADATA,6,44)
 
     def test_remote_manifest_rejects_changed_server_checkpoint_and_prefix(self):
         with tempfile.TemporaryDirectory() as directory:

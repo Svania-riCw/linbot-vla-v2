@@ -376,11 +376,14 @@ def eval_policy(task_name,
                 "task": TASK_ENV.get_instruction(),
             }
 
-        if usr_args.get('rtc_async', False):
+        rtc_mode = usr_args.get('rtc_mode', 'fixed_prefix' if usr_args.get('rtc_async', False) else 'off')
+        if rtc_mode != 'off':
             from script.deploy.async_rtc import AsyncRTC
             with AsyncRTC(model, replan_steps=int(usr_args.get('rtc_replan_steps', 8)),
                           delay=int(usr_args.get('rtc_delay', 6)),
-                          timeout=float(usr_args.get('rtc_timeout', 180))) as rtc:
+                          timeout=float(usr_args.get('rtc_timeout', 180)),
+                          mode=('paper' if rtc_mode == 'paper' else 'async_fixed_prefix_v2'),
+                          guidance_beta=float(usr_args.get('rtc_guidance_beta', 5.0))) as rtc:
                 while TASK_ENV.take_action_cnt < TASK_ENV.step_lim and not succ:
                     act = rtc.next_action(observe)
                     TASK_ENV.take_action(act)

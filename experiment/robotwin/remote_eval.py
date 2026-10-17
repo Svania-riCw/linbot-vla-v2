@@ -16,8 +16,8 @@ def validate_server(metadata, delay, replan_steps):
     maximum, horizon = int(metadata['rtc_max_delay']), int(metadata['action_horizon'])
     if not 0 <= delay < min(maximum, horizon):
         raise ValueError(f'RTC delay must be in [0, {min(maximum, horizon)-1}]')
-    if replan_steps < 1 or replan_steps + 2*delay >= horizon:
-        raise ValueError('RTC requires replan_steps >= 1 and replan_steps + 2*delay < horizon')
+    if replan_steps < 1 or delay > replan_steps or replan_steps + delay > horizon:
+        raise ValueError('RTC requires replan_steps >= delay and replan_steps + delay <= horizon')
     if not metadata.get('checkpoint_signature'):
         raise ValueError('Missing remote checkpoint signature')
 
@@ -31,7 +31,7 @@ def prepare(args, metadata):
                     task_config=args.setting, task_config_sha256=file_digest(args.task_config_file),
                     instruction_type=args.instruction, seed=0, robo_name='robotwin',
                     denoiser=os.environ.get('ROBOTWIN_DENOISER', 'default'),
-                    rtc=dict(mode='async_fixed_prefix_v1', delay=args.rtc_delay,
+                    rtc=dict(mode='async_fixed_prefix_v2', delay=args.rtc_delay,
                              replan_steps=args.rtc_replan_steps))
     prepare_run(args, identity)
 

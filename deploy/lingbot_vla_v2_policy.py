@@ -102,6 +102,9 @@ class PolicyPreprocessMixin:
         sample_compile_fn: callable = None,
         previous_actions=None,
         rtc_delay=None,
+        rtc_mode=None,
+        rtc_execution_horizon=None,
+        rtc_guidance_beta=5.0,
     ) -> Tensor:
         """Run one model forward for a batch of already-transformed observations.
 
@@ -134,9 +137,21 @@ class PolicyPreprocessMixin:
             state = state.unsqueeze(0)
 
         rtc_kwargs = {}
-        if previous_actions is not None:
+        if rtc_mode == 'paper':
+            rtc_kwargs = dict(
+                rtc_mode=rtc_mode,
+                rtc_delay=rtc_delay,
+                rtc_execution_horizon=rtc_execution_horizon,
+                rtc_guidance_beta=rtc_guidance_beta,
+            )
+            if previous_actions is not None:
+                rtc_kwargs['previous_actions'] = previous_actions.to(device=device, dtype=dtype)
+            # The VJP guidance path needs eager autograd and does not use the
+            # ordinary compiled sampler.
+            sample_compile_fn = self.model.sample_actions
+        elif previous_actions is not None:
             rtc_kwargs = dict(previous_actions=previous_actions.to(device=device, dtype=dtype),
-                              rtc_delay=rtc_delay)
+                              rtc_delay=rtc_delay, rtc_mode=rtc_mode or 'async_fixed_prefix_v2')
         if capture_time:
             with torch.inference_mode():
                 for _ in range(3):
@@ -205,8 +220,11 @@ class LingbotVLAv2Server:
         use_bf16=True,
         use_fp32=False,
         use_compile=False,
+        inference_rtc_mode='off',
     ) -> None:
         assert not (use_bf16 and use_fp32), 'Bfloat16 or Float32!!!'
+        if inference_rtc_mode == 'paper' and use_compile:
+            raise ValueError('Paper RTC uses VJP autograd; launch with --use_compile False')
         self.adaptive_ensemble_alpha = adaptive_ensemble_alpha
         self.action_ensemble_horizon = action_ensemble_horizon
         self.use_length = use_length
@@ -480,7 +498,8 @@ class LingbotVLAv2Server:
             return torch.stack(padded, dim=0)
 
         raise ValueError(f"Cannot batch tensors with different shapes: {shapes}")
-    def _infer_batch(self, observations, return_normalized=False, previous_actions=None, rtc_delay=None):
+    def _infer_batch(self, observations, return_normalized=False, previous_actions=None, rtc_delay=None,
+                     rtc_mode=None, rtc_execution_horizon=None, rtc_guidance_beta=5.0):
         if not isinstance(observations, (list, tuple)) or len(observations) == 0:
             raise ValueError("batch observation must be a non-empty list")
         applied = [self._prepare_model_input(obs) for obs in observations] # bsize, dict{key }
@@ -500,6 +519,8 @@ class LingbotVLAv2Server:
             capture_time=False,
             sample_compile_fn = self.sample_actions_fn,
             previous_actions=previous_actions, rtc_delay=rtc_delay,
+            rtc_mode=rtc_mode, rtc_execution_horizon=rtc_execution_horizon,
+            rtc_guidance_beta=rtc_guidance_beta,
         )
         
         unnormalized_actions = self._unapply_batched_actions(applied, actions)
@@ -525,9 +546,15 @@ class LingbotVLAv2Server:
             from deploy.rtc_protocol import validate_rtc_request
             previous, delay, request_id = validate_rtc_request(rtc, self.config, len(observations))
             previous = torch.from_numpy(previous.copy()) if previous is not None else None
+            rtc_mode = rtc.get('mode', 'async_fixed_prefix_v2')
+            if rtc_mode == 'paper' and self.use_compile:
+                raise ValueError('Paper RTC requires --use_compile False')
             # RTC always samples a fresh full plan, independently of the ordinary action cache.
             result, normalized = self._infer_batch(observations, return_normalized=True,
-                                                   previous_actions=previous, rtc_delay=delay)
+                                                   previous_actions=previous, rtc_delay=delay,
+                                                   rtc_mode=rtc_mode,
+                                                   rtc_execution_horizon=rtc.get('execution_horizon'),
+                                                   rtc_guidance_beta=float(rtc.get('guidance_beta', 5.0)))
             if not is_batch:
                 result = {key: value[0] for key, value in result.items()}
                 normalized = normalized[0]
@@ -655,6 +682,13 @@ def main():
         default=True,
     )
 
+    parser.add_argument(
+        "--rtc_mode",
+        choices=('off', 'fixed_prefix', 'paper'),
+        default='off',
+        help='Inference scheduler mode; paper requires eager autograd.',
+    )
+
     args = parser.parse_args()
 
     model = LingbotVLAv2Server(
@@ -664,6 +698,7 @@ def main():
         use_bf16=args.use_bf16,
         use_fp32=args.use_fp32,
         use_compile=args.use_compile,
+        inference_rtc_mode=args.rtc_mode,
     )
     from deploy.rtc_protocol import server_metadata
     metadata = server_metadata(model, args.model_path)
