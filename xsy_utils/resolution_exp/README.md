@@ -169,3 +169,11 @@ ROI 实验应继续保留相同训练/评测条件，必要时加入重复全图
 - 检查证据保存在本地 `.runtime/h20_dataset_smoke.json`、`h20_progress_compact.json`。真实数据检查只读取源数据，没有运行新的训练或评测作业。
 
 下一次获得 GPU 后，先运行两组各 2 步加 checkpoint 保存；通过后再做 1000 步匹配实验。尚未确认 384 的完整模型显存峰值、Triton/compile、FSDP 梯度累积及 checkpoint 恢复，不能保证首次 GPU 运行绝无问题。
+
+## W&B 记录
+
+用户实验通过 node1 的 `ql_roi_train` tmux 队列运行。队列从实验专用的受限文件读取密钥，仅向自己的训练子进程传入 `WANDB_API_KEY`；普通配置和 Git 中不保存密钥。
+
+队列为两组分别传入 `use_wandb=true`、同一 `wandb_project`、独立的 `wandb_name`，并按实验组区分 smoke/train。W&B 在 TensorBoard writer 创建前初始化并开启 `sync_tensorboard`，记录现有 loss、学习率、梯度、显存和 step 时间指标；结束时完成同步。
+
+新格式密钥使用 `.runtime/wandb_sdk` 中单独安装的 W&B 0.22.3，通过 `QL_WANDB_SDK_PATH` 注入本实验；共享 Conda 环境的 W&B 版本保持原状。账号、组织和项目的非敏感配置位于 `.runtime/node1_queue/wandb_settings.json`。运行时以该文件和 CLI 覆盖为准，基础 YAML 的默认 W&B 开关不影响队列设置。

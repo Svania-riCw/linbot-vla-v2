@@ -584,12 +584,16 @@ def main():
 
     if args.train.global_rank == 0:
         log_dir=f"{args.train.output_dir}/runs/"
-        writer = AsyncTBWriter(log_dir=log_dir)
         if args.train.use_wandb:
             wandb.init(
+                project=args.train.wandb_project,
                 name=args.train.wandb_name,
-                config={**vars(args.model), **vars(args.data), **vars(args.train)},  # flatten dict
+                config={**vars(args.model), **vars(args.data), **vars(args.train),
+                        "experiment": json.loads(os.environ.get("QL_WANDB_RUN_METADATA", "{}"))},
+                sync_tensorboard=True,
             )
+        # W&B must patch TensorBoard before its event writer is created.
+        writer = AsyncTBWriter(log_dir=log_dir)
 
         if args.train.enable_profiling:
             profiler = helper.create_profiler(
@@ -1228,6 +1232,11 @@ def main():
             current_epoch_step_for_eval,
         )
     hf_saver.wait_all_across_ranks()
+
+    if args.train.global_rank == 0 and args.train.use_wandb:
+        wandb.summary["completed_global_step"] = int(global_step)
+        wandb.summary["last_checkpoint_path"] = save_checkpoint_path
+        wandb.finish()
 
     dist.barrier()
     dist.destroy_process_group()

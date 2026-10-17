@@ -24,6 +24,11 @@ set +u; conda activate "${TRAIN_ENV:-lingbotvla}"; set -u
 # (lingbotvla, moge, mdm, utils3d) resolves to this checkout.
 VM="$CODE/lingbotvla/models/vla/vision_models"
 export PYTHONPATH="$CODE:$VM/MoGe:$VM/lingbot-depth:$CODE/third_party/utils3d"
+# Optional experiment-only SDK overlay; shared Conda packages stay in place.
+if [[ -n "${QL_WANDB_SDK_PATH:-}" ]]; then
+    [[ -d "$QL_WANDB_SDK_PATH/wandb" ]] || { echo "Invalid QL_WANDB_SDK_PATH" >&2; exit 2; }
+    export PYTHONPATH="$QL_WANDB_SDK_PATH:$PYTHONPATH"
+fi
 export PYTHONNOUSERSITE=1 TOKENIZERS_PARALLELISM=false PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_HUB_DISABLE_TELEMETRY=1 DISABLE_TELEMETRY=1
 
