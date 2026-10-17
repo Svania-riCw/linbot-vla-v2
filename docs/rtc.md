@@ -20,6 +20,11 @@ at `/2025233210/lmx/training-data/robotwin_clean_norm_stats.json`. Defaults:
 - Gradient checkpointing enabled; optimizer and MoE settings follow
   `configs/vla/robotwin/robotwin.yaml`.
 - RTC enabled with exclusive delay limit 10 (prefix lengths 0 through 9).
+- Set `RTC_FIXED_DELAY=6` to train on a fixed six-action prefix. The exclusive
+  upper bound can stay at its default `RTC_MAX_DELAY=10`; it also controls the
+  maximum delay accepted by serving. The delay stays exactly six even for short
+  padded episode tails; tails with no valid suffix do not contribute action loss.
+  The default `RTC_FIXED_DELAY=-1` keeps random sampling.
 - MoGe, MoRGBD, and DINO-video auxiliary teacher losses enabled by default,
   alongside the RTC action-flow objective.
 - Maximum training length: 50,000 optimizer steps; checkpoint every 1,000 steps.
@@ -130,8 +135,20 @@ added. RTC defaults to off for other recipes.
 The optional sampling API accepts normalized `previous_actions` and
 `rtc_delay` and clamps the prefix throughout denoising. The helper
 `align_previous_action_chunk` shifts an earlier plan by executed steps. The
-RoboTwin server does not automatically use this API; asynchronous control
-must supply the aligned previous plan explicitly.
+RoboTwin server also provides an independent paper-style inference RTC mode:
+`--rtc_mode paper`. It works with a checkpoint whose `training_time_rtc` is
+false. The asynchronous controller tracks recent inference delays, sends the
+full remaining normalized action chunk, and the flow sampler uses the paper's
+soft overlap mask and per-step VJP guidance. Keep `--use_compile False` for
+this path so autograd can compute the correction. The existing trained
+fixed-prefix mode remains available as `--rtc_mode fixed_prefix` and requires
+an RTC-trained checkpoint.
+
+For a local RoboTwin evaluation, use `xsy_utils/eval_rtc_checkpoint.sh` with
+`--rtc_mode paper`, `--use_compile False`, and the desired replan interval,
+delay estimate, and guidance clip. `--no_rtc` selects synchronous inference and
+disables the asynchronous controller; it is not needed to turn off the
+checkpoint's training-time RTC setting.
 
 ```bash
 bash tools/test_rtc.sh
@@ -158,21 +175,32 @@ Execute A[0:8]. Observe at target step 8 and request B.
 Fix normalized B[0:6] to normalized A[8:14].
 While B is computed, execute A[8:14].
 Install B and continue at B[6], without replaying B[0:6].
-After 8 further targets, repeat using the current plan's actual cursor.
+Execute B[6:8], then request C at target step 16.
+Fix normalized C[0:6] to normalized B[8:14], execute B[8:14] while C is computed,
+then install C at C[6]. Repeat every 8 target actions between requests.
 ```
 
 An early response is installed only after all committed targets execute.
 A late response stalls further target execution until it arrives. It never
-silently executes beyond the committed prefix. Delay counts RoboTwin joint
-targets, not milliseconds or 25 Hz ticks: each target uses the unchanged TOPP
-trajectory execution and a variable number of physics steps. This overlaps
-work but does not implement hard real-time control or guarantee a speedup.
+silently executes beyond the committed prefix. `replan_steps` counts all target
+actions between inference requests, including the committed prefix executed
+while inference runs. With `replan_steps=8` and `delay=6`, the first request
+starts after 8 actions; after switching plans, the next request starts after 2
+more new-plan actions. Subsequent requests are 8 target actions apart. Delay
+counts RoboTwin joint targets, not milliseconds or 25 Hz ticks: each target uses
+the unchanged TOPP trajectory execution and a variable number of physics steps.
+This overlaps work but does not implement hard real-time control or guarantee a
+speedup.
 
-The server requires an RTC-trained config, finite full-dimensional normalized
-plans, and `0 <= delay < training_time_rtc_max_delay` (this checkpoint: 0..9).
-The scheduler checks request IDs and prefix continuity. It drains pending
-requests before episode reset. A timeout or RPC error interrupts the episode;
-it is restarted on resume rather than counted as a task failure.
+The `fixed_prefix` mode described above requires an RTC-trained config and
+`0 <= delay < training_time_rtc_max_delay`. The independent `paper` mode works
+with the baseline config, without training-time RTC: it sends the full remaining
+normalized chunk, freezes the predicted inference-delay prefix, softly weights
+the overlapping region, and applies the paper's VJP guidance at every flow step.
+Both modes check request IDs; fixed-prefix mode also checks exact prefix
+continuity. Pending requests drain before episode reset. A timeout or RPC error
+interrupts the episode; it is restarted on resume rather than counted as a task
+failure.
 
 ### Local command on the evaluation machine
 
@@ -200,14 +228,14 @@ GPU memory. Avoid running unrelated GPU workloads during evaluation.
 
 Without `LINGBOT_INFERENCE_CONFIG`, `tools/render_robotwin_inference_config.py`
 reads the exported checkpoint architecture and the RoboTwin data recipe into
-`.runtime/`. An explicit training YAML takes priority. Specify the actual
-training normalization with `LINGBOT_NORM_STATS_FILE=/path/to/stats.json`
-when generating a config, and `LINGBOT_DATA_CONFIG=/path/to/training.yaml` if
-the data representation differs. With an explicit inference YAML, edit its
-`data.norm_stats_file` directly. Default `assets/norm_stats/robotwin.json` is
-only a fallback; step5000's actual training stats have not been verified on
-this machine, so a run using that fallback validates deployment but cannot
-establish a reliable checkpoint success rate.
+`.runtime/`. The `xsy_utils/eval_rtc_checkpoint.sh` wrapper defaults
+`LINGBOT_NORM_STATS_FILE` to
+`/2025233210/lmx/training-data/robotwin_clean_norm_stats.json`, matching this
+RTC training run; set the variable explicitly if the checkpoint was trained
+with another stats file. Set `LINGBOT_DATA_CONFIG=/path/to/training.yaml` if the
+data representation differs. With an explicit inference YAML, edit its
+`data.norm_stats_file` directly because it takes precedence over generated
+config settings.
 
 Repeat the identical command to resume completed episodes (both successes
 and failures). `--num_episodes 25` can extend the same run. The run manifest
@@ -215,6 +243,17 @@ includes RTC mode, delay and replan interval; use a new directory if these,
 the model, inference YAML or other evaluation settings change. Logs contain
 `[rtc] request/install/wait/summary` entries, including latency, waiting time,
 request count, and stalls. `stats.txt` reports success / completed episodes.
+Each run directory also contains `success_rate.md`, a Markdown table that VS
+Code can preview. It is refreshed atomically after every committed episode and
+shows each task's `clean` or `random` setting, successes, completed/target
+episodes, and success rate. To generate or keep refreshing the table for a run
+that was started before this feature, use:
+
+```bash
+python3 experiment/robotwin/eval_checkpoint.py report \
+  --run-dir /path/to/RoboTwin/eval_results/<run> \
+  --episodes 25 --watch --until-complete
+```
 RoboTwin expert-seed checks, task success conditions, and trajectory planning
 remain in use. This RTC scheduler is a custom inference mode, not the official
 synchronous baseline; compare them using separate run directories.
