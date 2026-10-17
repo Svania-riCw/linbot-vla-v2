@@ -117,6 +117,8 @@ python tools/render_robotwin_inference_config.py \
 
 启动服务或评测脚本时，设置 `LINGBOT_INFERENCE_CONFIG` 为生成文件的**绝对路径**。256 组同理使用 `b0_256.yaml`，两组归一化统计应与训练一致。图像配置未恢复就运行评测，会让实验失去可比性；384 模型的网格检查也可能直接阻止错误配置运行。
 
+导出工具按显式 `--norm-stats`、`data.norm_stats_file`、训练 `robot_config_root/robotwin.yaml` 的顺序解析统计文件，与 RoboTwin 服务入口一致。如果训练映射在当前机器不可访问，会要求明确提供统计路径，避免误用仓库附带的 clean+randomized 统计。
+
 ## 记录什么，如何解释
 
 两组在同一训练步数保存 checkpoint，用相同任务、clean/randomized 条件和评测预算比较：

@@ -30,7 +30,17 @@ def render(checkpoint, qwen, output, norm_stats=None, data_config=None):
     data = yaml.safe_load(source.read_text())['data']
     for key in ('joints', 'norm_type'):
         data[key] = [str(item) if isinstance(item, dict) else item for item in data[key]]
-    norm = Path(norm_stats or data.get('norm_stats_file') or ROOT / 'assets/norm_stats/robotwin.json').resolve()
+    norm = norm_stats or data.get('norm_stats_file')
+    if not norm and data.get('robot_config_root'):
+        # Match serve.py: training may store its normalization path only in the
+        # robot mapping. Falling back to bundled clean+random stats changes actions.
+        robot_yaml = Path(data['robot_config_root']) / 'robotwin.yaml'
+        if not robot_yaml.is_file():
+            raise ValueError(f'Training robot config is unavailable: {robot_yaml}; pass --norm-stats')
+        norm = yaml.safe_load(robot_yaml.read_text(encoding='utf-8')).get('norm_stats')
+        if not norm:
+            raise ValueError(f'Training robot config has no norm_stats: {robot_yaml}; pass --norm-stats')
+    norm = Path(norm or ROOT / 'assets/norm_stats/robotwin.json').resolve()
     if not norm.is_file():
         raise ValueError(f'Normalization statistics are missing: {norm}')
     data['norm_stats_file'] = str(norm)

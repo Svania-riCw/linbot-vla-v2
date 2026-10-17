@@ -229,6 +229,21 @@ class ResolutionConfigTest(unittest.TestCase):
             module.render(checkpoint, qwen, output, norm_stats=norm, data_config=explicit)
             self.assertEqual(yaml.safe_load(output.read_text(encoding="utf-8"))["data"]["img_size"], 256)
 
+            # The training robot mapping can hold the only explicit stats path.
+            robot_root = directory / "robot_config_clean"
+            robot_root.mkdir()
+            (robot_root / "robotwin.yaml").write_text(yaml.safe_dump({"norm_stats": str(norm)}), encoding="utf-8")
+            data.update(robot_config_root=str(robot_root), norm_stats_file=None)
+            (run / "lingbotvla_cli.yaml").write_text(yaml.safe_dump({"data": data}), encoding="utf-8")
+            module.render(checkpoint, qwen, output)
+            exported = yaml.safe_load(output.read_text(encoding="utf-8"))["data"]
+            self.assertEqual(exported["norm_stats_file"], str(norm))
+            self.assertEqual(exported["img_size"], 384)
+            (robot_root / "robotwin.yaml").unlink()
+            with self.assertRaisesRegex(ValueError, "pass --norm-stats"):
+                module.render(checkpoint, qwen, output)
+            module.render(checkpoint, qwen, output, norm_stats=norm)
+
     def test_generated_pair_only_changes_resolution_and_corresponding_student_grid(self):
         module_path = ROOT / "tools/prepare_resolution_baseline.py"
         spec = importlib.util.spec_from_file_location("resolution_baseline_config_test", module_path)
