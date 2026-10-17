@@ -42,3 +42,9 @@ H20真实恢复检查发现该容器`/dev/shm`只有4GB且不能重挂载扩容�
 ## 既有结果
 
 两组350次评测均完成，退出码0：JDelta5k clean52.00%、random18.86%、合计124/350=35.43%；Joint+EE10k clean56.00%、random24.57%、合计141/350=40.29%。评测分别65.7、55.2分钟。原两次推理compile=False，新的compile=True结果需分开记录，不能混称完全同一评测条件。
+
+## 续训验证
+
+H20环境通过96项回归检查，报告 `reports/h20_resume_checks_2026-10-17.json`。真实8卡检查从原DCP5000完整恢复到5001、5002：loss分别0.0241、0.0265，GradNorm分别0.3514、0.3898，主组LR均5e-5；已保存新DCP和完整HF，进程退出码0。归一化和机器人配置SHA256与原模型一致。记录为 `reports/h20_resume_gpu_2026-10-17.json`，诊断产物位于 `/2025233210/ysj/lingbot_ws/outputs/joint_delta_resume_check_5002`。
+
+该检查验证了恢复状态、两次更新及保存；它没有执行完整额外5000步或compile=True的仿真rollout。原prefetch=2检查因4GB共享内存不足退出的日志保留在同级`joint_delta_resume_check_5002_failed_prefetch2`，没有覆盖原5k模型。

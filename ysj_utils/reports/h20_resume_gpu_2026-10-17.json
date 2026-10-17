@@ -1,0 +1,32 @@
+{
+  "status": "PASS",
+  "at": "2026-10-17T15:46:33.223620+00:00",
+  "scope": "Real H20 8-rank complete DCP restore at5000, two successful updates, DCP/HF save at5002; not full additional5k or compiled rollout",
+  "checkpoint": {
+    "path": "/2025233210/ysj/lingbot_ws/outputs/joint_delta_resume_check_5002/checkpoints/global_step_5002",
+    "step": 5002,
+    "saved_lrs": [
+      5e-05,
+      0.0001414213562373095,
+      5e-05
+    ]
+  },
+  "updates": [
+    {
+      "step": 5001,
+      "loss": 0.0241,
+      "grad_norm": 0.3514,
+      "lr": 5e-05
+    },
+    {
+      "step": 5002,
+      "loss": 0.0265,
+      "grad_norm": 0.3898,
+      "lr": 5e-05
+    }
+  ],
+  "norm_sha256": "98571430a9607b50e8664f1c6bca6b5dac342c2dd9bbc4859f60ed2934c99f5c",
+  "robot_sha256": "ffe525d746875fee91ce353916a6b6ba0d2096fffc30aa3600d6607e8c8bf269",
+  "log": "/2025233210/ysj/lingbot_ws/outputs/joint_delta_resume_check_5002/train_20261017_153945.log",
+  "pane_exit": "1 0"
+}
