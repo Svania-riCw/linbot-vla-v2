@@ -166,6 +166,10 @@ class MyTrainingArguments(TrainingArguments):
         default=10,
         metadata={"help": "Exclusive upper bound for sampled RTC prefix length."},
     )
+    training_time_rtc_fixed_delay: int = field(
+        default=-1,
+        metadata={"help": "Fixed RTC prefix length, or -1 to sample it randomly."},
+    )
     vlm_causal: bool = field(
         default=False,
         metadata={"help": "Whether to use causal atten for img anb lang tokens in vlm."},

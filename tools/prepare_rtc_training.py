@@ -191,6 +191,11 @@ def prepare(root: Path, output: Path | None = None, source: Path | None = None) 
     train_cfg["training_time_rtc_max_delay"] = int(os.environ.get("RTC_MAX_DELAY", "10"))
     if train_cfg["training_time_rtc_max_delay"] <= 0:
         raise ValueError("RTC_MAX_DELAY must be positive")
+    train_cfg["training_time_rtc_fixed_delay"] = int(os.environ.get("RTC_FIXED_DELAY", "-1"))
+    if not -1 <= train_cfg["training_time_rtc_fixed_delay"] < train_cfg["training_time_rtc_max_delay"]:
+        raise ValueError("RTC_FIXED_DELAY must be -1 (random) or in [0, RTC_MAX_DELAY)")
+    if train_cfg["training_time_rtc_fixed_delay"] >= train_cfg.get("chunk_size", 50):
+        raise ValueError("RTC_FIXED_DELAY must be smaller than chunk_size")
 
     output_path = (output or runtime_dir / "robotwin_rtc.yaml").resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -204,6 +209,8 @@ def prepare(root: Path, output: Path | None = None, source: Path | None = None) 
         + ("enabled (MoGe, MoRGBD, DINO-video)" if use_teachers else "disabled")
     )
     print(f"Checkpoint interval: {train_cfg['save_steps']} steps")
+    fixed_delay = train_cfg["training_time_rtc_fixed_delay"]
+    print(f"RTC training delay: {'random' if fixed_delay < 0 else f'fixed {fixed_delay}'}")
     print(
         f"Batch setup: micro={micro_batch_size}, global={global_batch_size}, "
         f"GPUs={gpu_count}, accumulation={train_cfg['gradient_accumulation_steps']}"

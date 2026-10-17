@@ -14,6 +14,7 @@ from lingbotvla.models.vla.lingbot_vla.rtc import (
     combine_rtc_loss_mask,
     make_rtc_flow,
     rtc_prefix_mask,
+    rtc_soft_mask,
     rtc_time_for_prefix,
     sample_rtc_delay,
 )
@@ -33,6 +34,24 @@ class RTCMigrationTests(unittest.TestCase):
         self.assertTrue(torch.all(delay < torch.tensor([2, 3])).item())
         self.assertTrue(torch.all(delay >= 0).item())
         self.assertTrue(torch.all(sample_rtc_delay(None, 64, 50, 10, "cpu") < 10).item())
+
+    def test_fixed_delay_stays_exact_even_for_short_action_tails(self):
+        pad = torch.tensor([
+            [False] * 10 + [True] * 2,
+            [False] * 4 + [True] * 8,
+            [False] + [True] * 11,
+        ])
+        delay = sample_rtc_delay(pad, batch_size=3, horizon=12, max_delay=7, device="cpu", fixed_delay=6)
+        self.assertEqual(delay.tolist(), [6, 6, 6])
+        losses = torch.ones((3, 12, 2))
+        mask = combine_rtc_loss_mask(losses, None, pad, ~rtc_prefix_mask(delay, 12))
+        self.assertEqual(mask.sum(dim=(1, 2)).tolist(), [8, 0, 0])
+        self.assertEqual(sample_rtc_delay(None, 8, 50, 7, "cpu", fixed_delay=6).tolist(), [6] * 8)
+        self.assertEqual(sample_rtc_delay(None, 8, 50, 10, "cpu", fixed_delay=6).tolist(), [6] * 8)
+        with self.assertRaisesRegex(ValueError, "fixed_delay"):
+            sample_rtc_delay(None, 1, 50, 7, "cpu", fixed_delay=7)
+        with self.assertRaisesRegex(ValueError, "action horizon"):
+            sample_rtc_delay(None, 1, 6, 10, "cpu", fixed_delay=6)
 
     def test_clean_prefix_flow_and_valid_loss_mask(self):
         actions = torch.arange(24, dtype=torch.float32).reshape(2, 4, 3)
@@ -66,6 +85,55 @@ class RTCMigrationTests(unittest.TestCase):
         self.assertTrue(torch.equal(result[1, 3:], fresh[1, 3:]))
         self.assertTrue(torch.allclose(time, torch.tensor([[0.0, 0.8, 0.8, 0.8], [0.0, 0.0, 0.0, 0.6]])))
         self.assertEqual(rtc_prefix_mask(delay, 4).sum(dim=1).tolist(), [1, 3])
+
+    def test_paper_rtc_soft_mask_freezes_prefix_decays_overlap_and_clears_execution_tail(self):
+        weights = rtc_soft_mask(50, 6, 8, device='cpu', dtype=torch.float32)
+        self.assertTrue(torch.equal(weights[:6], torch.ones(6)))
+        self.assertTrue(torch.equal(weights[42:], torch.zeros(8)))
+        self.assertTrue(torch.all(weights[6:42] > 0).item())
+        self.assertTrue(torch.all(weights[6:42] < 1).item())
+        self.assertTrue(torch.all(weights[6:41] > weights[7:42]).item())
+        with self.assertRaisesRegex(ValueError, 'delay <= execution_horizon'):
+            rtc_soft_mask(50, 9, 8, device='cpu', dtype=torch.float32)
+
+    def test_paper_rtc_sampler_uses_autograd_guidance_with_baseline_config(self):
+        batch, horizon, action_dim, width = 1, 4, 2, 4
+        model = FlowMatchingV2.__new__(FlowMatchingV2)
+        nn.Module.__init__(model)
+        model.config = types.SimpleNamespace(
+            training_time_rtc=False,
+            n_action_steps=horizon,
+            max_action_dim=action_dim,
+            num_steps=2,
+            use_cache=True,
+        )
+        model.qwenvl_with_expert = FakeExpert()
+
+        def fake_prefix(self, *args, **kwargs):
+            prefix = torch.zeros(batch, 2, width)
+            pad = torch.ones(batch, 2, dtype=torch.bool)
+            att = torch.zeros(batch, 2, dtype=torch.bool)
+            positions = torch.zeros(3, batch, 2, dtype=torch.long)
+            return prefix, pad, att, positions, None, []
+
+        model.embed_prefix = types.MethodType(fake_prefix, model)
+        calls = []
+
+        def fake_predict(self, state, prefix_pad_masks, past_key_values, x_t, timestep, **kwargs):
+            calls.append((torch.is_grad_enabled(), x_t.requires_grad))
+            return torch.ones_like(x_t)
+
+        model.predict_velocity = types.MethodType(fake_predict, model)
+        previous = torch.zeros(batch, horizon, action_dim)
+        result = model.sample_actions(
+            images=None, img_masks=None, lang_tokens=None, lang_masks=None,
+            state=torch.zeros(batch, 4), noise=torch.ones(batch, horizon, action_dim),
+            previous_actions=previous, rtc_delay=torch.tensor([1]), rtc_mode='paper',
+            rtc_execution_horizon=2, rtc_guidance_beta=5.0,
+        )
+        self.assertEqual(calls, [(True, True), (True, True)])
+        self.assertTrue(torch.isfinite(result).all().item())
+        self.assertFalse(result.requires_grad)
 
     def test_previous_chunk_is_shifted_by_executed_ticks(self):
         previous = torch.arange(2 * 5 * 2, dtype=torch.float32).reshape(2, 5, 2)
@@ -149,6 +217,10 @@ class RTCMigrationTests(unittest.TestCase):
         restored = LingbotVLAV2Config.from_dict(enabled.to_dict())
         self.assertTrue(restored.training_time_rtc)
         self.assertEqual(restored.training_time_rtc_max_delay, 7)
+        fixed = LingbotVLAV2Config(
+            training_time_rtc=True, training_time_rtc_max_delay=7, training_time_rtc_fixed_delay=6,
+        )
+        self.assertEqual(LingbotVLAV2Config.from_dict(fixed.to_dict()).training_time_rtc_fixed_delay, 6)
 
     def test_flow_matching_forward_uses_clean_prefix_and_returns_rtc_mask(self):
         batch, horizon, action_dim, width = 2, 4, 2, 8
@@ -227,6 +299,22 @@ class RTCMigrationTests(unittest.TestCase):
         self.assertEqual(embedded["time"][1].tolist(), [0.75] * horizon)
         self.assertEqual(rtc_mask.tolist(), [[False, False, True, False], [True] * 4])
         self.assertEqual(embedded["ada_shape"], (batch, horizon + 1, width))
+
+        # Exercise the production path: config selects a fixed delay when the
+        # training batch supplies no explicit rtc_delay.
+        config.training_time_rtc_fixed_delay = 2
+        with patch(
+            "lingbotvla.models.vla.lingbot_vla.modeling_lingbot_vla_v2.torch.rand",
+            return_value=torch.tensor([0.25, 0.75]),
+        ):
+            fixed_output = model.forward(
+                images=None, img_masks=None, lang_tokens=None, lang_masks=None,
+                state=torch.zeros(batch, 3), actions=actions, noise=noise,
+                action_is_pad=pad,
+            )
+        self.assertTrue(torch.equal(embedded["x"][:, :2], actions[:, :2]))
+        self.assertEqual(embedded["time"].tolist(), [[0.0, 0.0, 0.25, 0.0], [0.0, 0.0, 0.75, 0.75]])
+        self.assertEqual(fixed_output[-1].tolist(), [[False, False, True, False], [False, False, True, True]])
 
         config.training_time_rtc = False
         legacy_time = torch.tensor([0.25, 0.75])

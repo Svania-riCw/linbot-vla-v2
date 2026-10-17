@@ -19,7 +19,7 @@ checkout; no patch is applied or reverted.
 --overwrite      Delete that run directory and start from step 0.
 Without either mode flag, an existing run directory is rejected.
 
-Options via environment: RTC_TRAIN_ENV, RTC_MAX_DELAY, RTC_MICRO_BATCH_SIZE,
+Options via environment: RTC_TRAIN_ENV, RTC_MAX_DELAY, RTC_FIXED_DELAY, RTC_MICRO_BATCH_SIZE,
 RTC_GLOBAL_BATCH_SIZE, RTC_GRADIENT_CHECKPOINTING, RTC_MOGE_PATH, RTC_OUTPUT_DIR.
 Set RTC_SAVE_STEPS to change the checkpoint interval. Set RTC_USE_TEACHERS=false
 to disable the MoGe, MoRGBD, and DINO-video auxiliary losses.
@@ -191,5 +191,6 @@ torchrun --nnodes="${NNODES:-1}" --nproc-per-node="$NPROC_PER_NODE" \
     tasks/vla/train_lingbotvla.py "$config_path" "$@" \
     --train.training_time_rtc true \
     --train.training_time_rtc_max_delay "${RTC_MAX_DELAY:-10}" \
+    --train.training_time_rtc_fixed_delay "${RTC_FIXED_DELAY:--1}" \
     --train.output_dir "$output_dir" \
     --train.enable_resume "$resume_enabled" 2>&1 | tee -a "$rtc_log"

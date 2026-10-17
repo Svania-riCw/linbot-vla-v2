@@ -34,6 +34,7 @@ from .rtc import (
     apply_rtc_prefix,
     combine_rtc_loss_mask,
     make_rtc_flow,
+    rtc_soft_mask,
     rtc_time_for_prefix,
     sample_rtc_delay,
 )
@@ -880,6 +881,7 @@ class FlowMatchingV2(FlowMatchingV1):
                     horizon,
                     int(getattr(self.config, "training_time_rtc_max_delay", 10)),
                     device,
+                    fixed_delay=int(getattr(self.config, "training_time_rtc_fixed_delay", -1)),
                 )
             else:
                 rtc_delay = torch.as_tensor(rtc_delay, device=device, dtype=torch.long)
@@ -1038,6 +1040,9 @@ class FlowMatchingV2(FlowMatchingV1):
         image_grid_thw=None,
         previous_actions=None,
         rtc_delay=None,
+        rtc_mode="async_fixed_prefix_v2",
+        rtc_execution_horizon=None,
+        rtc_guidance_beta=5.0,
     ) -> Tensor:
         """Do a full Qwen3-VL inference forward and compute the action."""
         bsize = state.shape[0]
@@ -1052,12 +1057,15 @@ class FlowMatchingV2(FlowMatchingV1):
             )
             noise = torch.randn(actions_shape, device=device, dtype=dtype)
 
+        if rtc_mode not in ("async_fixed_prefix_v2", "paper"):
+            raise ValueError(f"Unsupported RTC mode: {rtc_mode!r}")
         rtc_prefix = None
+        rtc_soft_weights = None
         if previous_actions is not None:
-            if not getattr(self.config, "training_time_rtc", False):
-                raise ValueError("previous_actions requires training_time_rtc=True in the model config")
             if rtc_delay is None:
                 raise ValueError("rtc_delay is required when previous_actions are supplied")
+            if rtc_mode == "async_fixed_prefix_v2" and not getattr(self.config, "training_time_rtc", False):
+                raise ValueError("Fixed-prefix RTC requires training_time_rtc=True in the model config")
             rtc_delay = torch.as_tensor(rtc_delay, device=device, dtype=torch.long)
             if rtc_delay.ndim == 0:
                 rtc_delay = rtc_delay.expand(bsize)
@@ -1075,36 +1083,48 @@ class FlowMatchingV2(FlowMatchingV1):
                     f"previous_actions must have shape (batch, at least {horizon}, {self.config.max_action_dim})"
                 )
             previous_actions = previous_actions[:, :horizon].to(device=device, dtype=dtype)
-            rtc_prefix = rtc_delay[:, None] > torch.arange(horizon, device=device)[None, :]
-            x_t = torch.where(rtc_prefix[..., None], previous_actions, noise)
+            if rtc_mode == "async_fixed_prefix_v2":
+                rtc_prefix = rtc_delay[:, None] > torch.arange(horizon, device=device)[None, :]
+                x_t = torch.where(rtc_prefix[..., None], previous_actions, noise)
+            else:
+                if rtc_execution_horizon is None:
+                    raise ValueError("rtc_execution_horizon is required for paper RTC")
+                if not 0 < rtc_guidance_beta:
+                    raise ValueError("rtc_guidance_beta must be positive")
+                if rtc_delay.ndim != 1 or torch.any(rtc_delay != rtc_delay[0]):
+                    raise ValueError("Paper RTC currently requires one shared delay per inference batch")
+                rtc_soft_weights = rtc_soft_mask(
+                    horizon, int(rtc_delay[0].item()), int(rtc_execution_horizon), device, dtype
+                )[None, :, None]
 
-        (
-            prefix_embs,
-            prefix_pad_masks,
-            prefix_att_masks,
-            prefix_position_ids,
-            visual_pos_masks,
-            deepstack_visual_embeds,
-        ) = self.embed_prefix(
-            images,
-            img_masks,
-            lang_tokens,
-            lang_masks,
-            image_grid_thw=image_grid_thw,
-        )
-        prefix_att_2d_masks = make_att_2d_masks(prefix_pad_masks, prefix_att_masks)
+        with torch.no_grad():
+            (
+                prefix_embs,
+                prefix_pad_masks,
+                prefix_att_masks,
+                prefix_position_ids,
+                visual_pos_masks,
+                deepstack_visual_embeds,
+            ) = self.embed_prefix(
+                images,
+                img_masks,
+                lang_tokens,
+                lang_masks,
+                image_grid_thw=image_grid_thw,
+            )
+            prefix_att_2d_masks = make_att_2d_masks(prefix_pad_masks, prefix_att_masks)
 
-        _, past_key_values, _ = self.qwenvl_with_expert.forward(
-            attention_mask=prefix_att_2d_masks,
-            position_ids=prefix_position_ids,
-            vlm_position_ids=prefix_position_ids,
-            past_key_values=None,
-            inputs_embeds=[prefix_embs, None],
-            use_cache=self.config.use_cache,
-            fill_kv_cache=True,
-            visual_pos_masks=visual_pos_masks,
-            deepstack_visual_embeds=deepstack_visual_embeds,
-        )
+            _, past_key_values, _ = self.qwenvl_with_expert.forward(
+                attention_mask=prefix_att_2d_masks,
+                position_ids=prefix_position_ids,
+                vlm_position_ids=prefix_position_ids,
+                past_key_values=None,
+                inputs_embeds=[prefix_embs, None],
+                use_cache=self.config.use_cache,
+                fill_kv_cache=True,
+                visual_pos_masks=visual_pos_masks,
+                deepstack_visual_embeds=deepstack_visual_embeds,
+            )
 
         dt = torch.tensor(-1.0 / self.config.num_steps, dtype=dtype, device=device)
         if rtc_prefix is None:
@@ -1112,7 +1132,7 @@ class FlowMatchingV2(FlowMatchingV1):
         time = torch.tensor(1.0, dtype=dtype, device=device)
         count = 0
         predict_velocity_fn = self.predict_velocity
-        if getattr(self, "_use_compile_predict_velocity", False):
+        if getattr(self, "_use_compile_predict_velocity", False) and rtc_soft_weights is None:
             predict_velocity_fn = getattr(self, "_compiled_predict_velocity", None)
             if predict_velocity_fn is None:
                 predict_velocity_fn = torch.compile(
@@ -1133,18 +1153,51 @@ class FlowMatchingV2(FlowMatchingV1):
                     rtc_delay,
                     self.config.n_action_steps,
                 )
-            v_t = predict_velocity_fn(
-                state,
-                prefix_pad_masks,
-                past_key_values,
-                x_t,
-                model_time,
-                prefix_position_ids=prefix_position_ids,
-            )
+            if rtc_soft_weights is not None:
+                x_grad = x_t.detach().requires_grad_(True)
+                with torch.enable_grad():
+                    v_t = predict_velocity_fn(
+                        state,
+                        prefix_pad_masks,
+                        past_key_values,
+                        x_grad,
+                        model_time,
+                        prefix_position_ids=prefix_position_ids,
+                    )
+                    # This model integrates from noisy t=1 toward clean t=0,
+                    # the reverse-time equivalent of the paper's 0 -> 1 flow.
+                    clean_estimate = x_grad - time * v_t
+                    residual = (previous_actions - clean_estimate) * rtc_soft_weights
+                    correction = torch.autograd.grad(
+                        clean_estimate,
+                        x_grad,
+                        grad_outputs=residual,
+                        retain_graph=False,
+                        create_graph=False,
+                    )[0]
 
-            x_t += dt * v_t
-            if rtc_prefix is not None:
-                x_t = apply_rtc_prefix(x_t, previous_actions, rtc_delay)
+                paper_time = 1.0 - float(time.item())
+                denominator = paper_time * (1.0 - paper_time)
+                guidance_scale = float(rtc_guidance_beta)
+                if denominator > 0:
+                    guidance_scale = min(
+                        guidance_scale,
+                        (paper_time ** 2 + (1.0 - paper_time) ** 2) / denominator,
+                    )
+                with torch.no_grad():
+                    x_t = (x_grad + dt * (v_t - guidance_scale * correction)).detach()
+            else:
+                v_t = predict_velocity_fn(
+                    state,
+                    prefix_pad_masks,
+                    past_key_values,
+                    x_t,
+                    model_time,
+                    prefix_position_ids=prefix_position_ids,
+                )
+                x_t += dt * v_t
+                if rtc_prefix is not None:
+                    x_t = apply_rtc_prefix(x_t, previous_actions, rtc_delay)
             time += dt
         print(f"Denoise {count} steps")
         return x_t

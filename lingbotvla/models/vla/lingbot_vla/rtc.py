@@ -1,5 +1,7 @@
 """Small, dependency-light helpers for RTC action-chunk training."""
 
+import math
+
 import torch
 from torch import Tensor
 
@@ -15,8 +17,10 @@ def rtc_prefix_mask(delay: Tensor, horizon: int) -> Tensor:
     return torch.arange(horizon, device=delay.device)[None, :] < delay[:, None]
 
 
-def sample_rtc_delay(action_is_pad, batch_size: int, horizon: int, max_delay: int, device) -> Tensor:
-    """Sample a bounded prefix, leaving at least one valid action when available."""
+def sample_rtc_delay(
+    action_is_pad, batch_size: int, horizon: int, max_delay: int, device, fixed_delay: int = -1
+) -> Tensor:
+    """Sample a bounded prefix, or return the exact configured fixed length."""
     if max_delay < 1:
         raise ValueError("training_time_rtc_max_delay must be at least 1")
     high = min(max_delay, horizon)
@@ -30,6 +34,14 @@ def sample_rtc_delay(action_is_pad, batch_size: int, horizon: int, max_delay: in
             )
         valid_lengths = (~action_is_pad.to(device=device, dtype=torch.bool)).sum(dim=1)
         bounds = torch.minimum(bounds, valid_lengths.clamp_min(1))
+    if fixed_delay < -1 or fixed_delay >= max_delay:
+        raise ValueError("fixed_delay must be -1 (random) or in [0, training_time_rtc_max_delay)")
+    if fixed_delay >= 0:
+        if fixed_delay >= horizon:
+            raise ValueError("fixed_delay must be smaller than the action horizon")
+        # Keep this exact even for short padded episode tails. Their existing
+        # loss mask excludes padding, so they may have no supervised suffix.
+        return torch.full_like(bounds, fixed_delay)
     return torch.floor(torch.rand((batch_size,), device=device) * bounds).long()
 
 
@@ -101,3 +113,27 @@ def rtc_time_for_prefix(time: Tensor, delay: Tensor, horizon: int) -> Tensor:
     if prefix.shape[0] != time.shape[0]:
         raise ValueError("delay batch does not match time batch")
     return time[:, None].expand_as(prefix).masked_fill(prefix, 0.0)
+
+
+def rtc_soft_mask(
+    horizon: int,
+    delay: int,
+    execution_horizon: int,
+    device,
+    dtype,
+) -> Tensor:
+    """Build RTC's exponentially decaying overlap weights for a new chunk."""
+    if horizon < 1 or delay < 0 or execution_horizon < 1:
+        raise ValueError("horizon and execution_horizon must be positive; delay must be nonnegative")
+    if delay > execution_horizon or execution_horizon + delay > horizon:
+        raise ValueError("RTC requires delay <= execution_horizon <= horizon - delay")
+
+    indices = torch.arange(horizon, device=device)
+    weights = torch.zeros(horizon, device=device, dtype=dtype)
+    weights[:delay] = 1
+    overlap_end = horizon - execution_horizon
+    if delay < overlap_end:
+        middle = indices[delay:overlap_end].to(dtype=dtype)
+        c = (horizon - execution_horizon - middle) / (horizon - execution_horizon - delay + 1)
+        weights[delay:overlap_end] = c * torch.expm1(c) / math.expm1(1.0)
+    return weights

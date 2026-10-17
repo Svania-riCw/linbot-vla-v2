@@ -53,6 +53,7 @@ class LingbotVLAConfig(PretrainedConfig):
         chunk_size: int = 50,
         training_time_rtc: bool = False,
         training_time_rtc_max_delay: int = 10,
+        training_time_rtc_fixed_delay: int = -1,
         vlm_causal: bool = False,
         tokenizer_max_length: int = 48,
         loss_type: str = "fm",
@@ -137,8 +138,13 @@ class LingbotVLAConfig(PretrainedConfig):
         self.n_action_steps = chunk_size
         self.training_time_rtc = training_time_rtc
         self.training_time_rtc_max_delay = training_time_rtc_max_delay
+        self.training_time_rtc_fixed_delay = training_time_rtc_fixed_delay
         if self.training_time_rtc_max_delay < 1:
             raise ValueError("training_time_rtc_max_delay must be at least 1")
+        if not -1 <= self.training_time_rtc_fixed_delay < self.training_time_rtc_max_delay:
+            raise ValueError("training_time_rtc_fixed_delay must be -1 (random) or in [0, training_time_rtc_max_delay)")
+        if self.training_time_rtc_fixed_delay >= chunk_size:
+            raise ValueError("training_time_rtc_fixed_delay must be smaller than chunk_size")
         self.vlm_causal = vlm_causal
         self.align_params = align_params
         self.use_moe = use_moe

@@ -73,6 +73,7 @@ class TrainingPreparationTests(unittest.TestCase):
         train = config["train"]
         self.assertEqual((train["micro_batch_size"], train["global_batch_size"], train["gradient_accumulation_steps"]), (16, 128, 1))
         self.assertTrue(train["training_time_rtc"])
+        self.assertEqual(train["training_time_rtc_fixed_delay"], -1)
         self.assertIn("depth", train["align_params"])
         self.assertIn("video", train["align_params"])
         self.assertEqual(train["save_steps"], 1000)
@@ -132,6 +133,17 @@ class TrainingPreparationTests(unittest.TestCase):
             str(self.root / "checkpoints/moge2-vitb-normal.pt"),
         )
 
+    def test_fixed_delay_is_added_to_generated_config(self):
+        with patch.dict(os.environ, {"RTC_FIXED_DELAY": "6"}):
+            config = yaml.safe_load(self.generate().read_text())
+        self.assertEqual(config["train"]["training_time_rtc_max_delay"], 10)
+        self.assertEqual(config["train"]["training_time_rtc_fixed_delay"], 6)
+
+    def test_fixed_delay_must_fit_exclusive_max_delay(self):
+        with patch.dict(os.environ, {"RTC_MAX_DELAY": "6", "RTC_FIXED_DELAY": "6"}):
+            with self.assertRaisesRegex(ValueError, "RTC_FIXED_DELAY"):
+                self.generate()
+
     def test_nondivisible_global_batch_is_rejected(self):
         with patch.dict(os.environ, {"RTC_GLOBAL_BATCH_SIZE": "127"}):
             with self.assertRaisesRegex(ValueError, "divisible"):
@@ -157,6 +169,7 @@ class TrainingPreparationTests(unittest.TestCase):
             args = parse_args(Arguments)
         self.assertEqual(args.train.gradient_accumulation_steps, 1)
         self.assertTrue(args.train.training_time_rtc)
+        self.assertEqual(args.train.training_time_rtc_fixed_delay, -1)
         transform = FeatureTransform(
             str(Path(args.data.robot_config_root) / "robotwin.yaml"), args.data, None, None,
         )
@@ -193,10 +206,11 @@ class TrainingPreparationTests(unittest.TestCase):
         self.assertIn(str(config), args)
         self.assertIn("--train.max_steps", args)
         self.assertEqual(
-            args[-8:],
+            args[-10:],
             [
                 "--train.training_time_rtc", "true",
                 "--train.training_time_rtc_max_delay", "10",
+                "--train.training_time_rtc_fixed_delay", "-1",
                 "--train.output_dir", str(self.root / "checkpoints/lingbot-vla-v2-6b-robotwin-rtc"),
                 "--train.enable_resume", "false",
             ],
