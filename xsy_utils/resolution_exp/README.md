@@ -13,7 +13,7 @@
 | RoboTwin 原始 RGB | 320×240 | 官方 `adjust_bottle/aloha-agilex_clean_50` 的 episode0，三个相机各检查第 0、69、139 帧，9 张均相同；不是全数据审计 |
 | 默认采集配置 | 320×240 | `external/RoboTwin/task_config/_camera_config.yml` 的 D435；`demo_clean.yml` 的主相机和腕部均选择 D435 |
 | 仓库保留的 pi0 转换 | 640×480 | `external/RoboTwin/policy/pi0/scripts/process_data.py` 对三路图调用 `cv2.resize(..., (640, 480))`，随后再次 JPEG 编码 |
-| 团队现有 LeRobot 数据 | 历史记录为 640×480 | `xsy_utils/d4rt_data/README.md` 记载来自上述转换；当前仍需在服务器核验实际数据副本 |
+| 团队现有 LeRobot 数据 | 640×480 | 2026-10-18 在 node1/2 核验训练清单全部 50 个数据集的 metadata，三路均为该尺寸；实际解码检查了 adjust_bottle 第 69 帧 |
 | 模型默认输入 | 256×256 | `lingbotvla/data/dataset.py` 和部署入口默认 `img_size=256` |
 
 320×240 是 76,800 像素，256×256 是 65,536 像素，原图面积只高约 **17.2%**，但宽高比也不同。640×480 如果来自上述转换，就是插值放大，不能视为原生高清数据。384×384 的像素数是默认输入的 2.25 倍、原始图的 1.92 倍。
@@ -46,7 +46,8 @@
 ```bash
 python tools/prepare_resolution_baseline.py \
   --base-config xsy_utils/configs/robotwin_clean_baseline.yaml \
-  --output-dir .runtime/resolution_exp
+  --output-dir .runtime/resolution_exp \
+  --run-root /root/ql/outputs
 ```
 
 生成 `.runtime/resolution_exp/b0_256.yaml` 和 `b1_384.yaml`。检查两份配置，除上述分辨率相关设置外，应使用相同的 checkpoint、数据清单、归一化统计、教师和训练设置。基础配置包含服务器路径，运行前应确认这些路径在目标机器有效。
@@ -71,27 +72,33 @@ python tools/check_resolution_baseline.py \
 
 ## 1000 步试跑
 
-先用较小的两组匹配试跑确认吞吐、显存、loss 和 checkpoint 可用，再决定是否扩大训练预算。下例为 Linux Bash 命令；`xsy_utils/train_baseline.sh` 依赖目标机器已配置的训练环境。
+先用较小的两组匹配试跑确认吞吐、显存、loss 和 checkpoint 可用，再决定是否扩大训练预算。下例为 Linux Bash 命令；`xsy_utils/resolution_exp/train.sh` 为 node1/2 选择已核验的共享训练环境，并调用通用训练脚本。
 
 ```bash
-CONFIG=.runtime/resolution_exp/b0_256.yaml \
-RUN_NAME=exp1_b0_256_lanczos_s42 \
-GLOBAL_BS=128 MICRO_BS=4 \
-bash xsy_utils/train_baseline.sh \
-  --train.seed 42 --train.max_steps 1000 --train.save_steps 1000
+# 示例假设八张卡均已分配给本实验；按实际分配修改，不能据此认定当前卡空闲。
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
+bash xsy_utils/resolution_exp/train.sh 256 --dry-run
 
-CONFIG=.runtime/resolution_exp/b1_384.yaml \
-RUN_NAME=exp1_b1_384_lanczos_s42 \
-GLOBAL_BS=128 MICRO_BS=4 \
-bash xsy_utils/train_baseline.sh \
-  --train.seed 42 --train.max_steps 1000 --train.save_steps 1000
+# 首先各跑 2 步，包含一次保存，确认前向、反向、优化器和 checkpoint。
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
+bash xsy_utils/resolution_exp/train.sh 256 --train.max_steps 2 --train.save_steps 2
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
+bash xsy_utils/resolution_exp/train.sh 384 --train.max_steps 2 --train.save_steps 2
+
+# 两步检查通过后，用全新 run 从相同权重开始，默认各 1000 步。
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 bash xsy_utils/resolution_exp/train.sh 256
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 bash xsy_utils/resolution_exp/train.sh 384
 ```
 
 `MICRO_BS=4` 只是起点，不是显存可容纳的保证。固定两组 `CUDA_VISIBLE_DEVICES`、`GLOBAL_BS`、seed、初始化 checkpoint、学习率、训练步数和评测预算。脚本按 GPU 数与 micro batch 计算梯度累积，要求 `GLOBAL_BS` 可被 `MICRO_BS × GPU数` 整除。
 
 384 若 OOM，降低 micro batch、保持等效全局 batch；为减少执行差异，必要时两组一起改为相同的 micro batch。不要只缩小 384 的全局 batch。每次重跑使用新的 `RUN_NAME`，避免已有 checkpoint 的自动恢复影响初始化；若改变梯度检查点等训练开关，也要记录并尽量两组一致。
 
-这两条命令只是启动方法，不代表训练已执行。H20 SSH 尚未完成握手时，只能报告已完成的本地静态或 CPU 检查。
+启动器默认 `TRAIN_ENV=/2025233210/xiesy/lingbot_ws/conda_envs/lingbotvla`、`MICRO_BS=4`、`GLOBAL_BS=128`，输出到当前代码父目录的 `outputs/`，默认 run 名带时间戳，拒绝复用已有目录。可用环境变量覆盖。原脚本在 `/root/ql` 下会寻找不存在的 `/root/ql/conda_envs`，因此请用这个入口。
+
+两台机器的 `/dev/shm` 均为 4 GiB。启动器默认每进程 `NUM_WORKERS=1`、`PREFETCH_FACTOR=1`；原配置 8 workers、默认预取 2，在 384 下有较高的共享内存峰值风险。遇到 worker bus error 可先两组都设 `NUM_WORKERS=0` 排查。吞吐比较时须保持两组 loader 设置一致，并确认没有被 CPU 供数限制。
+
+上述命令是待执行的验证与训练步骤，不能视为已经完成 GPU 验证。
 
 ## 评测要恢复同一份图像配置
 
@@ -149,3 +156,14 @@ ROI 实验应继续保留相同训练/评测条件，必要时加入重复全图
 本地结果保存在 `.runtime/resolution_exp/check_b0_256.json`、`check_b1_384.json` 与 `test_resolution_baseline.log`；插值样例在同目录的 `previews/`。这些运行产物与 CPU 环境由 `.gitignore` 排除，可按上面的命令重建。
 
 已确认 384 没有被 processor 压回 256。此记录只覆盖图像处理、网格与配置检查，**未加载模型权重，未执行完整模型前向、GPU 训练或闭环成功率评测**。
+
+## 服务器复查记录（2026-10-18）
+
+- node1、node2 使用共享环境 torch 2.8.0+cu128、torchvision 0.23.0+cu128、transformers 4.57.3、opencv-python-headless 4.11.0.86、LeRobot 0.4.2。权重、教师、50 个数据集 metadata、归一化统计路径均存在。
+- 两台机器各用实际 `robotwin_clean_adjust_bottle` 第 69 帧经过 `VLADataset`、`FeatureTransform` 和真实 Qwen processor；256/384 当前与未来图像均通过，输出有限值。训练样本状态为 `[55]`、动作为 `[50,55]`。
+- 同一源图分别调用实际训练流程与部署 `resize_image` 方法、推理 `FeatureTransform` 后，`images` 和 `image_grid_thw` 完全相同；三路 token 为 192/432。
+- 全程设置 `CUDA_VISIBLE_DEVICES=''`。原训练入口导入 Triton 算子时就查询 CUDA，因此 CPU 检查只加载其实际参数 dataclass 定义与部署 resize 方法，不加载完整模型；这不等价于训练入口、GPU 前后向或编译检查。
+- 修复配置生成器对空 `align_params` 误启用教师的问题，新增自有输出目录选项与 H20 启动器。本地 16 项测试全部通过，无跳过。
+- 检查证据保存在本地 `.runtime/h20_dataset_smoke.json`、`h20_progress_compact.json`。真实数据检查只读取源数据，没有运行新的训练或评测作业。
+
+下一次获得 GPU 后，先运行两组各 2 步加 checkpoint 保存；通过后再做 1000 步匹配实验。尚未确认 384 的完整模型显存峰值、Triton/compile、FSDP 梯度累积及 checkpoint 恢复，不能保证首次 GPU 运行绝无问题。

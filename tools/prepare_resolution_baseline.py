@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT))
 from lingbotvla.utils.image_resize import fixed_image_grid
 
 
-def prepare(base_config, output_dir, sizes=(256, 384), patch_size=16, merge_size=2):
+def prepare(base_config, output_dir, sizes=(256, 384), patch_size=16, merge_size=2, run_root=None):
     base_config, output_dir = Path(base_config).resolve(), Path(output_dir).resolve()
     source = yaml.safe_load(base_config.read_text(encoding="utf-8"))
     if not all(key in source for key in ("model", "data", "train")):
@@ -31,12 +31,17 @@ def prepare(base_config, output_dir, sizes=(256, 384), patch_size=16, merge_size
         config["data"].update(
             img_size=int(size), image_resize_mode="opencv_lanczos4", preserve_image_resolution=True
         )
-        config["train"].setdefault("align_params", {}).setdefault("llm", {})["image_token_size"] = (
-            int(grid[0, 1]) // merge_size
-        )
+        # An empty alignment config disables teachers. Adding only an llm key
+        # would accidentally enable them and make training fail at ['depth'].
+        align = config["train"].get("align_params")
+        if align:
+            if not isinstance(align, dict) or not isinstance(align.get("llm"), dict):
+                raise ValueError("Enabled align_params must contain an llm configuration")
+            align["llm"]["image_token_size"] = int(grid[0, 1]) // merge_size
         # Never resume from the original baseline's output directory by accident.
         original_output = Path(config["train"]["output_dir"])
-        config["train"]["output_dir"] = str(original_output.parent / f"resolution_{label}").replace("\\", "/")
+        runs = Path(run_root).resolve() if run_root is not None else original_output.parent
+        config["train"]["output_dir"] = str(runs / f"resolution_{label}").replace("\\", "/")
         plans.append((destination, config))
     output_dir.mkdir(parents=True, exist_ok=True)
     for destination, config in plans:
@@ -53,8 +58,9 @@ def main():
     parser.add_argument("--base-config", type=Path, default=ROOT / "xsy_utils/configs/robotwin_clean_baseline.yaml")
     parser.add_argument("--output-dir", type=Path, default=ROOT / ".runtime/resolution_exp")
     parser.add_argument("--sizes", type=int, nargs="+", default=[256, 384])
+    parser.add_argument("--run-root", type=Path, help="Place generated training outputs in this workspace")
     args = parser.parse_args()
-    for path in prepare(args.base_config, args.output_dir, args.sizes):
+    for path in prepare(args.base_config, args.output_dir, args.sizes, run_root=args.run_root):
         print(path)
 
 

@@ -31,7 +31,8 @@ def check(config_path, image_paths, processor_path):
     size = int(data["img_size"])
     grid = fixed_image_grid((size, size), processor.patch_size, processor.merge_size)
     merged_side = int(grid[0, 1]) // processor.merge_size
-    if config["train"]["align_params"]["llm"]["image_token_size"] != merged_side:
+    align = config["train"].get("align_params") or {}
+    if align and align["llm"]["image_token_size"] != merged_side:
         raise ValueError(f"Teacher student-grid slice must be {merged_side}")
     cameras = data["cameras"]
     if len(image_paths) not in (1, len(cameras)):

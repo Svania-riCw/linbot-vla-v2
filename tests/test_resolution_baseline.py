@@ -180,6 +180,22 @@ class ProcessorGridGuardTest(unittest.TestCase):
 
 
 class ResolutionConfigTest(unittest.TestCase):
+    def test_no_alignment_remains_disabled_and_outputs_can_use_own_workspace(self):
+        spec = importlib.util.spec_from_file_location(
+            "resolution_noalign_config_test", ROOT / "tools/prepare_resolution_baseline.py"
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            source = {"model": {}, "data": {}, "train": {"align_params": {}, "output_dir": "/shared/baseline"}}
+            base = directory / "base.yaml"
+            base.write_text(yaml.safe_dump(source), encoding="utf-8")
+            for path in module.prepare(base, directory / "configs", run_root=directory / "own_outputs"):
+                result = yaml.safe_load(path.read_text(encoding="utf-8"))
+                self.assertEqual(result["train"]["align_params"], {})
+                self.assertEqual(Path(result["train"]["output_dir"]).parent, directory / "own_outputs")
+
     def test_inference_export_keeps_run_resolution_and_allows_explicit_override(self):
         spec = importlib.util.spec_from_file_location(
             "resolution_inference_config_test", ROOT / "tools/render_robotwin_inference_config.py"
