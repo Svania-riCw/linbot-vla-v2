@@ -315,6 +315,14 @@ class MyDataArguments(DataArguments):
         default=256,
         metadata={"help": "Size of the image."},
     )
+    image_resize_mode: Literal["torchvision_bilinear", "opencv_lanczos4"] = field(
+        default="torchvision_bilinear",
+        metadata={"help": "Shared training/inference resize; opencv_lanczos4 uses classical interpolation."},
+    )
+    preserve_image_resolution: bool = field(
+        default=False,
+        metadata={"help": "Disable processor resizing and verify the configured image/token grid."},
+    )
     norm_stats_file: str = field(
         default=None,
         metadata={"help": "Path to the normalization stats file."},

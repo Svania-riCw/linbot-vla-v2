@@ -23,7 +23,7 @@ import numpy as np
 from torch import Tensor
 from safetensors.torch import load_file
 import torch
-from torchvision.transforms.v2 import Resize
+from lingbotvla.utils.image_resize import build_image_resize
 import torch.nn.functional as F
 from lingbotvla.models.vla.lingbot_vla.configuration_lingbot_vla import LingbotVLAV2Config
 from lingbotvla.models.vla.lingbot_vla.modeling_lingbot_vla_v2 import LingbotVlaV2Policy
@@ -411,12 +411,14 @@ class LingbotVLAv2Server:
     def resize_image(self, observation):
         image_features  = self.vla.feature_transform.org_features['images']
         image_size = getattr(self.data_config, 'img_size', 256)
-        resize = Resize((image_size, image_size))
+        resize_mode = getattr(self.data_config, 'image_resize_mode', 'torchvision_bilinear')
+        resize = build_image_resize((image_size, image_size), resize_mode)
         for image_feature in image_features:
             assert image_feature in observation
             assert len(observation[image_feature].shape)==3 and observation[image_feature].shape[-1] == 3
             image = torch.as_tensor(observation[image_feature]).permute(2, 0, 1).contiguous()
-            image = image.to(dtype=torch.float32)
+            if resize_mode == 'torchvision_bilinear':
+                image = image.to(dtype=torch.float32)
             observation[image_feature] = resize(image)
 
     def _unapply_batched_actions(self, transformed_observations, actions):

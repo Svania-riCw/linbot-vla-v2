@@ -1,0 +1,151 @@
+# Exp1：增加输入分辨率的轻量基线
+
+## 要证明什么
+
+先比较三路全图输入的 **256×256** 和 **384×384**，只使用非 AI 插值，不增加 ROI、相机或训练数据。问题是：**同一批源 RGB，给模型更大的输入栅格和更多视觉 token，闭环任务成功率会不会提高，代价是多少？**
+
+这一步建立两个视觉 token 预算，供后续在各自预算内重新分配全图与 ROI。它不能单独证明“纯粹增加 token”的因果作用，因为图像采样、patch 覆盖范围和计算量也一起变化；也不能证明插值恢复了新的真实细节。
+
+## 现有图片到底多大
+
+| 环节 | 分辨率（宽×高） | 证据和范围 |
+| --- | --- | --- |
+| RoboTwin 原始 RGB | 320×240 | 官方 `adjust_bottle/aloha-agilex_clean_50` 的 episode0，三个相机各检查第 0、69、139 帧，9 张均相同；不是全数据审计 |
+| 默认采集配置 | 320×240 | `external/RoboTwin/task_config/_camera_config.yml` 的 D435；`demo_clean.yml` 的主相机和腕部均选择 D435 |
+| 仓库保留的 pi0 转换 | 640×480 | `external/RoboTwin/policy/pi0/scripts/process_data.py` 对三路图调用 `cv2.resize(..., (640, 480))`，随后再次 JPEG 编码 |
+| 团队现有 LeRobot 数据 | 历史记录为 640×480 | `xsy_utils/d4rt_data/README.md` 记载来自上述转换；当前仍需在服务器核验实际数据副本 |
+| 模型默认输入 | 256×256 | `lingbotvla/data/dataset.py` 和部署入口默认 `img_size=256` |
+
+320×240 是 76,800 像素，256×256 是 65,536 像素，原图面积只高约 **17.2%**，但宽高比也不同。640×480 如果来自上述转换，就是插值放大，不能视为原生高清数据。384×384 的像素数是默认输入的 2.25 倍、原始图的 1.92 倍。
+
+本实验沿用现有数据。在模型入口使用 `cv2.INTER_LANCZOS4` 重采样，**不会消除数据转换时已有的插值或 JPEG 误差**，也不会引入超分辨率模型或额外训练信息。原始 4:3 图片仍按现有方式转换成正方形；此轮不同时改变为等比填充，以免叠加另一项变化。
+
+## 两组匹配配置
+
+| 设置 | B0：256 | B1：384 |
+| --- | --- | --- |
+| 三路图 | 主相机、左腕、右腕 | 相同 |
+| `data.img_size` | 256 | 384 |
+| `data.image_resize_mode` | `opencv_lanczos4` | `opencv_lanczos4` |
+| `data.preserve_image_resolution` | `true` | `true` |
+| `train.align_params.llm.image_token_size` | 8 | 12 |
+| 每张视觉 token | 64（8×8） | 144（12×12） |
+| 三张视觉 token | 192 | 432 |
+| 加上每图两个边界 token | 198 | 438 |
+
+这里按当前 Qwen3-VL 的 patch size=16、spatial merge size=2 计算；实际运行应核对 processor 配置和 `image_grid_thw`。`preserve_image_resolution=true` 用于避免 processor 再次缩放，使设定分辨率确实进入视觉编码器；校验应在网格不符时直接失败。
+
+**B0 也重新运行 Lanczos4。**旧代码默认的 `torchvision_bilinear` 行为保留不变；历史 bilinear 训练结果不能直接充当这次匹配实验的 B0，否则插值方式和分辨率同时变化。
+
+教师权重、损失权重和教师内部输入尺寸保持相同。`llm.image_token_size` 表示学生第一路图的 token 网格边长，需要随 8→12 修改，并不是把教师输入尺寸也改成 384。不过，送入教师前的源图经过了不同的重采样，教师目标像素可能有细微差异，因此不能宣称两组教师目标完全逐像素一致。
+
+## 准备与 CPU 检查
+
+以下命令从仓库根目录运行。路径占位符需要替换成实际文件；无需复制或修改原始数据。
+
+```bash
+python tools/prepare_resolution_baseline.py \
+  --base-config xsy_utils/configs/robotwin_clean_baseline.yaml \
+  --output-dir .runtime/resolution_exp
+```
+
+生成 `.runtime/resolution_exp/b0_256.yaml` 和 `b1_384.yaml`。检查两份配置，除上述分辨率相关设置外，应使用相同的 checkpoint、数据清单、归一化统计、教师和训练设置。基础配置包含服务器路径，运行前应确认这些路径在目标机器有效。
+
+用一张实际 RGB 图检查完整 processor 的 CPU 路径，不加载模型权重：
+
+```bash
+python tools/check_resolution_baseline.py \
+  --config .runtime/resolution_exp/b0_256.yaml \
+  --image /path/to/head_camera_frame_69.png \
+  --processor /path/to/Qwen3-VL-4B-Instruct
+
+python tools/check_resolution_baseline.py \
+  --config .runtime/resolution_exp/b1_384.yaml \
+  --image /path/to/head_camera_frame_69.png \
+  --processor /path/to/Qwen3-VL-4B-Instruct
+```
+
+此检查需要完整的 CPU 图像处理依赖和可访问的 processor 文件。脚本语法通过、插值函数通过，不等于真实 processor 已通过，更不等于 GPU 训练或闭环评测已通过。
+
+预期：256 组单图网格为 `[1,16,16]`、merge 后 64 个 token；384 组为 `[1,24,24]`、merge 后 144 个。应确认不是“先放大到 384，随后又缩回 256”。两组均维持三路图、同一排序和有效 mask。
+
+## 1000 步试跑
+
+先用较小的两组匹配试跑确认吞吐、显存、loss 和 checkpoint 可用，再决定是否扩大训练预算。下例为 Linux Bash 命令；`xsy_utils/train_baseline.sh` 依赖目标机器已配置的训练环境。
+
+```bash
+CONFIG=.runtime/resolution_exp/b0_256.yaml \
+RUN_NAME=exp1_b0_256_lanczos_s42 \
+GLOBAL_BS=128 MICRO_BS=4 \
+bash xsy_utils/train_baseline.sh \
+  --train.seed 42 --train.max_steps 1000 --train.save_steps 1000
+
+CONFIG=.runtime/resolution_exp/b1_384.yaml \
+RUN_NAME=exp1_b1_384_lanczos_s42 \
+GLOBAL_BS=128 MICRO_BS=4 \
+bash xsy_utils/train_baseline.sh \
+  --train.seed 42 --train.max_steps 1000 --train.save_steps 1000
+```
+
+`MICRO_BS=4` 只是起点，不是显存可容纳的保证。固定两组 `CUDA_VISIBLE_DEVICES`、`GLOBAL_BS`、seed、初始化 checkpoint、学习率、训练步数和评测预算。脚本按 GPU 数与 micro batch 计算梯度累积，要求 `GLOBAL_BS` 可被 `MICRO_BS × GPU数` 整除。
+
+384 若 OOM，降低 micro batch、保持等效全局 batch；为减少执行差异，必要时两组一起改为相同的 micro batch。不要只缩小 384 的全局 batch。每次重跑使用新的 `RUN_NAME`，避免已有 checkpoint 的自动恢复影响初始化；若改变梯度检查点等训练开关，也要记录并尽量两组一致。
+
+这两条命令只是启动方法，不代表训练已执行。H20 SSH 尚未完成握手时，只能报告已完成的本地静态或 CPU 检查。
+
+## 评测要恢复同一份图像配置
+
+正常保留 `run/checkpoints/global_step_N/hf_ckpt` 目录结构时，部署入口会读取对应 run 的 `lingbotvla_cli.yaml`。`tools/render_robotwin_inference_config.py` 也优先从该文件恢复 `data`，从而保留训练时的分辨率、插值方式和 processor 网格约束。
+
+如果将 `hf_ckpt` 单独复制到其他位置，应显式指定匹配的配置和训练归一化统计，不能让它回退到默认 256 配置。例如，对 384 组：
+
+```bash
+python tools/render_robotwin_inference_config.py \
+  --checkpoint /path/to/exported/hf_ckpt \
+  --qwen /path/to/Qwen3-VL-4B-Instruct \
+  --data-config .runtime/resolution_exp/b1_384.yaml \
+  --norm-stats /path/to/training_robotwin_norm_stats.json \
+  --output .runtime/resolution_exp/b1_384_inference.yaml
+```
+
+启动服务或评测脚本时，设置 `LINGBOT_INFERENCE_CONFIG` 为生成文件的**绝对路径**。256 组同理使用 `b0_256.yaml`，两组归一化统计应与训练一致。图像配置未恢复就运行评测，会让实验失去可比性；384 模型的网格检查也可能直接阻止错误配置运行。
+
+## 记录什么，如何解释
+
+两组在同一训练步数保存 checkpoint，用相同任务、clean/randomized 条件和评测预算比较：
+
+- 闭环成功率与成功次数/总次数；保留逐任务结果和失败视频，关注是否减少小物体定位、接触或对齐失败。
+- 实际视觉 token 数、峰值显存、稳定训练 step 时间和推理延迟；432/192 是视觉 token 倍数，不是整模型耗时倍数。
+- action loss 与教师辅助 loss，用于排查训练异常；离线 loss 下降不能代替闭环成功率提升。
+- 代码版本、两份实际配置、processor 版本、初始化权重、数据清单、seed、GPU 数、全局 batch 和训练步数。
+
+开发阶段可先沿用团队的每任务/条件 **25 次**评测来筛选，但小样本波动较大。比赛要求的每任务/条件 **100 次**评测应单独执行，不能将 25 次开发结果当作正式结果。相同 seed 也不保证所有场景、语言和环境随机源完全匹配，应保留实际场景与指令记录；看到收益后再增加独立 seed 复核。
+
+可能看到的现象：
+
+- **成功率提高且代价可接受：**支持“大栅格/更多视觉 token 在当前源数据上有用”，值得继续；不等于证明新增了真实细节。
+- **只增加耗时或显存，成功率没有清晰变化：**当前轻量预算未看到收益；1000 步或少量评测不足以否定更充分训练或 ROI。
+- **辅助 loss 异常、token 数没变、训练/部署不一致：**先修复处理流程，不能解释为分辨率方案无效。
+
+## 下一步：固定预算重新分配视觉内容
+
+本轮不加入 ROI。确认 B0/B1 可运行并有匹配结果后，再分别以 **192** 和 **432** 为视觉 token 预算，比较全图与局部区域的分配。不要把“三路全图后直接追加一张 ROI”叫作 token 不变，它会额外增加预算。
+
+ROI 实验应继续保留相同训练/评测条件，必要时加入重复全图或降采样 ROI 对照，区分局部放大、上下文变化和额外 token 的影响。训练与推理必须使用相同的裁剪、插值、图像顺序和分辨率设置。
+
+## 本地验证记录（2026-10-17）
+
+隔离环境 `.runtime/resolution-env`：PyTorch 2.8.0+cpu、torchvision 0.23.0+cpu、transformers 4.57.3、OpenCV 4.11.0。`tests/test_resolution_baseline.py` 的 **15 项全部通过，无跳过**。
+
+使用官方 clean 样本 episode0 的三个相机第 69 帧（均为 320×240），实际执行共享 Lanczos 缩放与 `prepare_images`，结果如下：
+
+| 输入 | 各相机实际 `image_grid_thw` | `pixel_values` shape | 三路视觉 token |
+| --- | --- | --- | --- |
+| 256² | `[1,16,16]` | `[3,256,1536]` | 192（含边界 198） |
+| 384² | `[1,24,24]` | `[3,576,1536]` | 432（含边界 438） |
+
+两组使用官方 `Qwen/Qwen3-VL-4B-Instruct` 的 processor 元数据，固定 revision `ebb281ec70b05090aa6165b016eac8ec08e71b17`，实际类为 `Qwen2VLImageProcessorFast`。原图取自官方 `TianxingChen/RoboTwin2.0` revision `3dc3b798668feb99ac61cc9086d84cbcc3d79186` 的 `adjust_bottle/aloha-agilex_clean_50`。服务器副本及服务器 checkpoint 的 processor 配置仍需连接后复核。
+
+本地结果保存在 `.runtime/resolution_exp/check_b0_256.json`、`check_b1_384.json` 与 `test_resolution_baseline.log`；插值样例在同目录的 `previews/`。这些运行产物与 CPU 环境由 `.gitignore` 排除，可按上面的命令重建。
+
+已确认 384 没有被 processor 压回 256。此记录只覆盖图像处理、网格与配置检查，**未加载模型权重，未执行完整模型前向、GPU 训练或闭环成功率评测**。

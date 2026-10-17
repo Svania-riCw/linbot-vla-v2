@@ -21,7 +21,12 @@ def render(checkpoint, qwen, output, norm_stats=None, data_config=None):
     if not list(checkpoint.glob('*.safetensors')) or not (qwen / 'config.json').is_file():
         raise ValueError('Checkpoint safetensors or Qwen config is missing')
     model.update(model_path=str(checkpoint), tokenizer_path=str(qwen), use_compile=False)
-    source = Path(data_config) if data_config else ROOT / 'configs/vla/robotwin/robotwin.yaml'
+    # Keep the run's image resolution/interpolation when exporting for evaluation.
+    # The stock defaults are only suitable when no training metadata is available.
+    training_yaml = checkpoint.parent.parent.parent / 'lingbotvla_cli.yaml'
+    source = Path(data_config) if data_config else (
+        training_yaml if training_yaml.is_file() else ROOT / 'configs/vla/robotwin/robotwin.yaml'
+    )
     data = yaml.safe_load(source.read_text())['data']
     for key in ('joints', 'norm_type'):
         data[key] = [str(item) if isinstance(item, dict) else item for item in data[key]]

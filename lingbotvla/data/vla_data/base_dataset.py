@@ -19,7 +19,7 @@ from pathlib import Path
 
 import torch
 from torch.utils.data import Dataset
-from torchvision.transforms.v2 import Resize
+from ...utils.image_resize import build_image_resize
 
 try:
     from lerobot.datasets.lerobot_dataset import LeRobotDataset as BaseLeRobotDataset
@@ -207,7 +207,9 @@ class VLADataset(Dataset):
 
         self.dataset = LeRobotDataset(
             repo_id=repo_id,
-            image_transforms=Resize(image_size),
+            image_transforms=build_image_resize(
+                image_size, getattr(dataset_config, 'image_resize_mode', 'torchvision_bilinear')
+            ),
             delta_timestamps=merged_delta,
             load_image=load_image
         )

@@ -99,6 +99,20 @@ class FeatureTransform:
         self.model_config = model_config
         self.tokenizer = processor.tokenizer if processor is not None else None
         self.processor = processor
+        self.fixed_image_size = None
+        if (getattr(data_config, 'preserve_image_resolution', False)
+                and not disabled_image_features and processor is not None):
+            from ...utils.image_resize import fixed_image_grid
+
+            image_size = getattr(data_config, 'img_size', 256)
+            image_processor = processor.image_processor
+            grid = fixed_image_grid((image_size, image_size), image_processor.patch_size, image_processor.merge_size)
+            grid_side = int(grid[0, 1]) // int(image_processor.merge_size)
+            align_params = getattr(model_config, 'align_params', None) or {}
+            configured_side = align_params.get('llm', {}).get('image_token_size')
+            if configured_side is not None and int(configured_side) != grid_side:
+                raise ValueError(f"align_params.llm.image_token_size must be {grid_side} for {image_size}px inputs")
+            self.fixed_image_size = (image_size, image_size)
 
         self.chunk_size = chunk_size
         self.return_item_befor_padding = return_item_befor_padding
@@ -423,6 +437,7 @@ class FeatureTransform:
                 use_depth_align=self.use_depth_align,
                 return_image_grid_thw=return_image_grid_thw,
                 return_augment_params=True,
+                fixed_image_size=self.fixed_image_size,
             )
             if self.use_future_image and len(batch_dict.get("future_image", {})) > 0:
                 future_obs = {**batch_dict, "image": batch_dict["future_image"]}
@@ -433,6 +448,7 @@ class FeatureTransform:
                     use_depth_align=self.use_depth_align,
                     return_image_grid_thw=False,
                     augment_params=image_augment_params,
+                    fixed_image_size=self.fixed_image_size,
                 )
             else:
                 future_images, future_pil_images = None, None
