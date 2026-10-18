@@ -153,8 +153,10 @@ class LingbotVLAConfig(PretrainedConfig):
             validate_weights(flow_dimension_weights,max_action_dim,'flow_dimension_weights')
             validate_weights(flow_horizon_weights,chunk_size,'flow_horizon_weights')
         if weighted or spline_control_points or flow_gibbs_epsilon:
-            if training_time_rtc or joint_ee_aux_weight >= 0 or not mask_action_padding or loss_type not in ('fm','L1_fm'):
-                raise ValueError('Weighted/spline experiments require padding masks, fm/L1_fm and no RTC/JointEE')
+            if training_time_rtc or joint_ee_aux_weight >= 0 or loss_type not in ('fm','L1_fm'):
+                raise ValueError('Weighted/spline experiments require fm/L1_fm and no RTC/JointEE')
+        if weighted and not mask_action_padding:
+            raise ValueError('Legacy dimension/horizon weighting presets require padding masks')
         if spline_control_points:
             if weighted or not isinstance(spline_control_points,int) or not isinstance(spline_degree,int) or not (1 <= spline_degree < spline_control_points <= chunk_size):
                 raise ValueError('Spline requires integer 1 <= degree < points <= chunk_size and no weighted loss')

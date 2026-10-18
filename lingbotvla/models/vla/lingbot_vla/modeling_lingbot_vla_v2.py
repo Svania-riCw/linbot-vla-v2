@@ -1424,8 +1424,12 @@ class LingbotVlaV2Policy(PreTrainedModel):
             if joint_mask is None or action_is_pad is None:
                 raise ValueError('Spline training requires joint_mask and action_is_pad')
             original_actions = actions
-            original_mask = joint_mask.bool() & ~action_is_pad.bool().unsqueeze(-1)
-            actions, joint_mask = self.model.action_spline.encode(actions, action_is_pad, joint_mask)
+            # Baseline-compatible mode fits all H rows, including repeated terminal
+            # targets. The optional padding-aware mode fits only observed rows.
+            fit_padding = (action_is_pad.bool() if getattr(self.config, 'mask_action_padding', False)
+                           else torch.zeros_like(action_is_pad, dtype=torch.bool))
+            original_mask = joint_mask.bool() & ~fit_padding.unsqueeze(-1)
+            actions, joint_mask = self.model.action_spline.encode(actions, fit_padding, joint_mask)
             action_is_pad = ~joint_mask.any(-1)
             if noise is not None and noise.shape != actions.shape:
                 raise ValueError('Spline training noise must have [B,K,D] shape')

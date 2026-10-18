@@ -1,60 +1,30 @@
-# Baseline 上的 Weighted / Spline 两组 5k 实验
+# 与 baseline 时间补齐方式对齐的 Weighted / Spline 5k 实验
 
-以用户 2026-10-18 最后确认的要求为准：**绝对关节动作、无额外 EE 输入、保留 padding mask、fp32，分别训练两组 5000 次更新**。不使用 Joint Delta 的配置或 checkpoint 续训。
+用户于2026-10-18明确选择重开：**保留原动作维度 mask，取消额外时间 padding 屏蔽，补齐的末尾重复动作参与训练。** 两组均从官方预训练模型重新开始，各5000次更新，不从旧任务中途权重续训。
 
-| 项目 | 两组共同设置 |
+| 项目 | 两组公共配置 |
 | --- | --- |
-| 基础代码 | 个人分支，基于仓库 main；准备时记录 origin/main 和实际代码提交 |
-| 配置来源 | 团队实际完成的 baseline_gbs128_5k/lingbotvla_cli.yaml；避免使用会误导的默认 config.yaml |
-| 初始权重 | 同一官方预训练 lingbot-vla-v2-6b；两组分别从头 post-train |
-| 动作、输入 | baseline 的绝对 12 维关节 + 2 维夹爪；不追加 EE state |
-| 数据、归一化 | 原 50 个 clean task 数据，复用 baseline 的绝对动作统计并校验 SHA256 |
-| 训练 | global BS128，8 卡每卡 16，5000 updates，seed42 |
-| 精度 | enable_fp32=True、enable_mixed_precision=True，与团队 baseline 相同。FSDP2 参数/梯度/输出为 fp32；冻结视觉教师保留 baseline 的 bf16 autocast。不是声称所有算子都为 fp32 |
-| 其他设置 | L1_fm，原 Muon/学习率/5k cosine schedule、图像设置、深度和视频辅助目标、训练 compile 设置保持来源配置 |
-| mask | mask_action_padding=True；padding 不参与动作监督 |
-| 资源适配 | prefetch_factor 从 baseline 的 4 降为 1，worker 仍为 8；此容器 /dev/shm 只有 4 GiB。不是改采样策略或学习率 |
-| 评测 | 各 350 次：7 task × clean/random ×25；seed0，fp32，compile=False |
+| 配置来源 | 团队实际 baseline_gbs128_5k/lingbotvla_cli.yaml，记录main及实际代码提交 |
+| 动作和输入 | baseline绝对12维关节＋2维夹爪，无额外EE state，无Joint Delta |
+| 数据和统计 | 原50个clean task，复用baseline绝对动作归一化并校验SHA256 |
+| 训练 | BS128，8卡每卡16，5000 updates，seed42，原Muon和5k cosine学习率 |
+| 精度 | enable_fp32=True、enable_mixed_precision=True，与baseline相同；冻结视觉教师保留原bf16 autocast |
+| mask | 动作维度mask保留；mask_action_padding=False，末尾补齐位置参与监督 |
+| 其他模型配置 | 保留L1_fm、深度/视频辅助目标、图像配置、训练compile=True |
+| 资源适配 | prefetch_factor从4降为1，worker仍为8，适配容器4GiB共享内存 |
+| 评测 | 各350次：7任务×clean/random×25；seed0、fp32、compile=False |
 
-## Weighted：采用论文权重，保留 baseline 的 L1
+Weighted依据：[Weighted Conditional Flow Matching](https://arxiv.org/abs/2507.22270)第3节与附录D。距离计算、Z校准、动作loss全部包含50步的真实动作维度，包括末尾重复位置。从50任务各抽8段（400段），配合128组独立Gaussian噪声，重新扫描带宽，选择两个边际倾斜代理相对方差均≤0.01的最小候选值，并估计固定log_Z。使用同一次forward的噪声，不在每张卡minibatch内重算归一化。原论文主要使用平方误差与无条件生成；本次保留baseline的L1，因此是其权重思想的适配，不保证机器人成功率提升。
 
-依据：[Weighted Conditional Flow Matching](https://arxiv.org/abs/2507.22270)，第 3 节及附录 D。它不是之前的“夹爪权重 ×2”或“后续时间步降权”。
+Spline主要依据：[BEAST，NeurIPS 2025主会](https://papers.nips.cc/paper_files/paper/2025/hash/fc75cfcec16170f2b54d00283c739928-Abstract-Conference.html)，[论文第4节和附录D](https://arxiv.org/html/2506.06072v3)。将完整50步归一化绝对动作（包括重复末尾动作）拟合为16个三次clamped B-spline控制点。原action head预测控制点，使用原L1 flow loss；推理先还原50步，再按原统计反归一化并交给qpos控制器。此次不再只拟合真实前缀，所有有实际动作维度的控制点参与监督。保留旧的padding-aware模式以兼容历史checkpoint，但本次明确关闭。
 
-在当前归一化动作 y 和**同一次 forward 使用的噪声 x**之间，计算有效动作维度上的距离：
+本次不离散化token、不更换VLM、不加入跨chunk边界约束，因此不宣称完整复现BEAST或保证跨chunk连续。准备阶段记录完整50步与真实时间步的重建误差，检查平滑是否损失接触或夹爪精度。
 
-```
-c_i = sqrt(sum_valid((noise_i - action_i)^2) / valid_dimensions_i)
-w_i = exp(-c_i / epsilon - log_Z)
-loss = sum_valid(w_i * 原始逐元素 L1 error) / sum(valid_mask)
-```
+补充阅读：[B-spline Policy，2026预印本](https://arxiv.org/abs/2607.09648)，不冒充正式会议论文。[Neural Dynamic Policies，NeurIPS 2020](https://proceedings.neurips.cc/paper/2020/hash/354ac345fd8c6d7ef634d9a8e3d47b83-Abstract.html)提供轨迹参数化动机，但使用DMP，不是本次算法。
 
-这里用 RMS 距离，相当于将论文欧氏距离除以 sqrt(d)，epsilon 对应论文中的 kappa；这样 padding 长度不同不会仅因维数多而天然受罚。未使用的 55 维槽位不参与距离计算。
+## 验证和运行
 
-训练前，在 50 个任务各抽 8 个真实 chunk（总 400 个），配合 128 组独立 Gaussian 噪声，按附录 D 扫描带宽；选择源、目标两个边际倾斜代理的相对方差都不超过 0.01 的最小候选值。固定记录 log_Z；训练时不按每卡 minibatch 重算归一化，以免引入不同的 rank 归一化目标。校准使用独立 RNG，不消耗训练随机状态。
-
-日志记录权重均值、最大值、有效样本量 ESS、距离和未加权动作 loss。两组的训练 loss 不可直接当作成功率比较，因为监督目标发生变化。
-
-**与原论文的差别：**原论文理论和主要实验使用平方误差，且研究无条件生成。这里为保持 baseline 一致，保留 L1_fm，使用其 Gibbs 权重思想；常数势函数 f=g=1、可变长度 mask、机器人条件生成也是适配。因此这是 paper-inspired ablation，不是完整复现。边际代理通过不等于证明每个观察条件的动作分布都不偏移，也不保证成功率提升。
-
-验证的问题：相同预算下，适度强调较短噪声—动作配对，能否改善最终策略成功率，而不是仅降低加权后的 loss？
-
-## Spline：BEAST 启发的连续控制点表示
-
-主要依据：[BEAST: Efficient Tokenization of B-Splines Encoded Action Sequences for Imitation Learning，NeurIPS 2025 主会](https://papers.nips.cc/paper_files/paper/2025/hash/fc75cfcec16170f2b54d00283c739928-Abstract-Conference.html)。[论文第4节及附录D](https://arxiv.org/html/2506.06072v3)分别说明控制点拟合，以及与 flow matching 的结合。
-
-将 baseline 的 50 步归一化绝对动作拟合成 16 个三次 clamped B-spline 控制点。模型仍用原 action head 和 L1 flow loss，预测 16 个控制点；推理时先还原为 50 步，再按 baseline 的绝对动作统计反归一化，交给原 qpos 控制器。输入、夹爪和关节动作语义不变。没有增加 delta 或 EE 监督。
-
-完整 chunk 使用伪逆拟合，尾部不足 50 步时仅对有效点做 ridge 拟合；padding 不参与拟合。训练日志记录重建 RMSE 和夹爪误差；准备阶段输出真实数据的关节弧度、夹爪误差分位数。
-
-**与 BEAST 的差别：**本次是连续控制点版本，无离散化 token，无更换 VLM，且未加入 BEAST 使用上一段动作固定首控制点的跨段约束。这里只保证单个 spline 曲线内部平滑，不能宣称跨 chunk 连续。16/50 是本次实验超参，不冒充论文原设置。急剧夹爪开合、接触动作可能被平滑，从而降低成功率。
-
-补充阅读：[B-spline Policy](https://arxiv.org/abs/2607.09648)与动作表示非常直接相关，但作者标注为 2026 预印本，**不标成 ICLR/ICRA/CVPR/NeurIPS 正式论文**。本次优先以正式 NeurIPS 的 BEAST 为依据。
-
-背景阅读：[Neural Dynamic Policies for End-to-End Sensorimotor Learning，NeurIPS 2020](https://proceedings.neurips.cc/paper/2020/hash/354ac345fd8c6d7ef634d9a8e3d47b83-Abstract.html)。它支持“让网络预测紧凑的轨迹参数，再生成连续动作”的总体动机，但使用 DMP 微分方程与高斯基函数，**不是 B-spline，也不是本次直接复现的算法**。不为凑会议名而将无关的 spline 视觉论文当成机器人动作证据。
-
-验证的问题：压缩动作表示能否在同样 5k 更新下获得更好的策略或更快训练/推理；同时检查平滑是否损失抓取、接触精度。
-
-## 验证与运行
+本机108项测试通过。新增验证覆盖：Gibbs均匀权重极限与实际baseline loss一致；补齐位置参与梯度、无效维度仍不参与；完整50步校准不受padding标记影响；Spline实际policy拟合完整50步；收据绑定时间补齐策略并兼容旧收据。
 
 ```
 python -m unittest discover -s tests/action_parameterization -v
@@ -62,27 +32,16 @@ python ysj_utils/run_baseline_supervision.py --run-dir /path/to/new_run --prepar
 python ysj_utils/run_baseline_supervision.py --run-dir /path/to/new_run --run-prepared
 ```
 
-准备程序输出 plan.json、source_baseline.yaml、gibbs_calibration.json、spline_fit.json，以及 Control/Weighted/Spline 的独立 train.yaml 和统计校验收据。**Control 仅生成配置，不自动占用额外 5k 训练预算。**
+准备产生source_baseline.yaml、plan.json、gibbs_calibration.json、spline_fit.json及Control/Weighted/Spline独立配置。Control仅生成配置，不追加第三组5k训练。两组enable_resume=False、load_checkpoint_path=None；启动目录全新，不续训旧任务。
 
-运行顺序：Weighted 5k → 350 次评测 → Spline 5k → 350 次评测。训练或评测失败即写 status.json 并停止；不自动换配置或跳过失败。进入正式训练后检查最初几次更新的 loss、梯度、精度和数据形状。训练器每 1000 步保存 DCP/HF；脚本启动时拒绝复用已启动的输出目录，避免意外重复训练。需要断点恢复时先检查完整 DCP，再明确指定恢复，不能拿 HF 文件宣称优化器也恢复了。
+队列：**Weighted 5k → 350次评测 → Spline 5k → 350次评测**。异常或非有限loss/梯度会停止队列并记录status；每1000步保存DCP/HF。进度解析已适配日志的epoch分母4295，优化器预算仍为5000。
 
-实测起跑后约 4.2 秒/步，Weighted 单组训练初估约 6 小时，加上 Spline 和两次评测，整个队列暂估 12–15 小时；这是起跑阶段外推，缓存、导出和后续吞吐仍会影响耗时。每组完整评测参考之前约 1 小时。tmux 能在本机断网/关机后继续运行。
+## 被替代的旧尝试
 
-2026-10-18 21:15（北京时间）已在 30375 的 8 张 H20 启动，tmux 会话 `ysj-supervision`。输出根目录：`/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_20261018`。代码提交 `8363bf8`，本机和服务器均 103 项测试通过。采集启动证据时 Weighted 已完成 29 次优化器更新，第29步 loss=0.1888，梯度范数=0.4033，LR≈1e-4，显存约82.3 GiB/卡、利用率约100%；Spline 尚在队列中，不能说已完成其完整 GPU 训练验证。
+旧输出：/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_20261018。旧Weighted约433步时按用户要求停止，旧Spline未启动。日志保留，状态SUPERSEDED，会话ysj-supervision-masked-stopped。旧尝试使用时间mask，不能混入新5k实验或拼接预算。
 
-校准的 RMS 带宽为 0.53452266，log_Z=-2.23265968；源/目标边际倾斜代理相对方差约0.00255/0.00893。Spline 400段真实动作拟合的关节 MAE≈0.000432弧度，夹爪 MAE≈0.00126，最大夹爪误差≈0.0332。这里都是算法/压缩诊断，尚无新成功率结果。
+旧启动证据：[reports/baseline_supervision_5k_launch_2026-10-18.json](reports/baseline_supervision_5k_launch_2026-10-18.json)，仅作历史记录。旧文档可在git提交e3c9109查看。
 
-启动脚本的数字进度匹配曾把上游日志分母误当作5000；实际是每epoch的4295。训练本身正常，**5000预算不变**。本地已修复后续启动的匹配；当前进度以实际 `Weighted/training.log` 为准，不用旧 launcher 的 step=0 判断训练停了。此修复没有热更新正在运行的训练代码。
+## 比较限制
 
-```bash
-tmux attach -t ysj-supervision
-tail -n 5 /2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_20261018/Weighted/training.log
-```
-
-启动、实际配置、校准与起跑日志证据保存在 [reports/baseline_supervision_5k_launch_2026-10-18.json](reports/baseline_supervision_5k_launch_2026-10-18.json)。
-
-## 比较边界
-
-两组彼此的公共配置相同，各自只改变方法。可以与历史 baseline 5k 作描述性比较，**但历史 baseline 没有 padding mask**；因此不能把成功率差异全部归因于 Weighted/Spline。要确认独立贡献，最终仍需一个相同 mask、fp32 和预算的 Control 5k。已生成其配置，未擅自追加第三组正式训练。
-
-单任务每种环境仅 25 次，1 次成功对应 4 个百分点；小幅变化应多 seed 复测，不能预先承诺提升。
+新实验消除了额外时间mask的混杂因素。仍记录prefetch4→1资源适配、代码版本、实际配置、统计和评测条件；不能仅凭同seed宣称逐episode策略噪声一致。不同监督目标的训练loss不能直接横比，最终比较同预算5k checkpoint的350次成功率及逐任务数据。每任务每环境25次，1次成功=4个百分点，小幅变化需要多seed复测。

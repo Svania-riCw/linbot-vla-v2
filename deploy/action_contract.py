@@ -65,6 +65,8 @@ def supervision_config(train):
     if train.get('flow_gibbs_epsilon', 0):
         result.update(flow_gibbs_epsilon=train['flow_gibbs_epsilon'],
                       flow_gibbs_log_normalizer=train.get('flow_gibbs_log_normalizer', 0.0))
+    if (train.get('flow_gibbs_epsilon', 0) or train.get('spline_control_points', 0)) and not train.get('mask_action_padding', False):
+        result['temporal_padding'] = 'supervise_repeated_terminal_actions'
     return result
 
 

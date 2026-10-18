@@ -38,7 +38,7 @@ def absolute_targets(actions, stats):
     return (actions[..., indices] - low) / (high - low + 1e-6) * 2 - 1, (high - low + 1e-6) / 2
 
 
-def calibrate(targets, pad, source_points=128, seed=7042, tolerance=.01):
+def calibrate(targets, pad, source_points=128, seed=7042, tolerance=.01, mask_action_padding=True):
     """Paper Appendix D: choose smallest bandwidth with both marginal RV <= .01.
 
     Masked RMS cost handles variable valid trajectory length. Pairwise proxies
@@ -47,7 +47,8 @@ def calibrate(targets, pad, source_points=128, seed=7042, tolerance=.01):
     """
     rng = np.random.default_rng(seed)
     noise = rng.standard_normal((source_points,) + targets.shape[1:]).astype('float32')
-    valid = np.broadcast_to(~pad[..., None], targets.shape)
+    effective_pad = pad if mask_action_padding else np.zeros_like(pad, dtype=bool)
+    valid = np.broadcast_to(~effective_pad[..., None], targets.shape)
     # Calculate per-target valid-dimensional costs with independent source draws.
     costs = np.stack([np.sqrt(np.where(valid, (x[None] - targets)**2, 0).sum((1, 2)) /
                               valid.sum((1, 2))) for x in noise])
@@ -69,6 +70,8 @@ def calibrate(targets, pad, source_points=128, seed=7042, tolerance=.01):
     return dict(paper='https://arxiv.org/abs/2507.22270', seed=seed, tolerance=tolerance,
                 source_points=source_points, target_chunks=len(targets), selected=selected, grid=records,
                 cost='masked Euclidean norm / sqrt(valid dimensions)', potentials='constant f=g=1',
+                mask_action_padding=mask_action_padding,
+                supervised_steps=int((~effective_pad).sum()),
                 caveat='Finite unconditional proxy over robot contexts; not proof of conditional marginal preservation')
 
 
@@ -76,7 +79,7 @@ def experiment_config(source, output, group, calibrated):
     cfg = copy.deepcopy(source)
     cfg['train'].update(output_dir=str(output), max_steps=5000, global_batch_size=128,
                         micro_batch_size=16, gradient_accumulation_steps=1,
-                        enable_fp32=True, enable_mixed_precision=True, mask_action_padding=True,
+                        enable_fp32=True, enable_mixed_precision=True, mask_action_padding=False,
                         enable_resume=False, require_resume=False, load_checkpoint_path=None,
                         lr_schedule_steps=None, joint_ee_aux_weight=-1., training_time_rtc=False,
                         flow_dimension_weights=None, flow_horizon_weights=None,
@@ -129,17 +132,22 @@ def prepare(args):
     _, actions, pad = map(np.stack, zip(*samples))
     stats = json.loads(norm_source.read_text())['norm_stats']
     targets, physical_scale = absolute_targets(actions, stats)
-    calibration = calibrate(targets, pad)
+    # Match baseline: repeated terminal targets count in cost, Z and supervision.
+    calibration = calibrate(targets, pad, mask_action_padding=False)
     write_json(args.run_dir / 'gibbs_calibration.json', calibration)
     codec = SplineActionCodec(50, 16, 3)
     with torch.no_grad():
         tensor = torch.tensor(targets)
-        coefficients, _ = codec.encode(tensor, torch.tensor(pad), torch.ones_like(tensor, dtype=torch.bool))
+        coefficients, _ = codec.encode(tensor, torch.zeros_like(torch.tensor(pad)), torch.ones_like(tensor, dtype=torch.bool))
         reconstructed = codec.decode(coefficients).numpy()
-    error = (reconstructed-targets)[~pad]
+    # Training fits ALL rows; report whole-chunk and real-row errors separately.
+    error = (reconstructed-targets).reshape(-1, targets.shape[-1])
+    real_error = (reconstructed-targets)[~pad]
     physical = error * physical_scale
-    fit = dict(chunks=len(targets), valid_steps=int((~pad).sum()), points=16, degree=3,
+    fit = dict(chunks=len(targets), valid_steps=int((~pad).sum()), supervised_steps=int(pad.size),
+               mask_action_padding=False, points=16, degree=3,
                normalized_rmse=float(np.sqrt(np.mean(error**2))),
+               real_steps_normalized_rmse=float(np.sqrt(np.mean(real_error**2))),
                joint_mae_radians=float(np.abs(physical[:, :12]).mean()),
                joint_p95_radians=float(np.quantile(np.abs(physical[:, :12]), .95)),
                gripper_mae=float(np.abs(physical[:, 12:]).mean()),
@@ -156,7 +164,8 @@ def prepare(args):
                    github_main=subprocess.check_output(['git', 'rev-parse', 'origin/main'], cwd=ROOT, text=True).strip(),
                    precision='baseline FSDP2 fp32 policy/gradients; frozen visual teachers keep baseline bf16 autocast',
                    evaluation='7 tasks x 2 configs x 25, seed0, fp32, compile=False',
-                   caveat='Historical baseline had no padding mask; it is not a fully matched control.', groups={})
+                   temporal_padding='Matches baseline: dimension mask retained, repeated terminal targets supervised',
+                   caveat='Historical comparison still needs verification of code, environment and evaluation noise; prefetch4->1 is recorded.', groups={})
     for group in ('Control', 'Weighted', 'Spline'):
         directory = args.run_dir / group
         directory.mkdir()

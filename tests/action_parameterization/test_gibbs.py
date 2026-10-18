@@ -68,7 +68,6 @@ class GibbsTests(unittest.TestCase):
         for fields in (dict(flow_gibbs_epsilon=-1), dict(flow_gibbs_epsilon=float('nan')),
                        dict(flow_gibbs_epsilon=.5, spline_control_points=16),
                        dict(flow_gibbs_epsilon=.5, training_time_rtc=True),
-                       dict(flow_gibbs_epsilon=.5, mask_action_padding=False),
                        dict(flow_gibbs_epsilon=.5, flow_horizon_weights=[1.]*50)):
             with self.subTest(fields=fields), self.assertRaises(ValueError):
                 actual_config(**fields)
@@ -93,8 +92,86 @@ class GibbsTests(unittest.TestCase):
             cfg = experiment_config(source, Path('/same'), group, {'epsilon': .5, 'log_normalizer': -2.})
             self.assertEqual(cfg['model'], control['model']); self.assertEqual(cfg['data'], control['data'])
             self.assertEqual({k for k in cfg['train'] if cfg['train'][k] != control['train'][k]}, allowed)
-            self.assertTrue(cfg['train']['enable_fp32']); self.assertTrue(cfg['train']['mask_action_padding'])
+            self.assertTrue(cfg['train']['enable_fp32']); self.assertFalse(cfg['train']['mask_action_padding'])
         self.assertEqual(source, original)
+
+    def test_unmasked_gibbs_uniform_limit_matches_actual_baseline_with_padding(self):
+        cfg = actual_config(mask_action_padding=False)
+        core = tiny_flow(cfg)
+        policy = SimpleNamespace(config=cfg, model=core)
+        forward = extract(MODEL, class_name='LingbotVlaV2Policy', method_names={'forward'})['forward']
+        actions = torch.randn(2, 50, 55)
+        actions[0, 10:] = actions[0, 9]
+        mask = torch.zeros_like(actions, dtype=torch.bool); mask[..., :12] = True; mask[..., 28:30] = True
+        pad = torch.zeros(2, 50, dtype=torch.bool); pad[0, 10:] = True
+        def run():
+            return forward(policy, torch.zeros(2, 1), None, torch.zeros(2, 55), None, None,
+                           actions, joint_mask=mask, action_is_pad=pad,
+                           noise=torch.zeros_like(actions), time=torch.full((2,), .5))
+        baseline = run()[1].detach()
+        cfg.flow_gibbs_epsilon = 1e12
+        torch.testing.assert_close(run()[1], baseline)
+        cfg.mask_action_padding = True
+        self.assertGreater(float((run()[1].detach()-baseline).abs()), 1e-5)
+
+    def test_baseline_padding_rows_have_loss_gradient_but_unused_dimensions_do_not(self):
+        errors = torch.ones(1, 50, 55, requires_grad=True)
+        mask = torch.zeros_like(errors, dtype=torch.bool); mask[..., :12] = True; mask[..., 28:30] = True
+        target = torch.zeros_like(errors)
+        loss, _, _ = gibbs_flow_loss(errors, mask, target, target, .5, 0.)
+        loss.backward()
+        self.assertTrue(torch.all(errors.grad[0, 10:, :12] > 0))
+        self.assertTrue(torch.all(errors.grad[~mask] == 0))
+
+    def test_full_chunk_calibration_includes_repeated_tail_and_is_independent_of_pad_flags(self):
+        targets = np.random.default_rng(3).normal(size=(12, 50, 14)).astype('float32')
+        targets[:, 10:] = targets[:, 9:10]
+        pad = np.zeros((12, 50), dtype=bool); pad[:, 10:] = True
+        full = calibrate(targets, pad, source_points=16, mask_action_padding=False)
+        reference = calibrate(targets, np.zeros_like(pad), source_points=16, mask_action_padding=False)
+        self.assertEqual(full, reference)
+        self.assertEqual(full['supervised_steps'], 600)
+        self.assertNotEqual(full['grid'], calibrate(targets, pad, source_points=16)['grid'])
+
+    def test_spline_baseline_mode_fits_all_50_rows_and_preserves_dimension_mask(self):
+        cfg = actual_config(spline_control_points=16, mask_action_padding=False)
+        core = tiny_flow(cfg)
+        policy = SimpleNamespace(config=cfg, model=core)
+        forward = extract(MODEL, class_name='LingbotVlaV2Policy', method_names={'forward'})['forward']
+        target = torch.zeros(2, 50, 55)
+        target[:, :10, :12] = torch.linspace(0, 1, 10)[None, :, None]
+        target[:, 10:, :12] = 1
+        mask = torch.zeros_like(target, dtype=torch.bool); mask[..., :12] = True; mask[..., 28:30] = True
+        pad = torch.zeros(2, 50, dtype=torch.bool); pad[:, 10:] = True
+        expected, coefficients_mask = core.action_spline.encode(target, torch.zeros_like(pad), mask)
+        original = core.forward
+        seen = {}
+        def record(*args, **kwargs):
+            seen['coefficients'] = args[5]
+            return original(*args, **kwargs)
+        core.forward = record
+        result = forward(policy, torch.zeros(2, 1), None, torch.zeros(2, 55), None, None,
+                         target, joint_mask=mask, action_is_pad=pad,
+                         noise=torch.zeros(2, 16, 55), time=torch.full((2,), .5))
+        torch.testing.assert_close(seen['coefficients'], expected)
+        self.assertTrue(coefficients_mask[..., :12].all())
+        self.assertFalse(coefficients_mask[..., 14:28].any())
+        prefix, _ = core.action_spline.encode(target, pad, mask)
+        self.assertGreater(float((expected-prefix).abs().max()), .1)
+        result[0].backward()
+        self.assertTrue(torch.isfinite(core.action_out_proj.weight.grad).all())
+        expected_curve = core.action_spline.decode(expected)
+        rmse = (((expected_curve-target).square()*mask).sum()/mask.sum()).sqrt()
+        torch.testing.assert_close(result[6]['spline/target_rmse'], rmse)
+
+    def test_receipt_binds_baseline_padding_and_preserves_old_masked_receipts(self):
+        from deploy.action_contract import supervision_config
+        for method in (dict(spline_control_points=16), dict(flow_gibbs_epsilon=.5)):
+            masked = supervision_config(dict(method, mask_action_padding=True))
+            unmasked = supervision_config(dict(method, mask_action_padding=False))
+            self.assertNotIn('temporal_padding', masked)
+            self.assertEqual(unmasked['temporal_padding'], 'supervise_repeated_terminal_actions')
+        self.assertNotIn('temporal_padding', supervision_config({}))
 
 
 if __name__ == '__main__':
