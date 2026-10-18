@@ -11,13 +11,27 @@ from lingbotvla.models import module_utils
 
 
 class _TinyPolicy(nn.Module):
-    def __init__(self, with_video_head=False):
+    def __init__(self, with_video_head=False, with_spatial_forcing=False):
         super().__init__()
         self.config = SimpleNamespace(tie_word_embeddings=False)
         self.model = nn.Module()
         self.model.action_proj = nn.Linear(2, 2, bias=False)
         if with_video_head:
             self.model.current_video_align_head = nn.Linear(2, 2)
+        if with_spatial_forcing:
+            self.model.spatial_forcing_norm = nn.BatchNorm1d(2)
+            self.model.spatial_forcing_mlp = nn.Linear(2, 2)
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            nn.init.constant_(module.weight, 0.25)
+            if module.bias is not None:
+                nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.BatchNorm1d):
+            nn.init.ones_(module.weight)
+            nn.init.zeros_(module.bias)
+            module.running_mean.zero_()
+            module.running_var.fill_(1.0)
 
 
 class _PassthroughWeightLoader:
@@ -76,6 +90,18 @@ class OptionalTeacherCheckpointTests(unittest.TestCase):
         self.assertTrue(torch.equal(model.model.action_proj.weight, action_weight))
         self.assertTrue(torch.equal(model.model.current_video_align_head.weight, video_weight))
         self.assertTrue(torch.equal(model.model.current_video_align_head.bias, video_bias))
+
+    def test_new_spatial_forcing_head_is_initialized_from_base_checkpoint(self):
+        model = _TinyPolicy(with_spatial_forcing=True)
+        action_weight = torch.full((2, 2), 3.0)
+
+        self._load(model, [("model.action_proj.weight", action_weight)])
+
+        self.assertTrue(torch.equal(model.model.action_proj.weight, action_weight))
+        self.assertTrue(torch.all(model.model.spatial_forcing_norm.weight == 1))
+        self.assertTrue(torch.all(model.model.spatial_forcing_norm.running_mean == 0))
+        self.assertTrue(torch.all(model.model.spatial_forcing_norm.running_var == 1))
+        self.assertTrue(torch.all(model.model.spatial_forcing_mlp.weight == 0.25))
 
     def test_unrecognized_extra_weight_remains_an_error(self):
         model = _TinyPolicy()

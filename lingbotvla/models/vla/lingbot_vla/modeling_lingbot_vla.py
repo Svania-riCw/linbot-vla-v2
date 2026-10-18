@@ -1034,6 +1034,15 @@ class FlowMatching(nn.Module):
                 module.weight.data.fill_(1.0)
             if module.bias is not None:
                 module.bias.data.zero_()
+        elif isinstance(module, nn.BatchNorm1d):
+            if module.weight is not None:
+                module.weight.data.fill_(1.0)
+            if module.bias is not None:
+                module.bias.data.zero_()
+            if module.running_mean is not None:
+                module.running_mean.zero_()
+            if module.running_var is not None:
+                module.running_var.fill_(1.0)
         elif isinstance(module, nn.Embedding):
             module.weight.data.normal_(mean=0.0, std=std)
             if module.padding_idx is not None:

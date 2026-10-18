@@ -45,6 +45,10 @@ from lingbotvla.models.vla.vision_models.module_utils import (
     get_video_target,
     log_video,
 )
+from lingbotvla.models.vla.vision_models.spatial_forcing import (
+    build_spatial_forcing_teacher,
+    get_spatial_forcing_target,
+)
 from lingbotvla.models.vla.lingbot_vla.moe_load_balance import build_moe_load_balance_hook
 import gc
 gc.set_threshold(50000, 50, 50)
@@ -391,42 +395,53 @@ def main():
         config_kwargs=config_kwargs,
         moe_implementation=getattr(args.model, 'moe_implementation', None),
     )
-    use_depth_align = True if args.train.align_params != {} else False
-    use_future_depth = args.train.align_params.get('depth', {}).get('use_future_depth', False)
-    use_future_video = use_depth_align and args.train.align_params.get('use_future_video', False)
+    align_params = args.train.align_params or {}
+    spatial_forcing_cfg = align_params.get("spatial_forcing", {})
+    use_depth_align = bool(align_params.get("depth", {}))
+    use_spatial_forcing = bool(spatial_forcing_cfg.get("enabled", False))
+    load_teacher_images = use_depth_align or use_spatial_forcing
+    use_future_depth = use_depth_align and align_params.get('depth', {}).get('use_future_depth', False)
+    use_future_video = use_depth_align and align_params.get('use_future_video', False)
     depth_model_type = None
     video_teacher = None
+    spatial_forcing_teacher = None
     future_video_loss_weight = 1.0
     depth_loss_weight = 1.0
     future_depth_loss_weight = 1.0
     if use_future_video:
         if not args.data.use_future_image:
             raise ValueError("align_params.use_future_video=True requires data.use_future_image=True.")
-        video_cfg = args.train.align_params.get("video", {})
+        video_cfg = align_params.get("video", {})
         future_video_loss_weight = video_cfg.get(
             "future_video_loss_weight",
-            args.train.align_params.get(
+            align_params.get(
                 "future_video_loss_weight",
-                args.train.align_params.get("depth_loss_weight", 1.0),
+                align_params.get("depth_loss_weight", 1.0),
             ),
         )
     if use_depth_align:
-        depth_model_type = args.train.align_params['depth']['model_type']
+        depth_model_type = align_params['depth']['model_type']
         if depth_model_type != 'MoRGBD':
             raise ValueError(f"Only MoRGBD depth distillation is supported, got {depth_model_type!r}.")
-        depth_loss_weight = args.train.align_params.get("depth_loss_weight", 1.0)
-        future_depth_loss_weight = args.train.align_params.get("future_depth_loss_weight", 1.0)
+        depth_loss_weight = align_params.get("depth_loss_weight", 1.0)
+        future_depth_loss_weight = align_params.get("future_depth_loss_weight", 1.0)
         print('====Loading Depth Model====')
-        moge_model, morgbd_model = build_depth_model(args.train.align_params)
+        moge_model, morgbd_model = build_depth_model(align_params)
         if args.train.use_compile:
             moge_model = torch.compile(moge_model)
             morgbd_model = torch.compile(morgbd_model)
-        if 'visual_dir' not in args.train.align_params or not args.train.align_params['visual_dir']:
-            args.train.align_params['visual_dir'] = os.path.join(args.train.output_dir, 'images')
-        os.makedirs(args.train.align_params['visual_dir'], exist_ok=True)
+        if 'visual_dir' not in align_params or not align_params['visual_dir']:
+            align_params['visual_dir'] = os.path.join(args.train.output_dir, 'images')
+        os.makedirs(align_params['visual_dir'], exist_ok=True)
         if use_future_video:
             print('====Loading Future Video Model====')
-            video_teacher = build_video_model(args.train.align_params['video'])
+            video_teacher = build_video_model(align_params['video'])
+    if use_spatial_forcing:
+        print("====Loading Frozen VGGT Spatial Forcing Teacher====")
+        spatial_forcing_teacher = build_spatial_forcing_teacher(
+            spatial_forcing_cfg,
+            device=torch.device("cuda", args.train.local_rank),
+        )
     from lingbotvla.utils.moe_utils import log_model_param_stats
     log_model_param_stats(model)
 
@@ -451,7 +466,7 @@ def main():
     if args.data.dataloader_type == "native":
         if args.data.datasets_type == 'vla':
             args.data.chunk_size = args.train.chunk_size
-            train_dataset = build_vla_dataset(dataset_config=args.data, model_config=args.model, config=model.config, processor=processor, use_depth_align=use_depth_align)
+            train_dataset = build_vla_dataset(dataset_config=args.data, model_config=args.model, config=model.config, processor=processor, use_depth_align=load_teacher_images)
             args.train.compute_train_steps(args.data.max_seq_len, args.data.train_size, len(train_dataset))
         
         train_dataloader = build_dataloader(
@@ -496,7 +511,7 @@ def main():
         enable_forward_prefetch=args.train.enable_forward_prefetch,
         fsdp_llm_blocks=False,
         ignore_norm=False,
-        use_depth_align=use_depth_align,
+        use_depth_align=load_teacher_images,
         split_fused_experts_from_decoder_fsdp=args.train.split_fused_experts_from_decoder_fsdp,
         vlm_fsdp=args.train.vlm_fsdp,
         use_future_image=args.data.use_future_image,
@@ -754,7 +769,7 @@ def main():
             if global_step == 1:
                 helper.print_example(example=micro_batches[0], rank=args.train.local_rank)
 
-            total_loss, total_vla_loss, total_depth_loss, total_future_depth_loss, total_future_video_loss, total_seq_wise_loss, total_router_z_loss = 0, 0, 0, 0, 0, 0, 0
+            total_loss, total_vla_loss, total_depth_loss, total_future_depth_loss, total_future_video_loss, total_spatial_forcing_loss, total_seq_wise_loss, total_router_z_loss = 0, 0, 0, 0, 0, 0, 0, 0
             depth_targets, depth_preds = None, None
             future_depth_targets, future_depth_preds = None, None
             future_video_targets, future_video_preds = None, None
@@ -777,22 +792,24 @@ def main():
                 }
                 future_video_effective_fps = micro_batch.pop('future_video_effective_fps', None)
                 depth_forward_time = 0
-                if use_depth_align:
+                spatial_targets, spatial_target_mask = None, None
+                if load_teacher_images:
                     with torch.no_grad():
                         depth_start_time = time.time()
                         pil_images = micro_batch.pop('pil_images', None)
-                        future_pil_images = micro_batch.pop('future_pil_images', None) if (use_future_depth or use_future_video) else None
-                        with torch.autocast("cuda", dtype=torch.bfloat16):
-                            depth_targets, cls_token = get_depth_target(depth_model_type, (moge_model, morgbd_model), pil_images)
-                            if use_future_depth:
-                                future_depth_targets, future_cls_token = get_depth_target(depth_model_type, (moge_model, morgbd_model), future_pil_images)
+                        future_pil_images = micro_batch.pop('future_pil_images', None)
+                        if use_depth_align:
+                            with torch.autocast("cuda", dtype=torch.bfloat16):
+                                depth_targets, cls_token = get_depth_target(depth_model_type, (moge_model, morgbd_model), pil_images)
+                                if use_future_depth:
+                                    future_depth_targets, future_cls_token = get_depth_target(depth_model_type, (moge_model, morgbd_model), future_pil_images)
                         if use_future_video:
                             with torch.autocast("cuda", dtype=torch.bfloat16):
                                 future_video_target_bundle = get_video_target(
                                     video_teacher,
                                     pil_images,
                                     future_pil_images,
-                                    args.train.align_params['video'],
+                                    align_params['video'],
                                     effective_fps=future_video_effective_fps,
                                 )
                                 if isinstance(future_video_target_bundle, dict):
@@ -805,6 +822,14 @@ def main():
                                     future_video_targets = future_video_target_bundle
                             future_video_current_rgb = pil_images
                             future_video_target_rgb = future_pil_images
+                        if use_spatial_forcing:
+                            spatial_targets, spatial_target_mask = get_spatial_forcing_target(
+                                spatial_forcing_teacher,
+                                pil_images,
+                                micro_batch.get("img_masks"),
+                                spatial_forcing_cfg,
+                                image_grid_thw=micro_batch.get("image_grid_thw"),
+                            )
                         depth_forward_time = time.time() - depth_start_time
 
                 with model_fwd_context:
@@ -815,24 +840,32 @@ def main():
                         future_video_targets=future_video_targets,
                         future_video_cls_targets=future_video_cls_targets,
                         future_video_current_patch=future_video_current_dino,
+                        spatial_targets=spatial_targets,
+                        spatial_target_mask=spatial_target_mask,
                     )
                     if len(model_outputs) == 6:
                         loss, vla_loss, depth_loss, seq_wise_loss, loss_log, depth_preds = model_outputs
                         future_depth_loss = 0
                         future_video_loss = 0
+                        spatial_forcing_loss = 0
                         future_depth_preds = None
                         future_video_preds = None
                         future_video_current_preds = None
                     elif len(model_outputs) == 8:
                         loss, vla_loss, depth_loss, future_depth_loss, seq_wise_loss, loss_log, depth_preds, future_depth_preds = model_outputs
                         future_video_loss = 0
+                        spatial_forcing_loss = 0
                         future_video_preds = None
                         future_video_current_preds = None
                     elif len(model_outputs) == 10:
                         loss, vla_loss, depth_loss, future_depth_loss, future_video_loss, seq_wise_loss, loss_log, depth_preds, future_depth_preds, future_video_preds = model_outputs
                         future_video_current_preds = None
+                        spatial_forcing_loss = 0
                     elif len(model_outputs) == 11:
                         loss, vla_loss, depth_loss, future_depth_loss, future_video_loss, seq_wise_loss, loss_log, depth_preds, future_depth_preds, future_video_preds, future_video_current_preds = model_outputs
+                        spatial_forcing_loss = 0
+                    elif len(model_outputs) == 12:
+                        loss, vla_loss, depth_loss, future_depth_loss, future_video_loss, spatial_forcing_loss, seq_wise_loss, loss_log, depth_preds, future_depth_preds, future_video_preds, future_video_current_preds = model_outputs
                     else:
                         raise ValueError(f"Unexpected model output length: {len(model_outputs)}")
 
@@ -841,6 +874,7 @@ def main():
                     depth_loss = depth_loss / len(micro_batches)
                     future_depth_loss = future_depth_loss / len(micro_batches)
                     future_video_loss = future_video_loss / len(micro_batches)
+                    spatial_forcing_loss = spatial_forcing_loss / len(micro_batches)
                     seq_wise_loss = seq_wise_loss / len(micro_batches)
                     router_z_loss = loss_log.get("router_z_loss", loss_log.get("moe_zloss/weighted", 0))
                     avg_lang_length = micro_batch['lang_masks'].sum(dim=-1).float().mean()
@@ -856,6 +890,8 @@ def main():
                     total_future_depth_loss += future_depth_loss.item()
                 if not (isinstance(future_video_loss, int) or isinstance(future_video_loss, float)):
                     total_future_video_loss += future_video_loss.item()
+                if not (isinstance(spatial_forcing_loss, int) or isinstance(spatial_forcing_loss, float)):
+                    total_spatial_forcing_loss += spatial_forcing_loss.item()
                 if not (isinstance(seq_wise_loss, int) or isinstance(seq_wise_loss, float)):
                     total_seq_wise_loss += seq_wise_loss.item()
                 if not (isinstance(router_z_loss, int) or isinstance(router_z_loss, float)):
@@ -913,7 +949,7 @@ def main():
                 grad_norm = grad_norm.full_tensor().item()
 
             # collect mean loss across data parallel group
-            total_loss, total_vla_loss, total_depth_loss, total_future_depth_loss, total_future_video_loss, total_seq_wise_loss, total_router_z_loss, avg_lang_length, grad_norm = all_reduce((total_loss, total_vla_loss, total_depth_loss, total_future_depth_loss, total_future_video_loss, total_seq_wise_loss, total_router_z_loss, avg_lang_length, grad_norm), group=get_parallel_state().fsdp_group)
+            total_loss, total_vla_loss, total_depth_loss, total_future_depth_loss, total_future_video_loss, total_spatial_forcing_loss, total_seq_wise_loss, total_router_z_loss, avg_lang_length, grad_norm = all_reduce((total_loss, total_vla_loss, total_depth_loss, total_future_depth_loss, total_future_video_loss, total_spatial_forcing_loss, total_seq_wise_loss, total_router_z_loss, avg_lang_length, grad_norm), group=get_parallel_state().fsdp_group)
             total_depth_loss = total_depth_loss / depth_loss_weight
             total_future_depth_loss = total_future_depth_loss / future_depth_loss_weight
             total_future_video_loss = total_future_video_loss / future_video_loss_weight
@@ -944,6 +980,7 @@ def main():
                 f"Depth_Loss {total_depth_loss:.4f}, "
                 f"Future_Depth_Loss {total_future_depth_loss:.4f}, "
                 f"FutureVideo_Loss {total_future_video_loss:.4f}, "
+                f"SpatialForcing_Loss {total_spatial_forcing_loss:.4f}, "
                 f"SeqWise_Loss {total_seq_wise_loss:.4f}, "
                 f"RouterZ_Loss {total_router_z_loss:.4f}, "
                 f"{maxvio_str}"
@@ -963,6 +1000,7 @@ def main():
                 writer.add_scalar("training/depth_loss", total_depth_loss, global_step)
                 writer.add_scalar("training/future_depth_loss", total_future_depth_loss, global_step)
                 writer.add_scalar("training/future_video_loss", total_future_video_loss, global_step)
+                writer.add_scalar("training/spatial_forcing_loss", total_spatial_forcing_loss, global_step)
                 writer.add_scalar("training/sequence_wise_loss", total_seq_wise_loss, global_step)
                 writer.add_scalar("training/router_z_loss", total_router_z_loss, global_step)
                 # MoE monitoring metrics.

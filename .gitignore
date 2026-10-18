@@ -4,3 +4,4 @@ __pycache__/
 .runtime/
 *.log
 log.txt
+checkpoints/VGGT-1B/

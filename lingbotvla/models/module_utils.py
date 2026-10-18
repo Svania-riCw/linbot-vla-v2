@@ -67,6 +67,8 @@ _OPTIONAL_ALIGNMENT_STATE_PREFIXES = (
     "model.future_video_align_embs",
     "model.current_shared_task_proj",
     "model.future_shared_task_proj",
+    "model.spatial_forcing_norm",
+    "model.spatial_forcing_mlp",
 )
 
 
@@ -326,7 +328,7 @@ def load_model_weights(
 
     if skipped_disabled_alignment_keys:
         logger.info_rank0(
-            "Skipped %d checkpoint weights for disabled depth/video alignment modules.",
+            "Skipped %d checkpoint weights for disabled alignment modules.",
             len(skipped_disabled_alignment_keys),
         )
 
@@ -334,6 +336,17 @@ def load_model_weights(
         _dispatch_buffer(model, name, buffer)
 
     if post_training:
+        # SF is a training-only side head with no weights in the base LingBot
+        # checkpoint. Initialize only these newly introduced parameters; all
+        # other missing post-training parameters remain an error.
+        spatial_forcing_parameters = [
+            name for name in parameter_names
+            if name.startswith("model.spatial_forcing_norm.")
+            or name.startswith("model.spatial_forcing_mlp.")
+        ]
+        for name in spatial_forcing_parameters:
+            _init_parameter(model, name)
+            parameter_names.remove(name)
         assert len(parameter_names) == 0, f"Missing {parameter_names} during Post-Training. This is not allowed!!!"
         if adanorm_time:
             logger.info_rank0(">>> Parameters in AdaNorm has been ZERO initialized.")

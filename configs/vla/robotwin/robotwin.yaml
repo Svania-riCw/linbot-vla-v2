@@ -137,4 +137,20 @@ train:
       cls_loss_weight: 0.2
       log_max_samples: 32
       log_scale: 16
+    # Optional Spatial Forcing (arXiv:2510.12276). Set enabled=true to add
+    # frozen VGGT feature alignment while keeping inference unchanged.
+    spatial_forcing:
+      enabled: false
+      checkpoint_path: checkpoints/VGGT-1B/model.pt
+      repo_id: facebook/VGGT-1B
+      input_size: 518
+      vla_layer: 23
+      target_layer: -1
+      target_dim: 2048
+      proj_hidden_dim: 2048
+      loss_weight: 0.5
+      use_positional_encoding: true
+      positional_encoding_scale: 0.1
+      vla_merge_size: 2
+      target_bfloat16: true
     visual_steps: 5000

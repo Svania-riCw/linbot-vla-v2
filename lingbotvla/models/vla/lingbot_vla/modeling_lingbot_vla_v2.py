@@ -38,6 +38,7 @@ from .training_time_rtc import (
     sample_rtc_delay,
 )
 from .inference_time_rtc import rtc_soft_mask
+from ..vision_models.spatial_forcing import spatial_forcing_cosine_loss
 from .flex_attention import build_block_mask, flex_attention_forward, flex_attention_with_block_mask
 from lingbotvla.models.loader import LingBotVLAWeightLoader
 from lingbotvla.ops.triton_moe_loss import triton_sequence_wise_balance_loss
@@ -327,11 +328,14 @@ class QwenvlWithExpertV2Model(PreTrainedModel):
         ada_cond: List[torch.FloatTensor] = None,
         visual_pos_masks: Optional[torch.Tensor] = None,
         deepstack_visual_embeds: Optional[list[torch.Tensor]] = None,
+        capture_layer: Optional[int] = None,
+        return_capture: bool = False,
     ):
         models = [self.qwenvl.model.language_model, self.qwen_expert.model]
         num_layers = self.qwenvl.config.text_config.num_hidden_layers
         action_num_layers = self.config.qwen_expert_config.num_hidden_layers
         router_logits_list = []
+        captured_vlm_hidden = None
 
         assert action_num_layers == num_layers, (
             "Action expert and VLM must have the same number of layers "
@@ -405,6 +409,8 @@ class QwenvlWithExpertV2Model(PreTrainedModel):
                         hidden_states, att_output, start, end, output_atten=True
                     )
                     out_emb = self._apply_deepstack(out_emb, layer_idx, visual_pos_masks, deepstack_visual_embeds)
+                    if return_capture and capture_layer == layer_idx:
+                        captured_vlm_hidden = out_emb
                 outputs_embeds.append(out_emb)
                 start = end
             inputs_embeds = outputs_embeds
@@ -418,6 +424,8 @@ class QwenvlWithExpertV2Model(PreTrainedModel):
                 outputs_embeds.append(out_emb)
             else:
                 outputs_embeds.append(models[i].norm(hidden_states))
+        if return_capture:
+            return outputs_embeds, past_key_values, router_logits_list, captured_vlm_hidden
         return outputs_embeds, past_key_values, router_logits_list
 
     def get_attention_interface(self):
@@ -483,16 +491,18 @@ class FlowMatchingV2(FlowMatchingV1):
         self.action_time_mlp_out = nn.Linear(self.config.proj_width, self.config.proj_width)
 
         self.config.align_params = getattr(self.config, "align_params", None) or {}
-        if self.config.align_params != {}:
+        align_cfg = self.config.align_params
+        depth_cfg = align_cfg.get("depth", {})
+        spatial_forcing_cfg = align_cfg.get("spatial_forcing", {})
+        self.use_depth_align = bool(depth_cfg)
+        self.use_spatial_forcing = bool(spatial_forcing_cfg.get("enabled", False))
+        self.use_future_video = self.use_depth_align and bool(align_cfg.get("use_future_video", False))
+        if self.use_depth_align:
             self.steps = 0
-            self.use_depth_align = True
-            self.init_depth_heads(self.config.align_params)
-            self.use_future_video = self.config.align_params.get("use_future_video", False)
+            self.init_depth_heads(align_cfg)
             if self.use_future_video:
-                self.init_video_heads(self.config.align_params)
+                self.init_video_heads(align_cfg)
         else:
-            self.use_depth_align = False
-            self.use_future_video = False
             self.use_future_video_patch = False
             self.use_current_video_patch = False
             self.use_current_shared_task_proj = False
@@ -500,6 +510,26 @@ class FlowMatchingV2(FlowMatchingV1):
             self.use_shared_future_task_proj = False
             self.future_video_share_future_depth_query = False
             self.block_future_depth_to_action = False
+
+        if getattr(self, "use_spatial_forcing", False):
+            self.sf_vla_layer = int(spatial_forcing_cfg.get("vla_layer", 23))
+            self.sf_target_dim = int(spatial_forcing_cfg.get("target_dim", 2048))
+            self.sf_loss_weight = float(spatial_forcing_cfg.get("loss_weight", 0.5))
+            vla_hidden_size = int(self.qwenvl_with_expert.qwenvl.config.text_config.hidden_size)
+            sf_projection_hidden_size = int(
+                spatial_forcing_cfg.get("proj_hidden_dim", self.sf_target_dim)
+            )
+            self.spatial_forcing_norm = nn.BatchNorm1d(vla_hidden_size)
+            self.spatial_forcing_mlp = nn.Sequential(
+                nn.Linear(vla_hidden_size, sf_projection_hidden_size),
+                nn.GELU(),
+                nn.Linear(sf_projection_hidden_size, self.sf_target_dim),
+            )
+            if not 0 <= self.sf_vla_layer < self.qwenvl_with_expert.qwenvl.config.text_config.num_hidden_layers:
+                raise ValueError(
+                    "align_params.spatial_forcing.vla_layer must select a valid Qwen3-VL layer, "
+                    f"got {self.sf_vla_layer}."
+                )
 
         self.set_requires_grad()
 
@@ -849,6 +879,8 @@ class FlowMatchingV2(FlowMatchingV1):
         future_video_targets=None,
         future_video_cls_targets=None,
         future_video_current_patch=None,
+        spatial_targets=None,
+        spatial_target_mask=None,
         action_is_pad=None,
         rtc_delay=None,
     ) -> Tensor:
@@ -942,7 +974,7 @@ class FlowMatchingV2(FlowMatchingV1):
         )
         position_ids = self._build_full_position_ids(prefix_position_ids, prefix_pad_masks, suffix_pad_masks)
 
-        (outputs_embeds, suffix_out), _, router_logits_list = self.qwenvl_with_expert.forward(
+        forward_kwargs = dict(
             attention_mask=att_2d_masks,
             position_ids=position_ids,
             vlm_position_ids=prefix_position_ids,
@@ -954,10 +986,40 @@ class FlowMatchingV2(FlowMatchingV1):
             visual_pos_masks=visual_pos_masks,
             deepstack_visual_embeds=deepstack_visual_embeds,
         )
+        captured_vlm_hidden = None
+        if getattr(self, "use_spatial_forcing", False):
+            if spatial_targets is None or spatial_target_mask is None:
+                raise ValueError("Spatial Forcing is enabled but spatial_targets/mask were not provided")
+            (outputs_embeds, suffix_out), _, router_logits_list, captured_vlm_hidden = self.qwenvl_with_expert.forward(
+                **forward_kwargs,
+                capture_layer=self.sf_vla_layer,
+                return_capture=True,
+            )
+            if captured_vlm_hidden is None:
+                raise RuntimeError(f"Failed to capture VLA hidden states at layer {self.sf_vla_layer}")
+        else:
+            (outputs_embeds, suffix_out), _, router_logits_list = self.qwenvl_with_expert.forward(
+                **forward_kwargs,
+            )
+
         align_metrics = {}
-        if self.config.align_params != {}:
+        loss_spatial_forcing = 0
+        if getattr(self, "use_spatial_forcing", False):
+            loss_spatial_forcing_raw = spatial_forcing_cosine_loss(
+                self.spatial_forcing_mlp,
+                self.spatial_forcing_norm,
+                captured_vlm_hidden,
+                visual_pos_masks,
+                spatial_targets,
+                spatial_target_mask,
+            )
+            loss_spatial_forcing = loss_spatial_forcing_raw * self.sf_loss_weight
+            align_metrics["align/spatial_forcing_loss"] = loss_spatial_forcing_raw.detach()
+            align_metrics["align/spatial_forcing_loss_weighted"] = loss_spatial_forcing.detach()
+
+        if getattr(self, "use_depth_align", False):
             loss_depth, loss_future_depth, depth_preds, future_depth_preds = self.depth_emb_forward(outputs_embeds, depth_targets, img_masks,future_depth_targets,)
-            loss_depth = loss_depth * self.config.align_params["depth_loss_weight"]
+            loss_depth = loss_depth * self.config.align_params.get("depth_loss_weight", 1.0)
             loss_future_depth = loss_future_depth * self.config.align_params.get("future_depth_loss_weight", 1.0)
             loss_future_video = 0
             future_video_preds = None
@@ -986,7 +1048,7 @@ class FlowMatchingV2(FlowMatchingV1):
                     "future_video_loss_weight",
                     self.config.align_params.get(
                         "future_video_loss_weight",
-                        self.config.align_params["depth_loss_weight"],
+                        self.config.align_params.get("depth_loss_weight", 1.0),
                     ),
                 )
                 loss_future_video = video_total_loss * video_weight
@@ -1027,7 +1089,36 @@ class FlowMatchingV2(FlowMatchingV1):
         )
         if align_metrics:
             moe_metrics.update(align_metrics)
-        return losses, loss_depth, loss_future_depth, loss_future_video, depth_preds, seq_wise_loss, router_z_loss, moe_metrics, future_depth_preds, future_video_preds, current_video_preds, rtc_loss_mask
+        if getattr(self, "use_spatial_forcing", False):
+            return (
+                losses,
+                loss_depth,
+                loss_future_depth,
+                loss_future_video,
+                loss_spatial_forcing,
+                depth_preds,
+                seq_wise_loss,
+                router_z_loss,
+                moe_metrics,
+                future_depth_preds,
+                future_video_preds,
+                current_video_preds,
+                rtc_loss_mask,
+            )
+        return (
+            losses,
+            loss_depth,
+            loss_future_depth,
+            loss_future_video,
+            depth_preds,
+            seq_wise_loss,
+            router_z_loss,
+            moe_metrics,
+            future_depth_preds,
+            future_video_preds,
+            current_video_preds,
+            rtc_loss_mask,
+        )
 
     def sample_actions(
         self,
@@ -1461,6 +1552,8 @@ class LingbotVlaV2Policy(PreTrainedModel):
         future_video_targets=None,
         future_video_cls_targets=None,
         future_video_current_patch=None,
+        spatial_targets=None,
+        spatial_target_mask=None,
         rtc_delay=None,
         **kwargs
     ) -> tuple[Tensor, dict[str, Tensor]]:
@@ -1468,20 +1561,7 @@ class LingbotVlaV2Policy(PreTrainedModel):
         if getattr(self.config, "action_fp32", False):
             state = state.float()
             actions = actions.float()
-        (
-            losses,
-            loss_depth,
-            loss_future_depth,
-            loss_future_video,
-            depth_preds,
-            seq_wise_loss,
-            router_z_loss,
-            moe_metrics,
-            future_depth_preds,
-            future_video_preds,
-            current_video_preds,
-            rtc_loss_mask,
-        ) = self.model.forward(
+        model_outputs = self.model.forward(
             images,
             img_masks,
             lang_tokens,
@@ -1497,9 +1577,43 @@ class LingbotVlaV2Policy(PreTrainedModel):
             future_video_targets=future_video_targets,
             future_video_cls_targets=future_video_cls_targets,
             future_video_current_patch=future_video_current_patch,
+            spatial_targets=spatial_targets,
+            spatial_target_mask=spatial_target_mask,
             action_is_pad=action_is_pad,
             rtc_delay=rtc_delay,
         )
+        if getattr(self.model, "use_spatial_forcing", False):
+            (
+                losses,
+                loss_depth,
+                loss_future_depth,
+                loss_future_video,
+                loss_spatial_forcing,
+                depth_preds,
+                seq_wise_loss,
+                router_z_loss,
+                moe_metrics,
+                future_depth_preds,
+                future_video_preds,
+                current_video_preds,
+                rtc_loss_mask,
+            ) = model_outputs
+        else:
+            (
+                losses,
+                loss_depth,
+                loss_future_depth,
+                loss_future_video,
+                depth_preds,
+                seq_wise_loss,
+                router_z_loss,
+                moe_metrics,
+                future_depth_preds,
+                future_video_preds,
+                current_video_preds,
+                rtc_loss_mask,
+            ) = model_outputs
+            loss_spatial_forcing = 0
 
         if getattr(self.config, "training_time_rtc", False):
             if rtc_loss_mask is None:
@@ -1534,13 +1648,41 @@ class LingbotVlaV2Policy(PreTrainedModel):
             + loss_depth
             + loss_future_depth
             + loss_future_video
+            + loss_spatial_forcing
             + seq_wise_loss
             + router_z_loss
         )
         loss_dict["router_z_loss"] = router_z_loss.detach() if torch.is_tensor(router_z_loss) else router_z_loss
         if moe_metrics:
             loss_dict.update(moe_metrics)
-        return total_loss, loss_vla, loss_depth, loss_future_depth, loss_future_video, seq_wise_loss, loss_dict, depth_preds, future_depth_preds, future_video_preds, current_video_preds
+        if getattr(self.model, "use_spatial_forcing", False):
+            return (
+                total_loss,
+                loss_vla,
+                loss_depth,
+                loss_future_depth,
+                loss_future_video,
+                loss_spatial_forcing,
+                seq_wise_loss,
+                loss_dict,
+                depth_preds,
+                future_depth_preds,
+                future_video_preds,
+                current_video_preds,
+            )
+        return (
+            total_loss,
+            loss_vla,
+            loss_depth,
+            loss_future_depth,
+            loss_future_video,
+            seq_wise_loss,
+            loss_dict,
+            depth_preds,
+            future_depth_preds,
+            future_video_preds,
+            current_video_preds,
+        )
 
     def sample_actions(self, *args, **kwargs) -> Tensor:
         return self.model.sample_actions(*args, **kwargs)

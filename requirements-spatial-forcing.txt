@@ -1,0 +1,2 @@
+# Optional frozen VGGT teacher used by Spatial Forcing.
+git+https://github.com/facebookresearch/vggt.git@a288dd0f14786c93483e45524328726ab7b1b4ce#egg=vggt
