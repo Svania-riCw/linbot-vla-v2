@@ -49,8 +49,8 @@ Environment defaults:
   LINGBOT_NORM_STATS_FILE defaults to this RTC checkpoint's clean training stats
   VIDEO            true; set false to disable video recording
   Pass --no_rtc after the checkpoint to use synchronous inference without RTC.
-  Pass --rtc_mode paper --use_compile False for training-free inference-time RTC.
-  --rtc_guidance_beta sets the paper guidance clip (default: 5.0).
+  Pass --rtc_mode inference_time --use_compile False for training-free RTC.
+  --rtc_guidance_beta sets the inference-time guidance clip (default: 5.0).
   RUN_DIR          fixed directory to resume a prior run; with multiple settings,
                    each setting gets its own subdirectory
 
@@ -64,17 +64,17 @@ if [[ $# -gt 0 && ${1:-} != -* ]]; then
     shift
 fi
 launcher_args=("$@")
-run_prefix=rtc
-# eval_rtc.sh enables RTC before forwarding these overrides; the last switch wins.
+run_prefix=training_time_rtc
+# eval_rtc.sh selects training-time RTC; explicit later options can override it.
 for ((i=0; i<${#launcher_args[@]}; i++)); do
     case "${launcher_args[$i]}" in
         --no_rtc) run_prefix=sync ;;
-        --rtc_async) run_prefix=rtc ;;
+        --rtc_async) run_prefix=training_time_rtc ;;
         --rtc_mode)
             case "${launcher_args[$((i+1))]:-}" in
                 off) run_prefix=sync ;;
-                fixed_prefix) run_prefix=rtc ;;
-                paper) run_prefix=paper_rtc ;;
+                training_time|fixed_prefix|async_fixed_prefix_v2) run_prefix=training_time_rtc ;;
+                inference_time|paper) run_prefix=inference_time_rtc ;;
             esac
             i=$((i + 1))
             ;;

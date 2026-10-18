@@ -43,4 +43,4 @@ exec bash experiment/robotwin/start_robotwin_infer_and_eval.sh \
     --output_base "$eval_workdir/eval_results" --conda_sh "$conda_sh" \
     --inference_env "$INFERENCE_ENV" --sim_env "$SIM_ENV" \
     --task_config "$setting" --num_gpus 1 --num_per_gpu 1 \
-    --use_bf16 True --use_fp32 False --use_compile False --rtc_async "$@"
+    --use_bf16 True --use_fp32 False --use_compile False --rtc_mode training_time "$@"

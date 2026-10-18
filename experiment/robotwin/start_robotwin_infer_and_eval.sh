@@ -33,7 +33,7 @@
 #   --use_fp32          use float32 inference (default: True; release reproduction setting)
 #   --use_compile       enable model compile in policy inference (default: True)
 #   --task_config       RoboTwin task config (default: demo_clean, or $TASK_CONFIG)
-#   --no_rtc            disable RTC (overrides an earlier --rtc_async)
+#   --no_rtc            disable RTC (overrides an earlier RTC mode)
 #   --keep_inference    keep inference servers resident after simulation
 #
 # Examples:
@@ -105,7 +105,7 @@ while [[ $# -gt 0 ]]; do
         --num_per_gpu)       num_per_gpu="$2";       shift 2 ;;
         --inference_gpu_ids) inference_gpu_ids="$2"; shift 2 ;;
         --sim_gpu_ids)       sim_gpu_ids="$2";       shift 2 ;;
-        --rtc_async)         rtc_async=True; rtc_mode=fixed_prefix; shift ;;
+        --rtc_async)         rtc_async=True; rtc_mode=training_time; shift ;;
         --no_rtc)            rtc_async=False; rtc_mode=off; shift ;;
         --rtc_mode)          rtc_mode="$2"; shift 2 ;;
         --rtc_guidance_beta) rtc_guidance_beta="$2"; shift 2 ;;
@@ -149,9 +149,9 @@ while [[ $# -gt 0 ]]; do
             echo "  --inference_gpu_ids physical GPU IDs for inference, e.g. 0,1,2,3"
             echo "  --sim_gpu_ids       physical GPU IDs for simulation, e.g. 4,5,6,7"
             echo "  --rtc_async         overlap inference with committed old-plan actions"
-            echo "  --rtc_mode          off, fixed_prefix (RTC-trained), or paper (training-free VJP guidance)"
-            echo "  --rtc_guidance_beta maximum guidance weight for paper RTC (default: 5.0)"
-            echo "  --no_rtc            disable RTC; overrides an earlier --rtc_async"
+            echo "  --rtc_mode          off, training_time (trained checkpoint), or inference_time (training-free VJP)"
+            echo "  --rtc_guidance_beta maximum guidance weight for inference-time RTC (default: 5.0)"
+            echo "  --no_rtc            disable RTC; overrides an earlier RTC mode"
             echo "  --rtc_replan_steps  target actions between inference requests, including delay (default: 8)"
             echo "  --rtc_delay         old-plan prefix actions executed during inference (default: 6; trained range: 0..9)"
             echo "  --rtc_timeout       request timeout seconds (default: 180)"
@@ -174,11 +174,12 @@ done
 
 case "$rtc_mode" in
     off) rtc_async=False ;;
-    fixed_prefix|paper) rtc_async=True ;;
-    *) echo 'rtc_mode must be off, fixed_prefix, or paper' >&2; exit 2 ;;
+    training_time|fixed_prefix|async_fixed_prefix_v2) rtc_mode=training_time; rtc_async=True ;;
+    inference_time|paper) rtc_mode=inference_time; rtc_async=True ;;
+    *) echo 'rtc_mode must be off, training_time, or inference_time' >&2; exit 2 ;;
 esac
-if [[ "$rtc_mode" == paper && "$use_compile" != False ]]; then
-    echo 'Paper RTC requires --use_compile False for VJP autograd' >&2; exit 2
+if [[ "$rtc_mode" == inference_time && "$use_compile" != False ]]; then
+    echo 'Inference-time RTC requires --use_compile False for VJP autograd' >&2; exit 2
 fi
 
 if [ -z "$instruction_type" ]; then
