@@ -1,0 +1,68 @@
+{
+  "configuration_differences": {
+    "data.prefetch_factor": {
+      "5k": 4,
+      "continued10k": 1
+    },
+    "train.enable_resume": {
+      "5k": false,
+      "continued10k": true
+    },
+    "train.load_checkpoint_path": {
+      "5k": null,
+      "continued10k": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle/JDelta/train/checkpoints/global_step_5000"
+    },
+    "train.lr_schedule_steps": {
+      "5k": null,
+      "continued10k": 5000
+    },
+    "train.max_steps": {
+      "5k": 5000,
+      "continued10k": 10000
+    },
+    "train.output_dir": {
+      "5k": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle/JDelta/train",
+      "continued10k": "/2025233210/ysj/lingbot_ws/outputs/joint_delta_5k_to_10k"
+    },
+    "train.require_resume": {
+      "5k": null,
+      "continued10k": true
+    }
+  },
+  "evaluation_differences": {
+    "use_compile": {
+      "5k": "NOT_RECORDED",
+      "continued10k": true
+    },
+    "code_commit": {
+      "5k": "74c9bdc5bc10aec62dce86e04d7ae416e5d02ac3",
+      "continued10k": "674db6d7a90a04a5fffdb2502257ec93c0604e37"
+    }
+  },
+  "same_contract_fields": {
+    "norm_sha256": true,
+    "robot_sha256": true,
+    "state_features_sha256": true,
+    "label_manifests": true,
+    "train_list_sha256": true
+  },
+  "restore_lines": [
+    "10/17/2026 15:49:09 - INFO - __main__ - Load distributed checkpoint from /2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle/JDelta/train/checkpoints/global_step_5000 successfully!"
+  ],
+  "updates_recorded": 5000,
+  "first_update": [
+    "5001",
+    "4295",
+    "0.0241",
+    "0.0200"
+  ],
+  "last_update": [
+    "10000",
+    "4295",
+    "0.0286",
+    "0.0249"
+  ],
+  "last200_loss_mean": 0.0242105,
+  "last200_vla_mean": 0.0204925,
+  "runtime_diff_stat": " lingbotvla/checkpoint/checkpointer.py              |   7 +-\n lingbotvla/utils/arguments.py                      |   6 +\n tasks/vla/train_lingbotvla.py                      |  21 ++-\n tests/action_parameterization/run_checks.py        |   1 +\n tests/action_parameterization/test_resume.py       | 153 ++++++++++++++++\n ysj_utils/H20_RUN_2026-10-17.md                    |  24 ++-\n ysj_utils/JOINT_DELTA_CONTINUE.md                  |  44 +++++\n ysj_utils/compare_results.py                       |   2 +\n ysj_utils/evaluate.py                              |   7 +-\n .../reports/h20_direct_checks_2026-10-17.json      |  56 ++++++\n .../reports/h20_direct_queued_2026-10-17.json      | 134 ++++++++++++++\n .../reports/resume_compile_checks_2026-10-17.json  |  57 ++++++\n ysj_utils/resume_joint_delta.py                    | 193 +++++++++++++++++++++\n ysj_utils/resume_joint_delta.sh                    |   7 +\n 14 files changed, 699 insertions(+), 13 deletions(-)\n"
+}

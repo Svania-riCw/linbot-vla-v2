@@ -2,6 +2,8 @@
 
 最终结果（10月18日核验）：续训到累计10000步及compile=True的350次评测均完成，退出码0；Clean86/175=49.14%、Random41/175=23.43%、合计127/350=36.29%。本轮评测57分18秒。原5k为124/350=35.43%，本轮多成功3次；推理compile开关和学习率历史不同，不能单独归因于训练步数。历史10k baseline162/350=46.29%，本轮低10个百分点，未获得整体涨分。完整协议与结果记录为`reports/h20_joint_delta_10k_compile_true_2026-10-18.json`。
 
+5k与续训10k的实际配置逐项核对记录为`reports/joint_delta_10k_detail/configuration_audit_5k_vs_10k.json`：train-list、norm、robot config、EE状态特征及标签清单SHA256均相同；FP32、mask、batch、seed及模型配置保持一致。实际续训日志恰好包含5001至10000共5000次更新，无从头训练或跳过优化器的日志。另有prefetch4→1、恢复/输出/总步数参数以及显式保留5000步LR horizon的差异。评测使用相同任务、episode数、环境seed0、fp32和chunk50，但compile由False改True。模型服务启动时固定随机种子，episode reset未重置策略随机数，且8卡动态领取任务；因此没有验证逐episode相同策略噪声，不能将现有结果当作严格配对比较。Clean少5次成功不构成过拟合的直接证据。
+
 入口：`bash ysj_utils/resume_joint_delta.sh`。建议在30375上自己的tmux窗口执行。默认不会修改旧训练目录；新结果写到 `/2025233210/ysj/lingbot_ws/outputs/joint_delta_5k_to_10k`。
 
 先检查完整DCP和命令，不启动GPU：
@@ -27,7 +29,7 @@ bash ysj_utils/resume_joint_delta.sh
 
 本轮从现有Joint Delta的完整5k DCP继续，新增5000次参数更新，到全局10000步停止。保留原`enable_fp32=False`、`enable_mixed_precision=True`、`mask_action_padding=True`、BS128、8卡micro16、seed42、chunk50、数据列表、EE输入、norm、优化器、训练compile及所有模型配置。新输出目录、总步数和恢复参数会变化。
 
-H20真实恢复检查发现该容器`/dev/shm`只有4GB且不能重挂载扩容，原prefetch=2会在恢复后首步编译期间导致DataLoader worker Bus error。脚本明确将`data.prefetch_factor`从2降到1，保留8个worker和加载器恢复状态；它减少在途batch，不改变batch大小、数据集或优化目标。这个资源配置差异也记录在continuation.json中，可用`--prefetch-factor 2`保留原值，但需先解决共享内存容量。
+H20真实恢复检查发现该容器`/dev/shm`只有4GB且不能重挂载扩容，保留原预取配置会在恢复后首步编译期间导致DataLoader worker Bus error。逐项核对实际保存的CLI配置后确认，原`data.prefetch_factor=4`，续训为1；先前“2→1”的表述使用了函数默认值，现予纠正。保留8个worker和加载器恢复状态；它减少在途batch，不改变batch大小、数据集或优化目标。这个资源配置差异也记录在continuation.json中，可用`--prefetch-factor 4`保留原值，但需先解决共享内存容量。
 
 学习率必须单独说明：原5k余弦已降至主组5e-5，Muon专家组约1.4142e-4。本脚本将scheduler原始horizon固定为5000，后续维持其末端值，避免仅改max_steps=10000导致LR回升。因此这是“原5k计划之后续训5k”，不等于从第1步按10k余弦训练；比较历史10k baseline时需注明。
 
@@ -49,6 +51,6 @@ H20真实恢复检查发现该容器`/dev/shm`只有4GB且不能重挂载扩容�
 
 H20环境通过96项回归检查，报告 `reports/h20_resume_checks_2026-10-17.json`。真实8卡检查从原DCP5000完整恢复到5001、5002：loss分别0.0241、0.0265，GradNorm分别0.3514、0.3898，主组LR均5e-5；已保存新DCP和完整HF，进程退出码0。归一化和机器人配置SHA256与原模型一致。记录为 `reports/h20_resume_gpu_2026-10-17.json`，诊断产物位于 `/2025233210/ysj/lingbot_ws/outputs/joint_delta_resume_check_5002`。
 
-该检查验证了恢复状态、两次更新及保存；它没有执行完整额外5000步或compile=True的仿真rollout。原prefetch=2检查因4GB共享内存不足退出的日志保留在同级`joint_delta_resume_check_5002_failed_prefetch2`，没有覆盖原5k模型。
+该检查验证了恢复状态、两次更新及保存；它本身没有执行完整额外5000步或compile=True的仿真rollout。保留原prefetch=4的检查因4GB共享内存不足退出，日志仍保留在当时误命名的`joint_delta_resume_check_5002_failed_prefetch2`，没有覆盖原5k模型。
 
 正式续训已在30375的`ysj-jdelta10k`会话启动，输出目录为本文默认目录；已确认从5000恢复并完成5001及后续多次更新，loss/梯度有限。检查快照为`reports/h20_joint_delta_continue_started_2026-10-17.json`，它只证明启动时运行正常，不代表后续10k训练和350次评测已完成。查看使用`tmux attach -t ysj-jdelta10k`，默认选中logs窗口；断开后重连即可，只有进程确实退出才重复启动脚本。
