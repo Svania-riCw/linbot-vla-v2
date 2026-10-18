@@ -30,14 +30,14 @@ from .utils import (
     prefix_query_segments,
     prefix_query_token_spans,
 )
-from .rtc import (
+from .training_time_rtc import (
     apply_rtc_prefix,
     combine_rtc_loss_mask,
     make_rtc_flow,
-    rtc_soft_mask,
     rtc_time_for_prefix,
     sample_rtc_delay,
 )
+from .inference_time_rtc import rtc_soft_mask
 from .flex_attention import build_block_mask, flex_attention_forward, flex_attention_with_block_mask
 from lingbotvla.models.loader import LingBotVLAWeightLoader
 from lingbotvla.ops.triton_moe_loss import triton_sequence_wise_balance_loss
@@ -1040,7 +1040,7 @@ class FlowMatchingV2(FlowMatchingV1):
         image_grid_thw=None,
         previous_actions=None,
         rtc_delay=None,
-        rtc_mode="async_fixed_prefix_v2",
+        rtc_mode="training_time",
         rtc_execution_horizon=None,
         rtc_guidance_beta=5.0,
     ) -> Tensor:
@@ -1057,15 +1057,22 @@ class FlowMatchingV2(FlowMatchingV1):
             )
             noise = torch.randn(actions_shape, device=device, dtype=dtype)
 
-        if rtc_mode not in ("async_fixed_prefix_v2", "paper"):
+        rtc_mode = {
+            "training_time": "training_time",
+            "fixed_prefix": "training_time",
+            "async_fixed_prefix_v2": "training_time",
+            "inference_time": "inference_time",
+            "paper": "inference_time",
+        }.get(rtc_mode, rtc_mode)
+        if rtc_mode not in ("training_time", "inference_time"):
             raise ValueError(f"Unsupported RTC mode: {rtc_mode!r}")
         rtc_prefix = None
         rtc_soft_weights = None
         if previous_actions is not None:
             if rtc_delay is None:
                 raise ValueError("rtc_delay is required when previous_actions are supplied")
-            if rtc_mode == "async_fixed_prefix_v2" and not getattr(self.config, "training_time_rtc", False):
-                raise ValueError("Fixed-prefix RTC requires training_time_rtc=True in the model config")
+            if rtc_mode == "training_time" and not getattr(self.config, "training_time_rtc", False):
+                raise ValueError("Training-time RTC requires training_time_rtc=True in the model config")
             rtc_delay = torch.as_tensor(rtc_delay, device=device, dtype=torch.long)
             if rtc_delay.ndim == 0:
                 rtc_delay = rtc_delay.expand(bsize)
@@ -1083,16 +1090,16 @@ class FlowMatchingV2(FlowMatchingV1):
                     f"previous_actions must have shape (batch, at least {horizon}, {self.config.max_action_dim})"
                 )
             previous_actions = previous_actions[:, :horizon].to(device=device, dtype=dtype)
-            if rtc_mode == "async_fixed_prefix_v2":
+            if rtc_mode == "training_time":
                 rtc_prefix = rtc_delay[:, None] > torch.arange(horizon, device=device)[None, :]
                 x_t = torch.where(rtc_prefix[..., None], previous_actions, noise)
             else:
                 if rtc_execution_horizon is None:
-                    raise ValueError("rtc_execution_horizon is required for paper RTC")
+                    raise ValueError("rtc_execution_horizon is required for inference-time RTC")
                 if not 0 < rtc_guidance_beta:
-                    raise ValueError("rtc_guidance_beta must be positive")
+                    raise ValueError("inference-time RTC guidance_beta must be positive")
                 if rtc_delay.ndim != 1 or torch.any(rtc_delay != rtc_delay[0]):
-                    raise ValueError("Paper RTC currently requires one shared delay per inference batch")
+                    raise ValueError("Inference-time RTC currently requires one shared delay per batch")
                 rtc_soft_weights = rtc_soft_mask(
                     horizon, int(rtc_delay[0].item()), int(rtc_execution_horizon), device, dtype
                 )[None, :, None]

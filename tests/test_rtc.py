@@ -8,16 +8,16 @@ from torch import nn
 from lingbotvla.models.vla.lingbot_vla.configuration_lingbot_vla import LingbotVLAV2Config
 from lingbotvla.models.vla.lingbot_vla.modeling_lingbot_vla import AdaRMSNorm, FixAdaRMSNorm
 from lingbotvla.models.vla.lingbot_vla.modeling_lingbot_vla_v2 import FlowMatchingV2
-from lingbotvla.models.vla.lingbot_vla.rtc import (
+from lingbotvla.models.vla.lingbot_vla.training_time_rtc import (
     align_previous_action_chunk,
     apply_rtc_prefix,
     combine_rtc_loss_mask,
     make_rtc_flow,
     rtc_prefix_mask,
-    rtc_soft_mask,
     rtc_time_for_prefix,
     sample_rtc_delay,
 )
+from lingbotvla.models.vla.lingbot_vla.inference_time_rtc import rtc_soft_mask
 
 
 class FakeExpert(nn.Module):
@@ -86,7 +86,7 @@ class RTCMigrationTests(unittest.TestCase):
         self.assertTrue(torch.allclose(time, torch.tensor([[0.0, 0.8, 0.8, 0.8], [0.0, 0.0, 0.0, 0.6]])))
         self.assertEqual(rtc_prefix_mask(delay, 4).sum(dim=1).tolist(), [1, 3])
 
-    def test_paper_rtc_soft_mask_freezes_prefix_decays_overlap_and_clears_execution_tail(self):
+    def test_inference_time_rtc_soft_mask_freezes_prefix_decays_overlap_and_clears_execution_tail(self):
         weights = rtc_soft_mask(50, 6, 8, device='cpu', dtype=torch.float32)
         self.assertTrue(torch.equal(weights[:6], torch.ones(6)))
         self.assertTrue(torch.equal(weights[42:], torch.zeros(8)))
@@ -96,7 +96,7 @@ class RTCMigrationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'delay <= execution_horizon'):
             rtc_soft_mask(50, 9, 8, device='cpu', dtype=torch.float32)
 
-    def test_paper_rtc_sampler_uses_autograd_guidance_with_baseline_config(self):
+    def test_inference_time_rtc_sampler_uses_autograd_guidance_with_baseline_config(self):
         batch, horizon, action_dim, width = 1, 4, 2, 4
         model = FlowMatchingV2.__new__(FlowMatchingV2)
         nn.Module.__init__(model)
@@ -128,7 +128,7 @@ class RTCMigrationTests(unittest.TestCase):
         result = model.sample_actions(
             images=None, img_masks=None, lang_tokens=None, lang_masks=None,
             state=torch.zeros(batch, 4), noise=torch.ones(batch, horizon, action_dim),
-            previous_actions=previous, rtc_delay=torch.tensor([1]), rtc_mode='paper',
+            previous_actions=previous, rtc_delay=torch.tensor([1]), rtc_mode='inference_time',
             rtc_execution_horizon=2, rtc_guidance_beta=5.0,
         )
         self.assertEqual(calls, [(True, True), (True, True)])

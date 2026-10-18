@@ -12,7 +12,7 @@ import numpy as np
 
 from deploy.async_rtc import AsyncRTC
 from deploy.msgpack_numpy import packb, unpackb
-from deploy.rtc_protocol import validate_rtc_request
+from deploy.rtc_protocol import normalize_rtc_mode, validate_rtc_request
 from experiment.robotwin import eval_checkpoint
 
 
@@ -49,6 +49,12 @@ class FakePolicy:
 
 
 class AsyncRTCTest(unittest.TestCase):
+    def test_mode_names_follow_the_two_paper_split_and_keep_old_aliases(self):
+        self.assertEqual(normalize_rtc_mode('training_time'), 'training_time')
+        self.assertEqual(normalize_rtc_mode('fixed_prefix'), 'training_time')
+        self.assertEqual(normalize_rtc_mode('inference_time'), 'inference_time')
+        self.assertEqual(normalize_rtc_mode('paper'), 'inference_time')
+
     def test_multiple_plans_align_without_replay_and_snapshot_copies_buffers(self):
         model = FakePolicy()
         state = np.zeros(14, dtype=np.float32)
@@ -113,17 +119,18 @@ class AsyncRTCTest(unittest.TestCase):
         self.assertEqual([int(call['observation.state'][0]) for call in model.calls],
                          [0, 8, 16, 24])
         self.assertEqual([call['_rtc']['delay'] for call in model.calls], [0, 6, 6, 6])
+        self.assertEqual([call['_rtc']['mode'] for call in model.calls], ['training_time'] * 4)
         for call in model.calls[1:]:
             start = int(call['observation.state'][0])
             np.testing.assert_array_equal(
                 call['_rtc']['previous_actions'][:6, 0], np.arange(start, start + 6)
             )
 
-    def test_paper_mode_uses_full_soft_overlap_payload_with_baseline_checkpoint(self):
+    def test_inference_time_mode_uses_full_soft_overlap_payload_with_baseline_checkpoint(self):
         model = FakePolicy()
         model.release = threading.Event()
         rtc = AsyncRTC(model, replan_steps=8, delay=6,
-                       mode='paper', guidance_beta=5.0,
+                       mode='inference_time', guidance_beta=5.0,
                        log=lambda *a, **k: None)
         actions = []
         try:
@@ -135,7 +142,7 @@ class AsyncRTCTest(unittest.TestCase):
             self.assertFalse(rtc.pending[0].done())
             request = model.calls[1]['_rtc']
             self.assertEqual((request['mode'], request['delay'], request['execution_horizon']),
-                             ('paper', 6, 8))
+                             ('inference_time', 6, 8))
             np.testing.assert_array_equal(request['previous_actions'][:42, 0], np.arange(8, 50))
             np.testing.assert_array_equal(request['previous_actions'][42:, 0], np.zeros(8))
             model.release.set()
@@ -202,12 +209,16 @@ class AsyncRTCTest(unittest.TestCase):
                     dict(previous_actions=np.zeros((50,14))),dict(previous_actions=None),
                     dict(previous_actions=np.full((50,55),np.nan))):
             with self.assertRaises(ValueError): validate_rtc_request(dict(request,**bad),config,1)
+        with self.assertRaisesRegex(ValueError, 'cannot be off'):
+            validate_rtc_request(dict(request, mode='off'), config, 1)
         config.training_time_rtc=False
-        with self.assertRaisesRegex(ValueError,'RTC-trained'): validate_rtc_request(request,config,1)
+        with self.assertRaisesRegex(ValueError,'Training-time RTC requires'): validate_rtc_request(request,config,1)
 
-        paper_request = dict(request, mode='paper', execution_horizon=8, guidance_beta=5.0)
-        previous, delay, request_id = validate_rtc_request(paper_request, config, 1)
+        inference_request = dict(request, mode='inference_time', execution_horizon=8, guidance_beta=5.0)
+        previous, delay, request_id = validate_rtc_request(inference_request, config, 1)
         self.assertEqual((previous.shape, delay, request_id), ((1, 50, 55), 6, 'episode:2'))
+        old_inference_request = dict(inference_request, mode='paper')
+        self.assertEqual(validate_rtc_request(old_inference_request, config, 1)[1:], (6, 'episode:2'))
 
     def test_resume_rejects_changed_rtc_settings(self):
         with tempfile.TemporaryDirectory() as directory:

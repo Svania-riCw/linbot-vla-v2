@@ -31,6 +31,12 @@ from lingbotvla.models.vla.lingbot_vla.qwen3vl_in_vla import apply_lingbot_qwen3
 
 from lingbotvla.data.vla_data.utils import FeatureTransform
 from lingbotvla.models import build_processor
+from deploy.rtc_protocol import (
+    RTC_OFF,
+    RTC_TRAINING_TIME,
+    RTC_INFERENCE_TIME,
+    normalize_rtc_mode,
+)
 import time
 import random
 
@@ -126,6 +132,9 @@ class PolicyPreprocessMixin:
         state = observation["state"]
         image_grid_thw = observation.get("image_grid_thw", None)
 
+        if rtc_mode is not None:
+            rtc_mode = normalize_rtc_mode(rtc_mode, default=RTC_TRAINING_TIME)
+
         has_batch_dim = img_masks.ndim >= 2
         if not has_batch_dim:
             images = images.unsqueeze(0)
@@ -137,7 +146,7 @@ class PolicyPreprocessMixin:
             state = state.unsqueeze(0)
 
         rtc_kwargs = {}
-        if rtc_mode == 'paper':
+        if rtc_mode == RTC_INFERENCE_TIME:
             rtc_kwargs = dict(
                 rtc_mode=rtc_mode,
                 rtc_delay=rtc_delay,
@@ -151,7 +160,8 @@ class PolicyPreprocessMixin:
             sample_compile_fn = self.model.sample_actions
         elif previous_actions is not None:
             rtc_kwargs = dict(previous_actions=previous_actions.to(device=device, dtype=dtype),
-                              rtc_delay=rtc_delay, rtc_mode=rtc_mode or 'async_fixed_prefix_v2')
+                              rtc_delay=rtc_delay,
+                              rtc_mode=normalize_rtc_mode(rtc_mode, default=RTC_TRAINING_TIME))
         if capture_time:
             with torch.inference_mode():
                 for _ in range(3):
@@ -220,11 +230,13 @@ class LingbotVLAv2Server:
         use_bf16=True,
         use_fp32=False,
         use_compile=False,
-        inference_rtc_mode='off',
+        inference_rtc_mode=RTC_OFF,
     ) -> None:
         assert not (use_bf16 and use_fp32), 'Bfloat16 or Float32!!!'
-        if inference_rtc_mode == 'paper' and use_compile:
-            raise ValueError('Paper RTC uses VJP autograd; launch with --use_compile False')
+        inference_rtc_mode = normalize_rtc_mode(inference_rtc_mode, default=RTC_OFF)
+        if inference_rtc_mode == RTC_INFERENCE_TIME and use_compile:
+            raise ValueError('Inference-time RTC uses VJP autograd; launch with --use_compile False')
+        self.inference_rtc_mode = inference_rtc_mode
         self.adaptive_ensemble_alpha = adaptive_ensemble_alpha
         self.action_ensemble_horizon = action_ensemble_horizon
         self.use_length = use_length
@@ -237,6 +249,9 @@ class LingbotVLAv2Server:
         apply_lingbot_qwen3_vl_patch()
 
         self.vla = self.load_vla(path_to_pi_model)
+        if (self.inference_rtc_mode == RTC_TRAINING_TIME
+                and not getattr(self.config, 'training_time_rtc', False)):
+            raise ValueError('Training-time RTC requires a checkpoint trained with action-prefix conditioning')
         if use_bf16:
             self.vla = self.vla.to(torch.bfloat16).cuda().eval()
         else:
@@ -546,9 +561,15 @@ class LingbotVLAv2Server:
             from deploy.rtc_protocol import validate_rtc_request
             previous, delay, request_id = validate_rtc_request(rtc, self.config, len(observations))
             previous = torch.from_numpy(previous.copy()) if previous is not None else None
-            rtc_mode = rtc.get('mode', 'async_fixed_prefix_v2')
-            if rtc_mode == 'paper' and self.use_compile:
-                raise ValueError('Paper RTC requires --use_compile False')
+            rtc_mode = normalize_rtc_mode(rtc.get('mode'))
+            server_rtc_mode = getattr(self, 'inference_rtc_mode', RTC_OFF)
+            if server_rtc_mode != RTC_OFF and rtc_mode != server_rtc_mode:
+                raise ValueError(
+                    f'RTC request mode {rtc_mode!r} does not match server mode '
+                    f'{server_rtc_mode!r}'
+                )
+            if rtc_mode == RTC_INFERENCE_TIME and self.use_compile:
+                raise ValueError('Inference-time RTC requires --use_compile False')
             # RTC always samples a fresh full plan, independently of the ordinary action cache.
             result, normalized = self._infer_batch(observations, return_normalized=True,
                                                    previous_actions=previous, rtc_delay=delay,
@@ -684,9 +705,9 @@ def main():
 
     parser.add_argument(
         "--rtc_mode",
-        choices=('off', 'fixed_prefix', 'paper'),
+        choices=('off', 'training_time', 'inference_time', 'fixed_prefix', 'paper'),
         default='off',
-        help='Inference scheduler mode; paper requires eager autograd.',
+        help='RTC method: off, training_time (requires an action-prefix-trained checkpoint), or inference_time (requires eager VJP autograd).',
     )
 
     args = parser.parse_args()

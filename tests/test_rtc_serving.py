@@ -41,16 +41,16 @@ class RTCServingTest(unittest.TestCase):
         self.assertEqual(server._infer_batch.call_count,2)
         self.assertIn('_rtc',request)  # no mutation of caller's message
 
-    def test_paper_rpc_accepts_baseline_config_and_forwards_guidance_parameters(self):
+    def test_inference_time_rpc_accepts_baseline_config_and_forwards_guidance_parameters(self):
         server=self.server()
         server.config.training_time_rtc=False
-        request={'task':'test','_rtc':dict(request_id='episode:paper',delay=6,
-            mode='paper',execution_horizon=8,guidance_beta=5.0,
+        request={'task':'test','_rtc':dict(request_id='episode:inference-time',delay=6,
+            mode='inference_time',execution_horizon=8,guidance_beta=5.0,
             previous_actions=np.zeros((50,55),np.float32))}
         response=server.infer(request)
-        self.assertEqual(response['_rtc_request_id'],'episode:paper')
+        self.assertEqual(response['_rtc_request_id'],'episode:inference-time')
         args, kwargs=server._infer_batch.call_args
-        self.assertEqual(kwargs['rtc_mode'],'paper')
+        self.assertEqual(kwargs['rtc_mode'],'inference_time')
         self.assertEqual(kwargs['rtc_delay'],6)
         self.assertEqual(kwargs['rtc_execution_horizon'],8)
         self.assertEqual(kwargs['rtc_guidance_beta'],5.0)
