@@ -1,5 +1,7 @@
 # Joint Delta 5k → 累计10k续训
 
+后续compile=False复测已完成350次，退出码0，耗时1小时00分35秒：Clean97/175=55.43%、Random39/175=22.29%、总计136/350=38.86%。相同10k checkpoint的compile=True结果为127/350=36.29%，本次多成功9次；对比原5k的compile=False结果124/350=35.43%，本次多成功12次。原5k Clean为52.00%，本次55.43%，此前Clean下降的现象在本次复测未复现。checkpoint、归一化、机器人配置、训练配置、任务/环境/次数、环境seed0、推理fp32及chunk50已逐项核对一致；策略内部随机噪声未按episode配对，不能仅据一次复测断言所有差异由compile导致。新报告为`reports/h20_joint_delta_10k_compile_false_2026-10-18.json`，服务器运行目录为`/2025233210/ysj/lingbot_ws/outputs/joint_delta_5k_to_10k/reeval_compile_false_20261018`。
+
 最终结果（10月18日核验）：续训到累计10000步及compile=True的350次评测均完成，退出码0；Clean86/175=49.14%、Random41/175=23.43%、合计127/350=36.29%。本轮评测57分18秒。原5k为124/350=35.43%，本轮多成功3次；推理compile开关和学习率历史不同，不能单独归因于训练步数。历史10k baseline162/350=46.29%，本轮低10个百分点，未获得整体涨分。完整协议与结果记录为`reports/h20_joint_delta_10k_compile_true_2026-10-18.json`。
 
 5k与续训10k的实际配置逐项核对记录为`reports/joint_delta_10k_detail/configuration_audit_5k_vs_10k.json`：train-list、norm、robot config、EE状态特征及标签清单SHA256均相同；FP32、mask、batch、seed及模型配置保持一致。实际续训日志恰好包含5001至10000共5000次更新，无从头训练或跳过优化器的日志。另有prefetch4→1、恢复/输出/总步数参数以及显式保留5000步LR horizon的差异。评测使用相同任务、episode数、环境seed0、fp32和chunk50，但compile由False改True。模型服务启动时固定随机种子，episode reset未重置策略随机数，且8卡动态领取任务；因此没有验证逐episode相同策略噪声，不能将现有结果当作严格配对比较。Clean少5次成功不构成过拟合的直接证据。
