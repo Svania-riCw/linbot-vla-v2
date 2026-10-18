@@ -8,7 +8,7 @@ model:
 data:
   datasets_type: vla
   data_name: multi
-  train_path: /2025233210/lmx/.runtime/rtc/robotwin_clean/robotwin_clean.txt
+  train_path: /2025233210/xiesy/lingbot_ws/linbot-vla-v2/xsy_utils/configs/robotwin_clean.txt
   robot_config_root: /2025233210/lmx/training-data/robot_config_clean
   joints:
   - arm.position: 14
@@ -116,6 +116,7 @@ train:
   save_steps: 10000
   save_epochs: 29000
   enable_resume: false
+  seed: 42
   align_params:
     mode: query
     num_task_tokens: 8

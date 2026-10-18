@@ -48,6 +48,11 @@ class SpatialForcingTests(unittest.TestCase):
         train = config["train"]
         align = train["align_params"]
         self.assertFalse(train["training_time_rtc"])
+        self.assertEqual(
+            config["data"]["train_path"],
+            "/2025233210/xiesy/lingbot_ws/linbot-vla-v2/xsy_utils/configs/robotwin_clean.txt",
+        )
+        self.assertEqual(train["seed"], 42)
         self.assertTrue(config["data"]["use_future_image"])
         self.assertTrue(align["use_future_video"])
         self.assertIn("depth", align)
