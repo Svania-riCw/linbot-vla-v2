@@ -1,5 +1,7 @@
 # Joint Delta 5k → 累计10k续训
 
+最终结果（10月18日核验）：续训到累计10000步及compile=True的350次评测均完成，退出码0；Clean86/175=49.14%、Random41/175=23.43%、合计127/350=36.29%。本轮评测57分18秒。原5k为124/350=35.43%，本轮多成功3次；推理compile开关和学习率历史不同，不能单独归因于训练步数。历史10k baseline162/350=46.29%，本轮低10个百分点，未获得整体涨分。完整协议与结果记录为`reports/h20_joint_delta_10k_compile_true_2026-10-18.json`。
+
 入口：`bash ysj_utils/resume_joint_delta.sh`。建议在30375上自己的tmux窗口执行。默认不会修改旧训练目录；新结果写到 `/2025233210/ysj/lingbot_ws/outputs/joint_delta_5k_to_10k`。
 
 先检查完整DCP和命令，不启动GPU：
