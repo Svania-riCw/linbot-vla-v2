@@ -127,6 +127,9 @@ class FinetuneInputsTest(unittest.TestCase):
         exec(compile(ast.Module(body=classes, type_ignores=[]), '<real training arguments>', 'exec'), namespace)
         # Forward annotations are resolved in this test module's globals.
         with patch.dict(globals(), {name: namespace[name] for name in ['MyTrainingArguments', 'MyDataArguments']}):
+            self.config['model']['basic_modules'] = []
+            self.config['train']['token_moe_layers'] = []
+            self.save_reference()
             report = self.generate()
             with patch.dict(os.environ, {'LOCAL_RANK': '0', 'RANK': '0', 'WORLD_SIZE': '8'}):
                 with patch.object(sys, 'argv', ['train', report['config']]):
@@ -134,11 +137,15 @@ class FinetuneInputsTest(unittest.TestCase):
                 self.assertIsNone(args.train.load_checkpoint_path)
                 self.assertEqual(args.train.pause_after_steps, 5000)
                 self.assertEqual(args.train.global_batch_size, 128)
+                self.assertEqual(args.model.basic_modules, [])
+                self.assertEqual(args.train.token_moe_layers, [])
                 with patch.object(sys, 'argv', ['train', report['config'], '--train.pause_after_steps', '0',
-                                                '--train.load_checkpoint_path', '/experiment/checkpoints/global_step_5000']):
+                                                '--train.load_checkpoint_path', '/experiment/checkpoints/global_step_5000',
+                                                '--model.basic_modules', 'ExplicitLayer']):
                     resumed = parse_args(namespace['Arguments'])
                 self.assertEqual(resumed.train.pause_after_steps, 0)
                 self.assertEqual(resumed.train.max_steps, 10000)
+                self.assertEqual(resumed.model.basic_modules, ['ExplicitLayer'])
 
 
 class PauseScheduleTest(unittest.TestCase):

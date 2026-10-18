@@ -957,6 +957,12 @@ def parse_args(rootclass: T) -> T:
                 # Skip list fields with None values to use default
                 if f"{base}.{arg_name}" in list_fields and arg_value is None:
                     continue
+                if f"{base}.{arg_name}" in list_fields and arg_value == []:
+                    # nargs='+' cannot express an empty YAML list as CLI tokens.
+                    # Keep [] as a typed default, including when it clears a
+                    # nonempty/None dataclass default. Explicit CLI values win.
+                    parser.set_defaults(**{f"{base}.{arg_name}": []})
+                    continue
 
                 cmd_args.append(f"--{base}.{arg_name}")
                 if f"{base}.{arg_name}" in list_fields and isinstance(arg_value, list):
