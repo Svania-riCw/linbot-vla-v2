@@ -2,6 +2,10 @@
 
 ## 三节点候选排队（2026-10-19）
 
+已选中节点的等待器需要更新时，可显式使用 `--resume-idle-claim` 接续原 claim。必须先核实并停止本人处于 `waiting_for_idle_gpus` 且没有训练子进程的旧等待器；该选项拒绝存活的旧 PID、不同节点/主机、运行中的训练阶段或非空子进程。共享 claim 不删除，已完成阶段不重跑，原 owner 信息归档。它不会自动接管失败或失联的任务。
+
+正式训练会把已有 `EnvironMeter` 指标写入 TensorBoard 并同步 W&B，包括峰值显存、CPU 内存、token 吞吐与分配重试次数，并额外记录 `samples_per_second = global_batch / step_time`。FLOPS/MFU 沿用已有估算，不能当作硬件实测；跨分辨率的速度比较优先使用稳定的 step 时间和 samples/s。此前 GPU smoke 已验证 loss 与保存，但其日志没有持久化这一组性能指标。
+
 三个节点各运行一个自有 tmux 等待器，共享唯一实验目录、成功 smoke checkpoint 和原子 `mkdir` 任务锁。首个连续确认8卡空闲的节点取得锁并接续实验，其他两个等待器自动记录取消并退出；只有锁的持有者能够调用训练入口。锁在失败或完成后仍保留，避免异常退出后其他节点悄悄重训。共享锁发布中也视为已占用。每节点还有本地进程锁，防止同一节点重复启动等待器。
 
 `priority_worker.py` 复用 `queue_engine.py`，根据已完成阶段跳过成功的2步 smoke，先恢复至4步，再从初始权重训练10k；原5k暂停、350回合评测及每1000步保存策略保持不变。已完成的 smoke 先由 `stage_priority_storage.py` 复制并校验到自有共享目录，复制完成前候选不会运行训练。

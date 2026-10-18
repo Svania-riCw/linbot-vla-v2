@@ -40,6 +40,28 @@ def try_claim(shared, node, pid):
     return owner
 
 
+def resume_idle_claim(shared, node, pid, pid_alive=None):
+    """Explicitly continue this host's stopped idle controller, keeping its claim."""
+    shared = Path(shared)
+    owner = read_owner(shared)
+    state = json.loads((shared / 'engine_state/status.json').read_text())
+    if (not owner or owner.get('node') != node
+            or owner.get('hostname') != socket.gethostname() or owner.get('result')
+            or state.get('phase') != 'waiting_for_idle_gpus'
+            or state.get('owner_node') != node or state.get('pid') != owner.get('pid')
+            or state.get('child_pid') is not None):
+        raise RuntimeError('Only the same host may explicitly continue its idle, child-free controller')
+    pid_alive = pid_alive or (lambda value: Path('/proc', str(value)).exists())
+    if pid_alive(owner['pid']):
+        raise RuntimeError('Previous controller is still alive; refusing a duplicate')
+    previous = dict(owner)
+    atomic_json(shared / 'claim' / ('previous_owner_' + uuid.uuid4().hex + '.json'), previous)
+    owner.update(pid=pid, previous_pid=previous['pid'],
+                 continued_utc=dt.datetime.now(dt.timezone.utc).isoformat())
+    atomic_json(shared / 'claim/owner.json', owner)
+    return owner
+
+
 def next_actions(state, queue_id, micro):
     """Resume the existing successful smoke; never repeat completed stages."""
     completed = {(r.get('phase'), r.get('micro_batch'), r.get('steps'))
@@ -94,6 +116,8 @@ def main():
     parser.add_argument('--node', choices=['node0', 'node1', 'node2'], required=True)
     parser.add_argument('--repo', type=Path, default=Path('/root/ql/linbot-vla-v2'))
     parser.add_argument('--poll-seconds', type=float, default=2)
+    parser.add_argument('--resume-idle-claim', action='store_true',
+                        help='Explicit same-host continuation after the idle controller has stopped')
     args = parser.parse_args()
     shared = args.shared.resolve()
     job = json.loads((shared / 'job.json').read_text())
@@ -113,36 +137,40 @@ def main():
             atomic_json(status_path, dict(node=args.node, pid=os.getpid(), phase=phase,
                         updated_utc=dt.datetime.now(dt.timezone.utc).isoformat(), **fields))
         consecutive = 0
+        continued_owner = resume_idle_claim(shared, args.node, os.getpid()) if args.resume_idle_claim else None
         while True:
-            owner = read_owner(shared)
-            if owner is not None:
-                if not owner.get('publishing'):
-                    status('cancelled_other_node_selected', selected_node=owner['node'])
-                    print(json.dumps({'cancelled': True, 'selected_node': owner['node']}), flush=True)
-                    return
-                status('waiting_for_claim_publication')
-                time.sleep(args.poll_seconds)
-                continue
-            ready = shared / 'storage_ready.json'
-            if not ready.is_file():
-                status('waiting_for_checkpoint_copy')
-                time.sleep(args.poll_seconds)
-                continue
-            copy_state = json.loads(ready.read_text())
-            if not copy_state.get('complete'):
-                status('storage_copy_failed', copy_status=copy_state)
-                raise RuntimeError('Checkpoint staging failed; preserving all outputs')
-            cards, apps = engine.gpu_snapshot()
-            good = engine.snapshot_idle(cards, apps)
-            consecutive = consecutive + 1 if good else 0
-            status('confirming_idle' if good else 'waiting_for_idle_gpus',
-                   confirmations=consecutive, gpu_snapshot=cards, gpu_processes=apps)
-            if consecutive < 3:
-                time.sleep(args.poll_seconds)
-                continue
-            owner = try_claim(shared, args.node, os.getpid())
-            if owner is None:
-                continue
+            if continued_owner is not None:
+                owner = continued_owner
+            else:
+                owner = read_owner(shared)
+                if owner is not None:
+                    if not owner.get('publishing'):
+                        status('cancelled_other_node_selected', selected_node=owner['node'])
+                        print(json.dumps({'cancelled': True, 'selected_node': owner['node']}), flush=True)
+                        return
+                    status('waiting_for_claim_publication')
+                    time.sleep(args.poll_seconds)
+                    continue
+                ready = shared / 'storage_ready.json'
+                if not ready.is_file():
+                    status('waiting_for_checkpoint_copy')
+                    time.sleep(args.poll_seconds)
+                    continue
+                copy_state = json.loads(ready.read_text())
+                if not copy_state.get('complete'):
+                    status('storage_copy_failed', copy_status=copy_state)
+                    raise RuntimeError('Checkpoint staging failed; preserving all outputs')
+                cards, apps = engine.gpu_snapshot()
+                good = engine.snapshot_idle(cards, apps)
+                consecutive = consecutive + 1 if good else 0
+                status('confirming_idle' if good else 'waiting_for_idle_gpus',
+                       confirmations=consecutive, gpu_snapshot=cards, gpu_processes=apps)
+                if consecutive < 3:
+                    time.sleep(args.poll_seconds)
+                    continue
+                owner = try_claim(shared, args.node, os.getpid())
+                if owner is None:
+                    continue
             status('selected', selected_node=args.node)
             print(json.dumps({'selected': args.node, 'owner': owner}), flush=True)
             # The durable claim is deliberately retained on failure or completion.

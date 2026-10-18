@@ -982,6 +982,11 @@ def main():
 
 
             if args.train.global_rank == 0:
+                # EnvironMeter already computes these on every step. Persist
+                # them so TensorBoard/W&B include memory and throughput too.
+                for name, value in train_metrics.items():
+                    writer.add_scalar(name, value, global_step)
+                writer.add_scalar("samples_per_second", args.train.global_batch_size / delta_time, global_step)
                 writer.add_scalar("training/loss", total_loss, global_step)
                 writer.add_scalar("training/vla_loss", total_vla_loss, global_step)
                 writer.add_scalar("training/depth_loss", total_depth_loss, global_step)
