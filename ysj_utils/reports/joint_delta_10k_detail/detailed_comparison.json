@@ -1,0 +1,400 @@
+{
+  "verified_at": "2026-10-18T04:23:42.183929+00:00",
+  "protocol": "7 tasks x clean/random x25 =350 per model",
+  "sources": {
+    "baseline5k": "/2025233210/xiesy/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/baseline_gbs128_5k_global_step_5000/run_20261014_180019/_result.txt",
+    "baseline10k": "/2025233210/xiesy/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/baseline_gbs128_10k_global_step_10000/run_20261015_115635/_result.txt",
+    "joint_delta5k": "/2025233210/ysj/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/ysj_full_d2dcee0b623b/run_20261017_134443/_result.txt",
+    "joint_ee10k": "/2025233210/ysj/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/ysj_full_1fbcf8fab857/run_20261017_124931/_result.txt",
+    "joint_delta10k_continued": "/2025233210/ysj/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/ysj_full_109ec0c69a0c/run_20261017_214654/_result.txt"
+  },
+  "summary": {
+    "baseline5k": {
+      "clean": {
+        "success": 77,
+        "total": 175,
+        "rate_percent": 44.0
+      },
+      "random": {
+        "success": 47,
+        "total": 175,
+        "rate_percent": 26.8571
+      },
+      "all": {
+        "success": 124,
+        "total": 350,
+        "rate_percent": 35.4286
+      }
+    },
+    "baseline10k": {
+      "clean": {
+        "success": 109,
+        "total": 175,
+        "rate_percent": 62.2857
+      },
+      "random": {
+        "success": 53,
+        "total": 175,
+        "rate_percent": 30.2857
+      },
+      "all": {
+        "success": 162,
+        "total": 350,
+        "rate_percent": 46.2857
+      }
+    },
+    "joint_delta5k": {
+      "clean": {
+        "success": 91,
+        "total": 175,
+        "rate_percent": 52.0
+      },
+      "random": {
+        "success": 33,
+        "total": 175,
+        "rate_percent": 18.8571
+      },
+      "all": {
+        "success": 124,
+        "total": 350,
+        "rate_percent": 35.4286
+      }
+    },
+    "joint_ee10k": {
+      "clean": {
+        "success": 98,
+        "total": 175,
+        "rate_percent": 56.0
+      },
+      "random": {
+        "success": 43,
+        "total": 175,
+        "rate_percent": 24.5714
+      },
+      "all": {
+        "success": 141,
+        "total": 350,
+        "rate_percent": 40.2857
+      }
+    },
+    "joint_delta10k_continued": {
+      "clean": {
+        "success": 86,
+        "total": 175,
+        "rate_percent": 49.1429
+      },
+      "random": {
+        "success": 41,
+        "total": 175,
+        "rate_percent": 23.4286
+      },
+      "all": {
+        "success": 127,
+        "total": 350,
+        "rate_percent": 36.2857
+      }
+    }
+  },
+  "rows": [
+    {
+      "task": "blocks_ranking_rgb",
+      "setting": "clean",
+      "baseline5k_success": 9,
+      "baseline5k_total": 25,
+      "baseline5k_percent": 36.0,
+      "joint_delta5k_success": 16,
+      "joint_delta5k_total": 25,
+      "joint_delta5k_percent": 64.0,
+      "baseline10k_success": 15,
+      "baseline10k_total": 25,
+      "baseline10k_percent": 60.0,
+      "joint_ee10k_success": 18,
+      "joint_ee10k_total": 25,
+      "joint_ee10k_percent": 72.0,
+      "joint_delta10k_continued_success": 14,
+      "joint_delta10k_continued_total": 25,
+      "joint_delta10k_continued_percent": 56.0,
+      "continued_minus_delta5k_pp": -8.0,
+      "continued_minus_baseline10k_pp": -4.0
+    },
+    {
+      "task": "blocks_ranking_rgb",
+      "setting": "random",
+      "baseline5k_success": 8,
+      "baseline5k_total": 25,
+      "baseline5k_percent": 32.0,
+      "joint_delta5k_success": 4,
+      "joint_delta5k_total": 25,
+      "joint_delta5k_percent": 16.0,
+      "baseline10k_success": 16,
+      "baseline10k_total": 25,
+      "baseline10k_percent": 64.0,
+      "joint_ee10k_success": 11,
+      "joint_ee10k_total": 25,
+      "joint_ee10k_percent": 44.0,
+      "joint_delta10k_continued_success": 10,
+      "joint_delta10k_continued_total": 25,
+      "joint_delta10k_continued_percent": 40.0,
+      "continued_minus_delta5k_pp": 24.0,
+      "continued_minus_baseline10k_pp": -24.0
+    },
+    {
+      "task": "hanging_mug",
+      "setting": "clean",
+      "baseline5k_success": 7,
+      "baseline5k_total": 25,
+      "baseline5k_percent": 28.0,
+      "joint_delta5k_success": 5,
+      "joint_delta5k_total": 25,
+      "joint_delta5k_percent": 20.0,
+      "baseline10k_success": 6,
+      "baseline10k_total": 25,
+      "baseline10k_percent": 24.0,
+      "joint_ee10k_success": 4,
+      "joint_ee10k_total": 25,
+      "joint_ee10k_percent": 16.0,
+      "joint_delta10k_continued_success": 4,
+      "joint_delta10k_continued_total": 25,
+      "joint_delta10k_continued_percent": 16.0,
+      "continued_minus_delta5k_pp": -4.0,
+      "continued_minus_baseline10k_pp": -8.0
+    },
+    {
+      "task": "hanging_mug",
+      "setting": "random",
+      "baseline5k_success": 1,
+      "baseline5k_total": 25,
+      "baseline5k_percent": 4.0,
+      "joint_delta5k_success": 2,
+      "joint_delta5k_total": 25,
+      "joint_delta5k_percent": 8.0,
+      "baseline10k_success": 0,
+      "baseline10k_total": 25,
+      "baseline10k_percent": 0.0,
+      "joint_ee10k_success": 3,
+      "joint_ee10k_total": 25,
+      "joint_ee10k_percent": 12.0,
+      "joint_delta10k_continued_success": 1,
+      "joint_delta10k_continued_total": 25,
+      "joint_delta10k_continued_percent": 4.0,
+      "continued_minus_delta5k_pp": -4.0,
+      "continued_minus_baseline10k_pp": 4.0
+    },
+    {
+      "task": "open_laptop",
+      "setting": "clean",
+      "baseline5k_success": 21,
+      "baseline5k_total": 25,
+      "baseline5k_percent": 84.0,
+      "joint_delta5k_success": 18,
+      "joint_delta5k_total": 25,
+      "joint_delta5k_percent": 72.0,
+      "baseline10k_success": 22,
+      "baseline10k_total": 25,
+      "baseline10k_percent": 88.0,
+      "joint_ee10k_success": 21,
+      "joint_ee10k_total": 25,
+      "joint_ee10k_percent": 84.0,
+      "joint_delta10k_continued_success": 19,
+      "joint_delta10k_continued_total": 25,
+      "joint_delta10k_continued_percent": 76.0,
+      "continued_minus_delta5k_pp": 4.0,
+      "continued_minus_baseline10k_pp": -12.0
+    },
+    {
+      "task": "open_laptop",
+      "setting": "random",
+      "baseline5k_success": 12,
+      "baseline5k_total": 25,
+      "baseline5k_percent": 48.0,
+      "joint_delta5k_success": 7,
+      "joint_delta5k_total": 25,
+      "joint_delta5k_percent": 28.0,
+      "baseline10k_success": 12,
+      "baseline10k_total": 25,
+      "baseline10k_percent": 48.0,
+      "joint_ee10k_success": 7,
+      "joint_ee10k_total": 25,
+      "joint_ee10k_percent": 28.0,
+      "joint_delta10k_continued_success": 5,
+      "joint_delta10k_continued_total": 25,
+      "joint_delta10k_continued_percent": 20.0,
+      "continued_minus_delta5k_pp": -8.0,
+      "continued_minus_baseline10k_pp": -28.0
+    },
+    {
+      "task": "pick_diverse_bottles",
+      "setting": "clean",
+      "baseline5k_success": 8,
+      "baseline5k_total": 25,
+      "baseline5k_percent": 32.0,
+      "joint_delta5k_success": 11,
+      "joint_delta5k_total": 25,
+      "joint_delta5k_percent": 44.0,
+      "baseline10k_success": 7,
+      "baseline10k_total": 25,
+      "baseline10k_percent": 28.0,
+      "joint_ee10k_success": 13,
+      "joint_ee10k_total": 25,
+      "joint_ee10k_percent": 52.0,
+      "joint_delta10k_continued_success": 11,
+      "joint_delta10k_continued_total": 25,
+      "joint_delta10k_continued_percent": 44.0,
+      "continued_minus_delta5k_pp": 0.0,
+      "continued_minus_baseline10k_pp": 16.0
+    },
+    {
+      "task": "pick_diverse_bottles",
+      "setting": "random",
+      "baseline5k_success": 3,
+      "baseline5k_total": 25,
+      "baseline5k_percent": 12.0,
+      "joint_delta5k_success": 5,
+      "joint_delta5k_total": 25,
+      "joint_delta5k_percent": 20.0,
+      "baseline10k_success": 5,
+      "baseline10k_total": 25,
+      "baseline10k_percent": 20.0,
+      "joint_ee10k_success": 5,
+      "joint_ee10k_total": 25,
+      "joint_ee10k_percent": 20.0,
+      "joint_delta10k_continued_success": 5,
+      "joint_delta10k_continued_total": 25,
+      "joint_delta10k_continued_percent": 20.0,
+      "continued_minus_delta5k_pp": 0.0,
+      "continued_minus_baseline10k_pp": 0.0
+    },
+    {
+      "task": "rotate_qrcode",
+      "setting": "clean",
+      "baseline5k_success": 13,
+      "baseline5k_total": 25,
+      "baseline5k_percent": 52.0,
+      "joint_delta5k_success": 18,
+      "joint_delta5k_total": 25,
+      "joint_delta5k_percent": 72.0,
+      "baseline10k_success": 18,
+      "baseline10k_total": 25,
+      "baseline10k_percent": 72.0,
+      "joint_ee10k_success": 14,
+      "joint_ee10k_total": 25,
+      "joint_ee10k_percent": 56.0,
+      "joint_delta10k_continued_success": 18,
+      "joint_delta10k_continued_total": 25,
+      "joint_delta10k_continued_percent": 72.0,
+      "continued_minus_delta5k_pp": 0.0,
+      "continued_minus_baseline10k_pp": 0.0
+    },
+    {
+      "task": "rotate_qrcode",
+      "setting": "random",
+      "baseline5k_success": 6,
+      "baseline5k_total": 25,
+      "baseline5k_percent": 24.0,
+      "joint_delta5k_success": 3,
+      "joint_delta5k_total": 25,
+      "joint_delta5k_percent": 12.0,
+      "baseline10k_success": 2,
+      "baseline10k_total": 25,
+      "baseline10k_percent": 8.0,
+      "joint_ee10k_success": 2,
+      "joint_ee10k_total": 25,
+      "joint_ee10k_percent": 8.0,
+      "joint_delta10k_continued_success": 4,
+      "joint_delta10k_continued_total": 25,
+      "joint_delta10k_continued_percent": 16.0,
+      "continued_minus_delta5k_pp": 4.0,
+      "continued_minus_baseline10k_pp": 8.0
+    },
+    {
+      "task": "stack_blocks_three",
+      "setting": "clean",
+      "baseline5k_success": 2,
+      "baseline5k_total": 25,
+      "baseline5k_percent": 8.0,
+      "joint_delta5k_success": 4,
+      "joint_delta5k_total": 25,
+      "joint_delta5k_percent": 16.0,
+      "baseline10k_success": 20,
+      "baseline10k_total": 25,
+      "baseline10k_percent": 80.0,
+      "joint_ee10k_success": 10,
+      "joint_ee10k_total": 25,
+      "joint_ee10k_percent": 40.0,
+      "joint_delta10k_continued_success": 4,
+      "joint_delta10k_continued_total": 25,
+      "joint_delta10k_continued_percent": 16.0,
+      "continued_minus_delta5k_pp": 0.0,
+      "continued_minus_baseline10k_pp": -64.0
+    },
+    {
+      "task": "stack_blocks_three",
+      "setting": "random",
+      "baseline5k_success": 3,
+      "baseline5k_total": 25,
+      "baseline5k_percent": 12.0,
+      "joint_delta5k_success": 0,
+      "joint_delta5k_total": 25,
+      "joint_delta5k_percent": 0.0,
+      "baseline10k_success": 5,
+      "baseline10k_total": 25,
+      "baseline10k_percent": 20.0,
+      "joint_ee10k_success": 4,
+      "joint_ee10k_total": 25,
+      "joint_ee10k_percent": 16.0,
+      "joint_delta10k_continued_success": 3,
+      "joint_delta10k_continued_total": 25,
+      "joint_delta10k_continued_percent": 12.0,
+      "continued_minus_delta5k_pp": 12.0,
+      "continued_minus_baseline10k_pp": -8.0
+    },
+    {
+      "task": "place_shoe",
+      "setting": "clean",
+      "baseline5k_success": 17,
+      "baseline5k_total": 25,
+      "baseline5k_percent": 68.0,
+      "joint_delta5k_success": 19,
+      "joint_delta5k_total": 25,
+      "joint_delta5k_percent": 76.0,
+      "baseline10k_success": 21,
+      "baseline10k_total": 25,
+      "baseline10k_percent": 84.0,
+      "joint_ee10k_success": 18,
+      "joint_ee10k_total": 25,
+      "joint_ee10k_percent": 72.0,
+      "joint_delta10k_continued_success": 16,
+      "joint_delta10k_continued_total": 25,
+      "joint_delta10k_continued_percent": 64.0,
+      "continued_minus_delta5k_pp": -12.0,
+      "continued_minus_baseline10k_pp": -20.0
+    },
+    {
+      "task": "place_shoe",
+      "setting": "random",
+      "baseline5k_success": 14,
+      "baseline5k_total": 25,
+      "baseline5k_percent": 56.0,
+      "joint_delta5k_success": 12,
+      "joint_delta5k_total": 25,
+      "joint_delta5k_percent": 48.0,
+      "baseline10k_success": 13,
+      "baseline10k_total": 25,
+      "baseline10k_percent": 52.0,
+      "joint_ee10k_success": 11,
+      "joint_ee10k_total": 25,
+      "joint_ee10k_percent": 44.0,
+      "joint_delta10k_continued_success": 13,
+      "joint_delta10k_continued_total": 25,
+      "joint_delta10k_continued_percent": 52.0,
+      "continued_minus_delta5k_pp": 4.0,
+      "continued_minus_baseline10k_pp": 0.0
+    }
+  ],
+  "limitations": [
+    "Historical baseline differs in state inputs, padding and precision flags.",
+    "Continuation uses original5k LR horizon then its terminal LR, not fresh10k cosine.",
+    "New continuation eval compile=True; earlier own evals compile=False.",
+    "Single training seed and25 trials per task/setting; no significance claim."
+  ]
+}

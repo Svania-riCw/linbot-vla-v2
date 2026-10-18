@@ -1,0 +1,15 @@
+﻿task,setting,baseline5k_success,baseline5k_total,baseline5k_percent,joint_delta5k_success,joint_delta5k_total,joint_delta5k_percent,baseline10k_success,baseline10k_total,baseline10k_percent,joint_ee10k_success,joint_ee10k_total,joint_ee10k_percent,joint_delta10k_continued_success,joint_delta10k_continued_total,joint_delta10k_continued_percent,continued_minus_delta5k_pp,continued_minus_baseline10k_pp
+blocks_ranking_rgb,clean,9,25,36.0,16,25,64.0,15,25,60.0,18,25,72.0,14,25,56.0,-8.0,-4.0
+blocks_ranking_rgb,random,8,25,32.0,4,25,16.0,16,25,64.0,11,25,44.0,10,25,40.0,24.0,-24.0
+hanging_mug,clean,7,25,28.0,5,25,20.0,6,25,24.0,4,25,16.0,4,25,16.0,-4.0,-8.0
+hanging_mug,random,1,25,4.0,2,25,8.0,0,25,0.0,3,25,12.0,1,25,4.0,-4.0,4.0
+open_laptop,clean,21,25,84.0,18,25,72.0,22,25,88.0,21,25,84.0,19,25,76.0,4.0,-12.0
+open_laptop,random,12,25,48.0,7,25,28.0,12,25,48.0,7,25,28.0,5,25,20.0,-8.0,-28.0
+pick_diverse_bottles,clean,8,25,32.0,11,25,44.0,7,25,28.0,13,25,52.0,11,25,44.0,0.0,16.0
+pick_diverse_bottles,random,3,25,12.0,5,25,20.0,5,25,20.0,5,25,20.0,5,25,20.0,0.0,0.0
+rotate_qrcode,clean,13,25,52.0,18,25,72.0,18,25,72.0,14,25,56.0,18,25,72.0,0.0,0.0
+rotate_qrcode,random,6,25,24.0,3,25,12.0,2,25,8.0,2,25,8.0,4,25,16.0,4.0,8.0
+stack_blocks_three,clean,2,25,8.0,4,25,16.0,20,25,80.0,10,25,40.0,4,25,16.0,0.0,-64.0
+stack_blocks_three,random,3,25,12.0,0,25,0.0,5,25,20.0,4,25,16.0,3,25,12.0,12.0,-8.0
+place_shoe,clean,17,25,68.0,19,25,76.0,21,25,84.0,18,25,72.0,16,25,64.0,-12.0,-20.0
+place_shoe,random,14,25,56.0,12,25,48.0,13,25,52.0,11,25,44.0,13,25,52.0,4.0,0.0
