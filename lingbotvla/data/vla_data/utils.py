@@ -99,8 +99,8 @@ class FeatureTransform:
         self.model_config = model_config
         if getattr(model_config, 'spline_control_points', 0):
             from deploy.action_contract import action_mode
-            if action_mode(robot_config) != 'joint_delta':
-                raise ValueError('Spline actions currently require joint deltas plus absolute grippers')
+            if action_mode(robot_config) not in ('joint_delta', 'joint_absolute'):
+                raise ValueError('Spline actions require joint positions (absolute/delta) plus absolute grippers')
         self.tokenizer = processor.tokenizer if processor is not None else None
         self.processor = processor
 

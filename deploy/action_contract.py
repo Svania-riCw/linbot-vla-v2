@@ -57,10 +57,15 @@ def canonical_norm_types(value):
 
 def supervision_config(train):
     """Serializable knobs needed to reproduce loss and spline decoding."""
-    return dict(flow_dimension_weights=train.get('flow_dimension_weights'),
+    result = dict(flow_dimension_weights=train.get('flow_dimension_weights'),
                 flow_horizon_weights=train.get('flow_horizon_weights'),
                 spline_control_points=train.get('spline_control_points',0),
                 spline_degree=train.get('spline_degree',3))
+    # Preserve old checkpoint receipts while binding new Gibbs hyperparameters.
+    if train.get('flow_gibbs_epsilon', 0):
+        result.update(flow_gibbs_epsilon=train['flow_gibbs_epsilon'],
+                      flow_gibbs_log_normalizer=train.get('flow_gibbs_log_normalizer', 0.0))
+    return result
 
 
 def resolve_contract(model_path, robo_name='robotwin', norm_override=None):
@@ -93,12 +98,12 @@ def resolve_contract(model_path, robo_name='robotwin', norm_override=None):
             if receipt.get(key) != value:
                 raise ValueError(f'Action contract mismatch: {key}')
         supervision = supervision_config(config['train'])
-        active = supervision['spline_control_points'] or supervision['flow_dimension_weights'] is not None or supervision['flow_horizon_weights'] is not None
+        active = supervision['spline_control_points'] or supervision['flow_dimension_weights'] is not None or supervision['flow_horizon_weights'] is not None or supervision.get('flow_gibbs_epsilon', 0)
         if 'supervision' in receipt or active:
             if receipt.get('supervision') != supervision:
                 raise ValueError('Action contract mismatch: supervision/codec configuration')
-        if supervision['spline_control_points'] and mode != 'joint_delta':
-            raise ValueError('Spline decoder currently supports joint deltas only')
+        if supervision['spline_control_points'] and mode not in ('joint_delta', 'joint_absolute'):
+            raise ValueError('Spline decoder supports absolute or delta joint positions only')
     else:
         mode = 'legacy_absolute'
     return dict(robot_config_root=str(root), robot_config=str(robot_path),

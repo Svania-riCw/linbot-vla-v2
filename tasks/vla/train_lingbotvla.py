@@ -120,6 +120,8 @@ def get_moe_param_groups(model: "torch.nn.Module", args_train) -> Optional[List[
 class MyTrainingArguments(TrainingArguments):
     flow_dimension_weights: Optional[List[float]] = field(default=None, metadata={"help": "Nonnegative weights for canonical action channels."})
     flow_horizon_weights: Optional[List[float]] = field(default=None, metadata={"help": "Nonnegative weights for future action steps."})
+    flow_gibbs_epsilon: float = field(default=0.0, metadata={"help": "Gibbs RMS-distance bandwidth; 0 disables pair weighting."})
+    flow_gibbs_log_normalizer: float = field(default=0.0, metadata={"help": "Fixed training-data estimate of log Gibbs kernel expectation."})
     spline_control_points: int = field(default=0, metadata={"help": "0 disables spline actions; otherwise predict K control points."})
     spline_degree: int = field(default=3, metadata={"help": "Degree of clamped uniform B-spline actions."})
     joint_ee_aux_weight: float = field(default=-1.0, metadata={"help": "-1 disables grouped EE loss; >=0 uses joint mean + weight * EE mean."})

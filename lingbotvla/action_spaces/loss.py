@@ -3,6 +3,36 @@ import torch
 import math
 
 
+def gibbs_flow_loss(losses, mask, actions, noise, epsilon, log_normalizer):
+    """W-CFM-inspired Gibbs pair weighting (arXiv:2507.22270, eq. 7).
+
+    Cost is masked RMS endpoint distance: ||noise-action|| / sqrt(valid_d).
+    Thus epsilon is the paper's kappa, not its unscaled epsilon. Z is estimated
+    once from training data, never from this minibatch/rank. Keep the baseline
+    element-mean reduction and its L1/MSE error unchanged. Constant f=g=1 is an
+    approximation; conditional robot policies are outside the paper's tests.
+    """
+    if losses.ndim != 3 or any(t.shape != losses.shape for t in (mask, actions, noise)):
+        raise ValueError('Gibbs loss expects matching [B,H,D] tensors')
+    if not math.isfinite(epsilon) or epsilon <= 0 or not math.isfinite(log_normalizer):
+        raise ValueError('Gibbs epsilon must be positive and normalization finite')
+    valid = mask.bool()
+    counts = valid.sum((1, 2)).clamp_min(1)
+    with torch.no_grad():
+        displacement = torch.where(valid, noise.float() - actions.float(), 0)
+        costs = (displacement.square().sum((1, 2)) / counts).sqrt()
+        weights = torch.exp(-costs / epsilon - log_normalizer)
+    selected = torch.where(valid, losses.float(), 0)
+    per_sample = selected.sum((1, 2)) / counts
+    loss = (selected * weights[:, None, None]).sum() / valid.sum().clamp_min(1)
+    metrics = {'action/gibbs_weight_mean': weights.mean(),
+               'action/gibbs_weight_max': weights.max(),
+               'action/gibbs_ess_fraction': weights.sum().square() / (len(weights) * weights.square().sum().clamp_min(1e-30)),
+               'action/gibbs_cost_mean': costs.mean(),
+               'action/unweighted_flow_loss': selected.detach().sum() / valid.sum().clamp_min(1)}
+    return loss, per_sample * weights, metrics
+
+
 def validate_weights(values, length, name):
     if values is None:
         return

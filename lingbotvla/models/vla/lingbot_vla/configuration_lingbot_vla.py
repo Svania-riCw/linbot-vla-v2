@@ -60,6 +60,8 @@ class LingbotVLAConfig(PretrainedConfig):
         mask_action_padding: bool = False,
         flow_dimension_weights: Optional[list] = None,
         flow_horizon_weights: Optional[list] = None,
+        flow_gibbs_epsilon: float = 0.0,
+        flow_gibbs_log_normalizer: float = 0.0,
         spline_control_points: int = 0,
         spline_degree: int = 3,
         norm_qkv: bool = False,
@@ -136,14 +138,21 @@ class LingbotVLAConfig(PretrainedConfig):
         self.mask_action_padding = mask_action_padding
         self.flow_dimension_weights = flow_dimension_weights
         self.flow_horizon_weights = flow_horizon_weights
+        self.flow_gibbs_epsilon = flow_gibbs_epsilon
+        self.flow_gibbs_log_normalizer = flow_gibbs_log_normalizer
         self.spline_control_points = spline_control_points
         self.spline_degree = spline_degree
         weighted = flow_dimension_weights is not None or flow_horizon_weights is not None
+        import math
+        if not math.isfinite(flow_gibbs_epsilon) or flow_gibbs_epsilon < 0 or not math.isfinite(flow_gibbs_log_normalizer):
+            raise ValueError('Invalid Gibbs epsilon/normalizer')
+        if flow_gibbs_epsilon and (weighted or spline_control_points):
+            raise ValueError('Run Gibbs weighting independently of dimension weights and splines')
         if weighted:
             from lingbotvla.action_spaces.loss import validate_weights
             validate_weights(flow_dimension_weights,max_action_dim,'flow_dimension_weights')
             validate_weights(flow_horizon_weights,chunk_size,'flow_horizon_weights')
-        if weighted or spline_control_points:
+        if weighted or spline_control_points or flow_gibbs_epsilon:
             if training_time_rtc or joint_ee_aux_weight >= 0 or not mask_action_padding or loss_type not in ('fm','L1_fm'):
                 raise ValueError('Weighted/spline experiments require padding masks, fm/L1_fm and no RTC/JointEE')
         if spline_control_points:

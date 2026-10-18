@@ -205,6 +205,12 @@ class SplineTests(unittest.TestCase):
         self.assertTrue(all(n==16 for n in core.seen))
 
     def test_spline_to_actual_normalizer_joint_anchor_and_controller(self):
+        self._spline_normalizer_controller_roundtrip(True)
+
+    def test_spline_absolute_baseline_normalizer_and_controller(self):
+        self._spline_normalizer_controller_roundtrip(False)
+
+    def _spline_normalizer_controller_roundtrip(self, subtract_state):
         import torch
         from test_ee_implementation import feature_namespace
         from lingbotvla.action_spaces.spline import SplineActionCodec
@@ -216,7 +222,7 @@ class SplineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             directory=Path(tmp); fake_stats(directory/'stats.json')
             robot=yaml.safe_load((ROOT/'configs/robot_configs/robotwin.yaml').read_text())
-            robot['actions'][0]['action.arm.position']['subtract_state']=True
+            robot['actions'][0]['action.arm.position']['subtract_state']=subtract_state
             robot['norm_stats']=str(directory/'stats.json')
             (directory/'robot.yaml').write_text(yaml.safe_dump(robot))
             cfg=actual_config(spline_control_points=16)

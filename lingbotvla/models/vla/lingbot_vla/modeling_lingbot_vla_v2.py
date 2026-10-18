@@ -1436,6 +1436,10 @@ class LingbotVlaV2Policy(PreTrainedModel):
                 loss_dict['spline/target_max_error'] = error.abs().max()
                 grip_mask = original_mask[...,28:30]
                 loss_dict['spline/gripper_target_mae'] = error[...,28:30].abs().sum()/grip_mask.sum().clamp_min(1)
+        # Generate once, before flow-time sampling, exactly as the core does.
+        # The pair weight must use the SAME noise that generated x_t and u_t.
+        if getattr(self.config, 'flow_gibbs_epsilon', 0) and noise is None:
+            noise = torch.randn(actions.shape, device=state.device, dtype=state.dtype)
         (
             losses,
             loss_depth,
@@ -1474,7 +1478,13 @@ class LingbotVlaV2Policy(PreTrainedModel):
                 raise ValueError('Padding-aware action loss requires joint_mask, action_is_pad and no repeat')
             joint_mask = joint_mask.bool() & ~action_is_pad.bool().unsqueeze(-1)
 
-        if getattr(self.config, 'flow_dimension_weights', None) is not None or getattr(self.config, 'flow_horizon_weights', None) is not None:
+        if getattr(self.config, 'flow_gibbs_epsilon', 0):
+            from lingbotvla.action_spaces.loss import gibbs_flow_loss
+            loss_vla, batch_mean_losses, gibbs_metrics = gibbs_flow_loss(
+                losses, joint_mask, actions, noise, self.config.flow_gibbs_epsilon,
+                self.config.flow_gibbs_log_normalizer)
+            loss_dict.update(gibbs_metrics)
+        elif getattr(self.config, 'flow_dimension_weights', None) is not None or getattr(self.config, 'flow_horizon_weights', None) is not None:
             from lingbotvla.action_spaces.loss import weighted_flow_loss
             if joint_mask is None or getattr(self.config,'training_time_rtc',False) or getattr(self.config,'joint_ee_aux_weight',-1) >= 0:
                 raise ValueError('Weighted flow loss requires joint_mask and excludes RTC/JointEE')
