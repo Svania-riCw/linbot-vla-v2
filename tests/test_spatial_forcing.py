@@ -42,6 +42,21 @@ class SpatialForcingTests(unittest.TestCase):
         self.assertFalse(config["data"]["use_future_image"])
         self.assertTrue(config["train"]["align_params"]["spatial_forcing"]["enabled"])
 
+    def test_combined_recipe_keeps_teachers_and_sf_without_rtc(self):
+        recipe = Path(__file__).resolve().parents[1] / "configs/vla/robotwin/robotwin_sf_with_teachers_no_rtc.yaml"
+        config = yaml.safe_load(recipe.read_text())
+        train = config["train"]
+        align = train["align_params"]
+        self.assertFalse(train["training_time_rtc"])
+        self.assertTrue(config["data"]["use_future_image"])
+        self.assertTrue(align["use_future_video"])
+        self.assertIn("depth", align)
+        self.assertIn("video", align)
+        self.assertTrue(align["spatial_forcing"]["enabled"])
+        self.assertEqual(train["micro_batch_size"], 16)
+        self.assertEqual(train["gradient_accumulation_steps"], 1)
+        self.assertEqual(train["global_batch_size"], 128)
+
     def test_factor_grid_prefers_near_square_factors(self):
         self.assertEqual(_factor_grid(16), (4, 4))
         self.assertEqual(_factor_grid(12), (3, 4))

@@ -51,3 +51,11 @@ bash train.sh tasks/vla/train_lingbotvla.py configs/vla/robotwin/robotwin_sf_no_
 ```
 
 The repository's FSDP2 baseline is mixed precision at the model level: `enable_mixed_precision` defaults to `true`, while `enable_fp32: true` selects FP32 for the action-expert FSDP groups. The Qwen-VL groups remain BF16 under the FSDP2 policy, so this is not an all-parameter FP32 run. The depth/video/VGGT teacher paths also use BF16 CUDA autocast; SF targets are stored as BF16 by default. The new recipe makes these baseline choices explicit and does not enable RTC.
+
+To combine SF with the baseline's future-image, depth, and video losses while still keeping RTC off, use `configs/vla/robotwin/robotwin_sf_with_teachers_no_rtc.yaml`:
+
+```bash
+bash train.sh tasks/vla/train_lingbotvla.py configs/vla/robotwin/robotwin_sf_with_teachers_no_rtc.yaml
+```
+
+This combined recipe uses the local MoGe, MoRGBD, DINO-video, and VGGT teachers. The SF-only recipe is better for an apples-to-apples SF ablation; after that run is validated, the combined recipe is the better choice when the goal is to maximize the full auxiliary-training signal. It needs more GPU memory and its result mixes the SF gain with the depth/video losses.
