@@ -28,7 +28,7 @@ data:
 train:
   output_dir: /2025233210/lmx/checkpoints/lingbot-vla-v2-6b-robotwin-sf-with-teachers-no-rtc
   moe_monitor_interval: 1000
-  enable_gradient_checkpointing: true
+  enable_gradient_checkpointing: false
   precompute_grid_thw: true
   vlm_causal: true
   enable_mixed_precision: true

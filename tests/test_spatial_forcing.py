@@ -53,6 +53,7 @@ class SpatialForcingTests(unittest.TestCase):
         self.assertIn("depth", align)
         self.assertIn("video", align)
         self.assertTrue(align["spatial_forcing"]["enabled"])
+        self.assertFalse(train["enable_gradient_checkpointing"])
         self.assertEqual(train["micro_batch_size"], 16)
         self.assertEqual(train["gradient_accumulation_steps"], 1)
         self.assertEqual(train["global_batch_size"], 128)
