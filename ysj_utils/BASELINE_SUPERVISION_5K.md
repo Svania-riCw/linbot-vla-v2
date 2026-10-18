@@ -36,6 +36,12 @@ python ysj_utils/run_baseline_supervision.py --run-dir /path/to/new_run --run-pr
 
 队列：**Weighted 5k → 350次评测 → Spline 5k → 350次评测**。异常或非有限loss/梯度会停止队列并记录status；每1000步保存DCP/HF。进度解析已适配日志的epoch分母4295，优化器预算仍为5000。
 
+新队列已于2026-10-18 21:54（北京时间）在30375的8张H20启动，代码提交c5aa3cb。本机及服务器均108项测试通过；已确认Weighted完成最初多次真实更新，梯度与学习率正常，Spline尚在队列中。新输出根目录：`/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018`。
+
+重新校准得到epsilon=0.53452266、log_Z=-2.23628366，源/目标相对方差约0.00225/0.00907；400段共20000个时间位置全部参与校准和样条拟合，其中15849个为原始真实时间位置。新旧epsilon数值相同是网格选择结果，但log_Z已重新计算，监督范围已改变。
+
+查看日志：`tmux attach -t ysj-supervision`。启动证据与实际配置审计：[reports/baseline_supervision_5k_aligned_launch_2026-10-18.json](reports/baseline_supervision_5k_aligned_launch_2026-10-18.json)。按起跑后约4.25秒/步估计，Weighted约6小时；两组训练和两轮评测暂估12–15小时，后续吞吐和导出会影响耗时。
+
 ## 被替代的旧尝试
 
 旧输出：/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_20261018。旧Weighted约433步时按用户要求停止，旧Spline未启动。日志保留，状态SUPERSEDED，会话ysj-supervision-masked-stopped。旧尝试使用时间mask，不能混入新5k实验或拼接预算。
