@@ -161,10 +161,12 @@ def main():
                     status('storage_copy_failed', copy_status=copy_state)
                     raise RuntimeError('Checkpoint staging failed; preserving all outputs')
                 cards, apps = engine.gpu_snapshot()
-                good = engine.snapshot_idle(cards, apps)
+                workloads = engine.active_gpu_workloads()
+                good = engine.snapshot_idle(cards, apps) and not workloads
                 consecutive = consecutive + 1 if good else 0
                 status('confirming_idle' if good else 'waiting_for_idle_gpus',
-                       confirmations=consecutive, gpu_snapshot=cards, gpu_processes=apps)
+                       confirmations=consecutive, gpu_snapshot=cards, gpu_processes=apps,
+                       active_workloads=workloads)
                 if consecutive < 3:
                     time.sleep(args.poll_seconds)
                     continue
@@ -183,13 +185,15 @@ def main():
                     count = 0
                     while True:
                         cards, apps = engine.gpu_snapshot()
-                        good = engine.snapshot_idle(cards, apps)
+                        workloads = engine.active_gpu_workloads()
+                        good = engine.snapshot_idle(cards, apps) and not workloads
                         count = count + 1 if good else 0
                         if count >= 3:
                             return
                         if not good:
                             engine.write_state(current, 'waiting_for_idle_gpus',
                                                gpu_snapshot=cards, gpu_processes=apps,
+                                               active_workloads=workloads,
                                                retry_interval_seconds=args.poll_seconds)
                         time.sleep(args.poll_seconds)
                 engine.wait_idle = wait_local_idle

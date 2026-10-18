@@ -12,9 +12,47 @@ ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('priority_worker_test', ROOT / 'xsy_utils/resolution_exp/priority_worker.py')
 worker = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(worker)
+spec = importlib.util.spec_from_file_location('queue_engine_test', ROOT / 'xsy_utils/resolution_exp/queue_engine.py')
+engine = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(engine)
 
 
 class PriorityQueueTest(unittest.TestCase):
+    def test_cold_starting_trainer_is_visible_before_gpu_allocation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for pid, argv in [('1', ['private-init']),
+                              ('200', ['python', 'tasks/vla/train_lingbotvla.py', 'job.yaml']),
+                              ('201', ['python', 'prepare_config.py'])]:
+                path = root / pid
+                path.mkdir()
+                (path / 'cmdline').write_bytes(b'\0'.join(v.encode() for v in argv) + b'\0')
+            (root / '202').mkdir()  # A process that exits during enumeration.
+            workloads = engine.active_gpu_workloads(root)
+            self.assertEqual([item['pid'] for item in workloads], [200])
+            self.assertEqual(workloads[0]['entry'], 'train_lingbotvla.py')
+            self.assertNotIn('argv', workloads[0])
+
+    def test_late_workload_prevents_spawn_after_config_preparation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            settings = root / 'wandb_settings.json'
+            secret = root / 'dummy_test_credential.json'
+            secret.write_text(json.dumps({'api_key': 'test-only'}))
+            settings.write_text(json.dumps({'project': 'test', 'entity': 'test',
+                'base_url': 'https://api.wandb.ai', 'secret_file': str(secret), 'sdk_path': str(root)}))
+            preflight = {'config': 'test.yaml', 'reference_seed': 42, 'data_manifest': 'clean.txt',
+                'baseline': 'reference', 'baseline_config_sha256': 'abc', 'clean_norm_sha256': 'def'}
+            with patch.object(engine, 'STATE_DIR', root), patch.object(engine, 'OUTPUT_ROOT', root / 'outputs'), \
+                 patch.object(engine, 'prepare_config', return_value=preflight), \
+                 patch.object(engine, 'wait_idle', side_effect=[None, RuntimeError('late GPU workload')]) as wait, \
+                 patch.object(engine.subprocess, 'Popen') as spawn:
+                with self.assertRaisesRegex(RuntimeError, 'late GPU workload'):
+                    engine.run_phase({}, 'test', 4, False, float('inf'))
+                self.assertEqual(wait.call_count, 2)
+                spawn.assert_not_called()
+                self.assertFalse((root / 'test_train_b1_384_m4_train_to_5000.log').exists())
+
     def idle_claim(self, root):
         owner = worker.try_claim(root, 'node2', 100)
         worker.atomic_json(root / 'engine_state/status.json', {

@@ -39,6 +39,30 @@ def gpu_snapshot():
     return cards, apps
 
 
+def active_gpu_workloads(proc_root=Path('/proc')):
+    """Catch known trainers/servers before CUDA allocation appears in NVML."""
+    entries = {'torchrun', 'train_lingbotvla.py', 'train.py', 'serve.py', 'eval_policy.py'}
+    workloads = []
+    for process in proc_root.iterdir():
+        if not process.name.isdigit() or process.name == '1':
+            continue
+        try:
+            argv = [value.decode(errors='replace') for value in
+                    (process / 'cmdline').read_bytes().split(b'\0') if value]
+        except (FileNotFoundError, PermissionError, ProcessLookupError):
+            continue
+        entry = next((Path(value).name for value in argv if Path(value).name in entries), None)
+        if entry is None:
+            continue
+        try:
+            cwd = os.readlink(process / 'cwd')
+        except OSError:
+            cwd = None
+        # Only public process identity is recorded, never the full argument list.
+        workloads.append({'pid': int(process.name), 'entry': entry, 'cwd': cwd})
+    return workloads
+
+
 def write_state(state, phase, **updates):
     state.update(phase=phase, updated_utc=dt.datetime.now(dt.timezone.utc).isoformat(), **updates)
     STATE_DIR.mkdir(parents=True, exist_ok=True)
@@ -82,9 +106,11 @@ def wait_idle(state, deadline):
         good = True
         for check in range(3):
             cards, apps = gpu_snapshot()
-            if not snapshot_idle(cards, apps):
+            workloads = active_gpu_workloads()
+            if not snapshot_idle(cards, apps) or workloads:
                 retry_at = dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=1)
                 write_state(state, 'waiting_for_idle_gpus', gpu_snapshot=cards, gpu_processes=apps,
+                            active_workloads=workloads,
                             retry_interval_seconds=3600, next_check_utc=retry_at.isoformat())
                 good = False
                 break
@@ -143,7 +169,8 @@ def run_phase(state, queue_id, micro, smoke, deadline, resume=False):
                RUN_NAME=run_name, MASTER_PORT='29581', PYTHONUNBUFFERED='1')
     logging = json.loads((STATE_DIR / 'wandb_settings.json').read_text())
     credential = json.loads(Path(logging['secret_file']).read_text())
-    wandb_name = f'{run_name}_{kind}'
+    attempt = 1 + len(state.get('failed_attempts', []))
+    wandb_name = f'{run_name}_{kind}' + (f'_attempt{attempt}' if attempt > 1 else '')
     env.update(WANDB_API_KEY=credential['api_key'], WANDB_BASE_URL=logging['base_url'],
                WANDB_ENTITY=logging['entity'], WANDB_PROJECT=logging['project'], WANDB_MODE='online',
                WANDB_GROUP=queue_id, WANDB_JOB_TYPE=kind, WANDB_NAME=wandb_name,
@@ -152,6 +179,7 @@ def run_phase(state, queue_id, micro, smoke, deadline, resume=False):
                WANDB_DIR=str(STATE_DIR / 'wandb'))
     Path(env['WANDB_DIR']).mkdir(exist_ok=True)
     env['QL_WANDB_RUN_METADATA'] = json.dumps({
+        'attempt_index': attempt, 'previous_failed_attempts': state.get('failed_attempts', []),
         'execution_node': os.environ.get('QL_NODE_NAME', 'unspecified'), 'code_commit': EXPECTED_HEAD, 'experiment': label, 'phase': kind,
         'input_resolution': [384, 384], 'num_cameras': 3, 'expected_visual_tokens': 432,
         'image_resize_mode': 'opencv_lanczos4', 'preserve_image_resolution': True,
@@ -175,6 +203,9 @@ def run_phase(state, queue_id, micro, smoke, deadline, resume=False):
     args += ['--train.seed', str(preflight['reference_seed']), '--train.enable_fp32', 'true',
              '--train.use_wandb', 'true', '--train.wandb_project', logging['project'],
              '--train.wandb_name', wandb_name]
+    # Configuration and checkpoint preparation can take long enough for another
+    # user's cold-starting job to appear. Recheck immediately before spawning.
+    wait_idle(state, deadline)
     with log_path.open('x') as log:
         child = subprocess.Popen(args, cwd=REPO, env=env, stdin=subprocess.DEVNULL,
                                  stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
