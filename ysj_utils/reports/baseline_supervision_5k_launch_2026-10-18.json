@@ -1,0 +1,133 @@
+{
+  "captured_at": "2026-10-18T13:19:41.635380+00:00",
+  "run_dir": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_20261018",
+  "tmux": "ysj-supervision",
+  "plan": {
+    "source_run": "/2025233210/xiesy/lingbot_ws/outputs/baseline_gbs128_5k",
+    "source_config_sha256": "863854d78fbaf6a990917c3c475e5869774d5473b5e2dc9f297162113d6cc675",
+    "source_robot_sha256": "26be1a26153c25f2ce77d74c722ad344b7c23d4cee31b7112ea40f5b2b4dec8b",
+    "norm_sha256": "bd1ada4579d9c3cd5106255f4a53385af2cd82999322b395d4204c28d85a29f6",
+    "train_list_sha256": "8ff079a9d23511b7b47c774243422c9e11ae69752fc6b2268e239b74d26e9f44",
+    "code_commit": "8363bf861cbdcbdc5508e162e68a05f0e251baa1",
+    "github_main": "56952d10a8ce9c1224e7c639c17fae92dfe78a94",
+    "precision": "baseline FSDP2 fp32 policy/gradients; frozen visual teachers keep baseline bf16 autocast",
+    "evaluation": "7 tasks x 2 configs x 25, seed0, fp32, compile=False",
+    "caveat": "Historical baseline had no padding mask; it is not a fully matched control.",
+    "groups": {
+      "Control": {
+        "config": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_20261018/Control/train.yaml",
+        "sha256": "12b6c150c0cccfe8ad0682fd27c1599ec059eaff1692934fb157746896099207",
+        "contract": {
+          "robot_config_root": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_20261018/Control/robot_configs",
+          "robot_config": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_20261018/Control/robot_configs/robotwin.yaml",
+          "norm_stats": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_20261018/Control/norm_stats.json",
+          "mode": "joint_absolute",
+          "config": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_20261018/Control/train/lingbotvla_cli.yaml"
+        },
+        "supervision": {
+          "flow_dimension_weights": null,
+          "flow_horizon_weights": null,
+          "spline_control_points": 0,
+          "spline_degree": 3
+        },
+        "scheduled": false
+      },
+      "Weighted": {
+        "config": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_20261018/Weighted/train.yaml",
+        "sha256": "c4893aa8d03823cdef4f86f18aa690274d5bc3fee0d90dfd599f8f4958716aee",
+        "contract": {
+          "robot_config_root": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_20261018/Weighted/robot_configs",
+          "robot_config": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_20261018/Weighted/robot_configs/robotwin.yaml",
+          "norm_stats": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_20261018/Weighted/norm_stats.json",
+          "mode": "joint_absolute",
+          "config": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_20261018/Weighted/train/lingbotvla_cli.yaml"
+        },
+        "supervision": {
+          "flow_dimension_weights": null,
+          "flow_horizon_weights": null,
+          "spline_control_points": 0,
+          "spline_degree": 3,
+          "flow_gibbs_epsilon": 0.5345226587385904,
+          "flow_gibbs_log_normalizer": -2.2326596775743806
+        },
+        "scheduled": true
+      },
+      "Spline": {
+        "config": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_20261018/Spline/train.yaml",
+        "sha256": "22397317422a6a67473ad249d510025e7aaa38b9e5b110f288c273835213e9a6",
+        "contract": {
+          "robot_config_root": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_20261018/Spline/robot_configs",
+          "robot_config": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_20261018/Spline/robot_configs/robotwin.yaml",
+          "norm_stats": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_20261018/Spline/norm_stats.json",
+          "mode": "joint_absolute",
+          "config": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_20261018/Spline/train/lingbotvla_cli.yaml"
+        },
+        "supervision": {
+          "flow_dimension_weights": null,
+          "flow_horizon_weights": null,
+          "spline_control_points": 16,
+          "spline_degree": 3
+        },
+        "scheduled": true
+      }
+    }
+  },
+  "calibration": {
+    "paper": "https://arxiv.org/abs/2507.22270",
+    "seed": 7042,
+    "tolerance": 0.01,
+    "source_points": 128,
+    "target_chunks": 400,
+    "selected": {
+      "epsilon": 0.5345226587385904,
+      "log_normalizer": -2.2326596775743806,
+      "rv_source": 0.0025537430980242136,
+      "rv_target": 0.008927969129757896,
+      "ess_fraction": 0.9836972865599524
+    },
+    "cost": "masked Euclidean norm / sqrt(valid dimensions)",
+    "potentials": "constant f=g=1",
+    "caveat": "Finite unconditional proxy over robot contexts; not proof of conditional marginal preservation"
+  },
+  "spline_fit": {
+    "chunks": 400,
+    "valid_steps": 15849,
+    "points": 16,
+    "degree": 3,
+    "normalized_rmse": 0.002769994316622615,
+    "joint_mae_radians": 0.00043157333857379854,
+    "joint_p95_radians": 0.0019152346416376517,
+    "gripper_mae": 0.0012632968137040734,
+    "gripper_p95": 0.007281431090086686,
+    "gripper_max": 0.03315964341163635,
+    "note": "Compression error, not policy success; cubic smoothing can smear sharp gripper transitions"
+  },
+  "tests": {
+    "local": 103,
+    "server": 103,
+    "status": "PASSED"
+  },
+  "launcher_status": {
+    "state": "TRAINING",
+    "updated_at": "2026-10-18T13:15:36.015192+00:00",
+    "group": "Weighted",
+    "step": 0
+  },
+  "observed_optimizer_updates": 29,
+  "first_steps": [
+    "Step 1/4295, Epoch 1, Loss 0.3940, VLA_Loss 0.3630, Depth_Loss 3.3989, Future_Depth_Loss 3.3226, FutureVideo_Loss 0.7486, SeqWise_Loss 0.0011, RouterZ_Loss 0.0000, GradNorm 0.8087, LR 1.00e-04, Expert_LR 2.83e-04, StepTime 41.566s, Depth_Forward_Time  2.729s, Ignore_Batch_Num 0",
+    "Step 2/4295, Epoch 1, Loss 0.3394, VLA_Loss 0.3098, Depth_Loss 3.2368, Future_Depth_Loss 3.1834, FutureVideo_Loss 0.6943, SeqWise_Loss 0.0011, RouterZ_Loss 0.0000, MaxVio 0.8594, AvgSigmoid 0.0801, GradNorm 0.8146, LR 1.00e-04, Expert_LR 2.83e-04, StepTime 9.094s, Depth_Forward_Time  0.375s, Ignore_Batch_Num 0",
+    "Step 3/4295, Epoch 1, Loss 0.3669, VLA_Loss 0.3391, Depth_Loss 3.0422, Future_Depth_Loss 3.0231, FutureVideo_Loss 0.6537, SeqWise_Loss 0.0011, RouterZ_Loss 0.0000, MaxVio 0.8594, AvgSigmoid 0.0869, GradNorm 0.8378, LR 1.00e-04, Expert_LR 2.83e-04, StepTime 8.091s, Depth_Forward_Time  0.374s, Ignore_Batch_Num 0",
+    "Step 4/4295, Epoch 1, Loss 0.3416, VLA_Loss 0.3145, Depth_Loss 2.9049, Future_Depth_Loss 2.9316, FutureVideo_Loss 0.6161, SeqWise_Loss 0.0011, RouterZ_Loss 0.0000, MaxVio 0.8398, AvgSigmoid 0.0845, GradNorm 0.8815, LR 1.00e-04, Expert_LR 2.83e-04, StepTime 8.154s, Depth_Forward_Time  0.374s, Ignore_Batch_Num 0",
+    "Step 5/4295, Epoch 1, Loss 0.2800, VLA_Loss 0.2545, Depth_Loss 2.7237, Future_Depth_Loss 2.7771, FutureVideo_Loss 0.5922, SeqWise_Loss 0.0011, RouterZ_Loss 0.0000, MaxVio 0.8438, AvgSigmoid 0.0830, GradNorm 0.8851, LR 1.00e-04, Expert_LR 2.83e-04, StepTime 8.115s, Depth_Forward_Time  0.371s, Ignore_Batch_Num 0"
+  ],
+  "last_steps": [
+    "Step 25/4295, Epoch 1, Loss 0.1926, VLA_Loss 0.1758, Depth_Loss 1.7872, Future_Depth_Loss 1.7490, FutureVideo_Loss 0.3755, SeqWise_Loss 0.0011, RouterZ_Loss 0.0000, MaxVio 1.2422, AvgSigmoid 0.0845, GradNorm 0.4061, LR 1.00e-04, Expert_LR 2.83e-04, StepTime 4.213s, Depth_Forward_Time  0.373s, Ignore_Batch_Num 0",
+    "Step 26/4295, Epoch 1, Loss 0.1909, VLA_Loss 0.1746, Depth_Loss 1.7891, Future_Depth_Loss 1.6680, FutureVideo_Loss 0.3707, SeqWise_Loss 0.0011, RouterZ_Loss 0.0000, MaxVio 1.2344, AvgSigmoid 0.0840, GradNorm 0.3850, LR 1.00e-04, Expert_LR 2.83e-04, StepTime 4.205s, Depth_Forward_Time  0.370s, Ignore_Batch_Num 0",
+    "Step 27/4295, Epoch 1, Loss 0.1852, VLA_Loss 0.1688, Depth_Loss 1.7214, Future_Depth_Loss 1.6537, FutureVideo_Loss 0.3664, SeqWise_Loss 0.0011, RouterZ_Loss 0.0000, MaxVio 1.2891, AvgSigmoid 0.0864, GradNorm 0.5753, LR 1.00e-04, Expert_LR 2.83e-04, StepTime 4.207s, Depth_Forward_Time  0.371s, Ignore_Batch_Num 0",
+    "Step 28/4295, Epoch 1, Loss 0.1807, VLA_Loss 0.1644, Depth_Loss 1.7338, Future_Depth_Loss 1.7061, FutureVideo_Loss 0.3600, SeqWise_Loss 0.0011, RouterZ_Loss 0.0000, MaxVio 1.2812, AvgSigmoid 0.0903, GradNorm 0.3494, LR 1.00e-04, Expert_LR 2.83e-04, StepTime 4.204s, Depth_Forward_Time  0.372s, Ignore_Batch_Num 0",
+    "Step 29/4295, Epoch 1, Loss 0.1888, VLA_Loss 0.1730, Depth_Loss 1.7185, Future_Depth_Loss 1.6117, FutureVideo_Loss 0.3564, SeqWise_Loss 0.0011, RouterZ_Loss 0.0000, MaxVio 1.2891, AvgSigmoid 0.0894, GradNorm 0.4033, LR 1.00e-04, Expert_LR 2.83e-04, StepTime 4.206s, Depth_Forward_Time  0.373s, Ignore_Batch_Num 0"
+  ],
+  "gpu": "0, NVIDIA H20, 84226, 100\n1, NVIDIA H20, 84226, 100\n2, NVIDIA H20, 84252, 100\n3, NVIDIA H20, 84226, 100\n4, NVIDIA H20, 84226, 100\n5, NVIDIA H20, 84226, 100\n6, NVIDIA H20, 84226, 100\n7, NVIDIA H20, 84226, 100\n",
+  "monitoring_note": "The original launcher step regex expected /5000; upstream logs /4295 per epoch. Use actual training.log for current step. Numeric progress display fixed locally for future launches; running training unchanged."
+}

@@ -50,6 +50,8 @@ loss = sum_valid(w_i * 原始逐元素 L1 error) / sum(valid_mask)
 
 补充阅读：[B-spline Policy](https://arxiv.org/abs/2607.09648)与动作表示非常直接相关，但作者标注为 2026 预印本，**不标成 ICLR/ICRA/CVPR/NeurIPS 正式论文**。本次优先以正式 NeurIPS 的 BEAST 为依据。
 
+背景阅读：[Neural Dynamic Policies for End-to-End Sensorimotor Learning，NeurIPS 2020](https://proceedings.neurips.cc/paper/2020/hash/354ac345fd8c6d7ef634d9a8e3d47b83-Abstract.html)。它支持“让网络预测紧凑的轨迹参数，再生成连续动作”的总体动机，但使用 DMP 微分方程与高斯基函数，**不是 B-spline，也不是本次直接复现的算法**。不为凑会议名而将无关的 spline 视觉论文当成机器人动作证据。
+
 验证的问题：压缩动作表示能否在同样 5k 更新下获得更好的策略或更快训练/推理；同时检查平滑是否损失抓取、接触精度。
 
 ## 验证与运行
@@ -64,7 +66,20 @@ python ysj_utils/run_baseline_supervision.py --run-dir /path/to/new_run --run-pr
 
 运行顺序：Weighted 5k → 350 次评测 → Spline 5k → 350 次评测。训练或评测失败即写 status.json 并停止；不自动换配置或跳过失败。进入正式训练后检查最初几次更新的 loss、梯度、精度和数据形状。训练器每 1000 步保存 DCP/HF；脚本启动时拒绝复用已启动的输出目录，避免意外重复训练。需要断点恢复时先检查完整 DCP，再明确指定恢复，不能拿 HF 文件宣称优化器也恢复了。
 
-预计两组共需数十小时，正式 fp32 速度以头 100 步为准；每组完整评测参考之前约 1 小时。tmux 能在本机断网/关机后继续运行。
+实测起跑后约 4.2 秒/步，Weighted 单组训练初估约 6 小时，加上 Spline 和两次评测，整个队列暂估 12–15 小时；这是起跑阶段外推，缓存、导出和后续吞吐仍会影响耗时。每组完整评测参考之前约 1 小时。tmux 能在本机断网/关机后继续运行。
+
+2026-10-18 21:15（北京时间）已在 30375 的 8 张 H20 启动，tmux 会话 `ysj-supervision`。输出根目录：`/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_20261018`。代码提交 `8363bf8`，本机和服务器均 103 项测试通过。采集启动证据时 Weighted 已完成 29 次优化器更新，第29步 loss=0.1888，梯度范数=0.4033，LR≈1e-4，显存约82.3 GiB/卡、利用率约100%；Spline 尚在队列中，不能说已完成其完整 GPU 训练验证。
+
+校准的 RMS 带宽为 0.53452266，log_Z=-2.23265968；源/目标边际倾斜代理相对方差约0.00255/0.00893。Spline 400段真实动作拟合的关节 MAE≈0.000432弧度，夹爪 MAE≈0.00126，最大夹爪误差≈0.0332。这里都是算法/压缩诊断，尚无新成功率结果。
+
+启动脚本的数字进度匹配曾把上游日志分母误当作5000；实际是每epoch的4295。训练本身正常，**5000预算不变**。本地已修复后续启动的匹配；当前进度以实际 `Weighted/training.log` 为准，不用旧 launcher 的 step=0 判断训练停了。此修复没有热更新正在运行的训练代码。
+
+```bash
+tmux attach -t ysj-supervision
+tail -n 5 /2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_20261018/Weighted/training.log
+```
+
+启动、实际配置、校准与起跑日志证据保存在 [reports/baseline_supervision_5k_launch_2026-10-18.json](reports/baseline_supervision_5k_launch_2026-10-18.json)。
 
 ## 比较边界
 

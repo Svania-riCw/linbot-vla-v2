@@ -237,7 +237,9 @@ def main():
                             log.flush()
                             if NONFINITE.search(line):
                                 raise RuntimeError('Nonfinite loss/gradient detected: '+line.strip())
-                            match = re.search(r'\bStep (\d+)/5000,', line)
+                            # Upstream prints epoch train_steps (4295), even when
+                            # the optimizer budget/max_steps is 5000.
+                            match = re.search(r'\bStep (\d+)/\d+,', line)
                             if match:
                                 step = int(match[1])
                                 if step <= 5 or step % 100 == 0:
