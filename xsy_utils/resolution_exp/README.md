@@ -1,5 +1,29 @@
 # Exp1：增加输入分辨率的轻量基线
 
+## 当前执行计划（2026-10-18 更新）
+
+用户提供现成的 `/2025233210/xiesy/lingbot_ws/outputs/baseline_gbs128_10k` 后，取消重训 256，也取消旧的 256/384 各 1000 步方案。下文两组配置用于解释对照；当前只训练 **384²、三路全图、432 visual tokens** 的改动版。
+
+- 训练用全部 **50 个 clean 任务 × 每任务 50 episodes = 2500 episodes**；数据根目录 `/2025233210/lmx/training-data/lerobot`。不加入 random 训练数据。
+- global batch **128**，训练 **10000 steps**，沿用 baseline 的初始化、优化器、学习率及 `enable_fp32=true`。这是仓库的 FP32 模式：融合 MoE、attention 和教师内部仍有显式 BF16 运算，不代表所有算子都使用纯 FP32。
+- `tools/prepare_resolution_finetune.py` 从 baseline 实际的 `lingbotvla_cli.yaml` 生成配置，核验其 10k/batch128/FP32 与最终导出权重，再检查 50 个 clean 数据集的 episode 数。记录配置差异、baseline 的 seed/micro batch 和文件哈希。改动版为显存预留使用 micro4，smoke OOM 时可降至 2/1，global batch 保持128。
+- **训练读取 `robot_config_root/robotwin.yaml` 的 norm_stats**；仅设置 `data.norm_stats_file` 不会覆盖训练映射。准备工具将训练映射与推理配置同时固定到同一份 clean 统计文件副本，并以 SHA256 检查 baseline 的统计内容相同。
+- 每 **1000** 步保留 DCP 模型、优化器、学习率、数据加载器状态和 HF 推理权重。5000 和10000步都必须保留，不清理中途 checkpoint。
+- 先跑384的2步保存，再恢复2步的 smoke，验证DCP恢复后才开始正式训练。正式训练始终设置 `max_steps=10000`，另设 `pause_after_steps=5000` 在保存后退出；完成5k评测后，从 **DCP global_step_5000** 恢复到10k。续训设置 `pause_after_steps=0`，不可仅用 HF 权重重启优化器。显式指定的 checkpoint 加载失败会报错，避免悄悄从头训练。
+- 5k、10k 各评测 **7 tasks × clean/random × 25 = 350 episodes**：`blocks_ranking_rgb hanging_mug open_laptop pick_diverse_bottles rotate_qrcode stack_blocks_three place_shoe`。用户所写 BLOCK_RANKING_RGB 对应代码里的 `blocks_ranking_rgb`。random 只用于评测，统计仍用训练时的 clean 文件。
+- `tools/eval_resolution_checkpoint.py` 显式传入 clean norm、FP32、相同动作长度与 seed，沿用训练 YAML 的384处理。底层脚本可能在部分任务失败时返回0，因此额外要求14项结果全部存在且每项25次，否则队列停止并保留日志。训练指标和逐任务评测指标均记录到用户指定 W&B 团队项目。
+
+5k评测用于检查动作幅度、抓取/对齐、任务失败视频和输入映射是否异常，不能把5k改动版与10k baseline 的差异解释为改进收益。10k在相同评测条件下与已有 baseline 对比。已有 baseline 的插值、微批次或历史续训过程若不同，应在报告中明确记录；该实验不能单独证明纯 token 数量的因果作用。
+
+准备命令（只检查并生成配置，不启动GPU任务）：
+
+```bash
+python tools/prepare_resolution_finetune.py \
+  --destination /root/ql/linbot-vla-v2/.runtime/node1_queue/replan384
+```
+
+队列及部署状态以 `.runtime/node1_training_plan.json` 为准。2026-10-18 此次本地24项CPU测试通过；SSH握手失败，**新计划尚未部署，远端旧队列是否仍在等待尚未确认**。恢复连接后必须先处理本人旧队列，再应用新计划，不可并行启动第二个队列。
+
 ## 要证明什么
 
 先比较三路全图输入的 **256×256** 和 **384×384**，只使用非 AI 插值，不增加 ROI、相机或训练数据。问题是：**同一批源 RGB，给模型更大的输入栅格和更多视觉 token，闭环任务成功率会不会提高，代价是多少？**

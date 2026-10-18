@@ -52,5 +52,5 @@ if "$DRY_RUN"; then
     exit 0
 fi
 exec bash "$CODE/xsy_utils/train_baseline.sh" \
-    --train.seed 42 --train.max_steps 1000 --train.save_steps 1000 \
+    --train.seed 42 --train.max_steps 10000 --train.save_steps 1000 \
     --data.num_workers "$NUM_WORKERS" --data.prefetch_factor "$PREFETCH_FACTOR" "$@"

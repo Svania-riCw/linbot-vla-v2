@@ -37,6 +37,7 @@ from lingbotvla.utils.async_hf_checkpoint import AsyncHFCheckpointSaver
 from lingbotvla.utils.arguments import EvalArguments, DataArguments, ModelArguments, TrainingArguments, parse_args, save_args
 from lingbotvla.utils.dist_utils import all_reduce
 from lingbotvla.models.config_registry import get_config_registry
+from lingbotvla.utils.training_schedule import training_stop_step, capture_rng_state, restore_rng_state
 
 from lingbotvla.models.vla.vision_models.module_utils import (
     build_depth_model,
@@ -118,6 +119,10 @@ def get_moe_param_groups(model: "torch.nn.Module", args_train) -> Optional[List[
 
 @dataclass
 class MyTrainingArguments(TrainingArguments):
+    pause_after_steps: int = field(
+        default=0,
+        metadata={"help": "Save and stop at this global step without changing the max_steps LR horizon."},
+    )
     freeze_vit: bool = field(
         default=False,
         metadata={"help": "Whether or not to freeze the vit parameters."},
@@ -348,6 +353,9 @@ class Arguments:
 
 def main():
     args = parse_args(Arguments)
+    stop_step = training_stop_step(
+        args.train.max_steps, args.train.pause_after_steps, args.train.save_steps
+    )
     logger.info(f"Process rank: {args.train.global_rank}, world size: {args.train.world_size}")
     logger.info_rank0(json.dumps(asdict(args), indent=2))
     torch.cuda.set_device(f"cuda:{args.train.local_rank}")
@@ -692,7 +700,10 @@ def main():
                 if start_step > 0 and args.train.resume_dataloader_state:
                     train_dataloader.load_state_dict(state["extra_state"]["train_dataloader"])
                 environ_meter.load_state_dict(state["extra_state"]["environ_meter"])
-                torch.set_rng_state(state["extra_state"]["torch_rng_state"])
+                if "rng_state" in state["extra_state"]:
+                    restore_rng_state(state["extra_state"]["rng_state"])
+                else:
+                    torch.set_rng_state(state["extra_state"]["torch_rng_state"])
                 if start_step == 0:  # resume at the end of epoch
                     iter(train_dataloader)  # clear resume state and prefetch data
                 dist.barrier()
@@ -704,9 +715,14 @@ def main():
                 logger.info_rank0(f"Failed to load checkpoint {cp}: {repr(e)}. Trying older one...")
                 continue
         if not loaded:
+            if args.train.load_checkpoint_path:
+                raise RuntimeError(f"Cannot resume explicitly requested checkpoint: {load_checkpoint_path}") from last_err
             logger.info_rank0("Starting training from scratch. No valid checkpoint could be loaded.")
     else:
         logger.info_rank0("Starting training from scratch.")
+
+    if stop_step is not None and global_step >= stop_step:
+        raise ValueError(f"Loaded step {global_step} already reaches stop step {stop_step}.")
 
     helper.empty_cache()
     model_fwd_context, model_bwd_context = build_activation_offloading_context(
@@ -1134,6 +1150,7 @@ def main():
                         "train_dataloader": train_dataloader.state_dict(),
                         "environ_meter": environ_meter.state_dict(),
                         "torch_rng_state": torch.get_rng_state(),
+                        "rng_state": capture_rng_state(),
                     },
                 }
                 if args.train.global_rank == 0:
@@ -1149,8 +1166,8 @@ def main():
                     current_epoch_step_for_eval,
                 )
 
-            if args.train.max_steps is not None and global_step >= args.train.max_steps:
-                logger.info_rank0(f"Reached max_steps={args.train.max_steps}, stopping training.")
+            if stop_step is not None and global_step >= stop_step:
+                logger.info_rank0(f"Reached stop step={stop_step} (LR horizon max_steps={args.train.max_steps}), stopping training.")
                 reached_max_steps = True
                 break
 
@@ -1175,6 +1192,7 @@ def main():
                         "train_dataloader": train_dataloader.state_dict(),
                         "environ_meter": environ_meter.state_dict(),
                         "torch_rng_state": torch.get_rng_state(),
+                        "rng_state": capture_rng_state(),
                     },
                 }
                 Checkpointer.save(args.train.save_checkpoint_path, state, global_steps=global_step)
@@ -1201,6 +1219,7 @@ def main():
                     "train_dataloader": train_dataloader.state_dict(),
                     "environ_meter": environ_meter.state_dict(),
                     "torch_rng_state": torch.get_rng_state(),
+                    "rng_state": capture_rng_state(),
                 },
             }
             Checkpointer.save(args.train.save_checkpoint_path, state, global_steps=global_step)
@@ -1235,6 +1254,7 @@ def main():
 
     if args.train.global_rank == 0 and args.train.use_wandb:
         wandb.summary["completed_global_step"] = int(global_step)
+        wandb.summary["paused_for_evaluation"] = bool(args.train.pause_after_steps)
         wandb.summary["last_checkpoint_path"] = save_checkpoint_path
         wandb.finish()
 
