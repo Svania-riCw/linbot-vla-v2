@@ -403,7 +403,8 @@ If you also set `global_batch_size` explicitly, it must be consistent with the c
 | `attention_implementation` | str | `"flex"` | VLA attention implementation. Supported values include `"flex"`, `"flex_cached"`, and `"eager"`. |
 | `use_compile` | bool | `false` | Enable `torch.compile` for training acceleration. |
 | `ckpt_manager` | str | `"dcp"` | Checkpoint backend. Options: `"dcp"` (PyTorch Distributed Checkpoint), `"bytecheckpoint"`. |
-| `enable_fp32` | bool | `false` | Use float32 precision for the action expert. |
+| `enable_mixed_precision` | bool | `true` | Enable the mixed-precision/FSDP path. With the FSDP2 baseline, this keeps Qwen-VL groups in BF16 and allows `enable_fp32` to select FP32 action-expert groups. |
+| `enable_fp32` | bool | `false` | Use float32 precision for the action expert when mixed-precision/FSDP is enabled. |
 | `enable_resume` | bool | `false` | Automatically resume training from the latest checkpoint in `output_dir`. |
 
 ### Train — MoE Parameters

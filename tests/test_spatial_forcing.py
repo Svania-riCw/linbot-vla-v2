@@ -1,6 +1,9 @@
 """Small CPU checks for Spatial Forcing target construction and loss masking."""
 
 import unittest
+from pathlib import Path
+
+import yaml
 
 import torch
 from torch import nn
@@ -28,6 +31,17 @@ class _FakeVGGT(nn.Module):
 
 
 class SpatialForcingTests(unittest.TestCase):
+    def test_no_rtc_recipe_explicitly_selects_sf_and_baseline_precision(self):
+        recipe = Path(__file__).resolve().parents[1] / "configs/vla/robotwin/robotwin_sf_no_rtc.yaml"
+        config = yaml.safe_load(recipe.read_text())
+        self.assertFalse(config["train"]["training_time_rtc"])
+        self.assertEqual(config["train"]["training_time_rtc_fixed_delay"], -1)
+        self.assertTrue(config["train"]["enable_mixed_precision"])
+        self.assertTrue(config["train"]["enable_fp32"])
+        self.assertFalse(config["train"]["action_fp32"])
+        self.assertFalse(config["data"]["use_future_image"])
+        self.assertTrue(config["train"]["align_params"]["spatial_forcing"]["enabled"])
+
     def test_factor_grid_prefers_near_square_factors(self):
         self.assertEqual(_factor_grid(16), (4, 4))
         self.assertEqual(_factor_grid(12), (3, 4))

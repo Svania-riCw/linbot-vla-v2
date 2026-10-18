@@ -41,3 +41,13 @@ bash train.sh tasks/vla/train_lingbotvla.py configs/vla/robotwin/robotwin_sf.yam
 The SF configuration enables alignment with Qwen layer 23 and the final cached VGGT feature, uses VGGT's 2048-dimensional concatenated frame/global representation, and sets the alignment coefficient to 0.5 as in the paper's default experiments. The original `robotwin.yaml` keeps SF disabled so existing training recipes are unaffected; set `train.align_params.spatial_forcing.enabled: true` there only if you explicitly want to combine SF with its depth/video losses.
 
 The teacher can also load directly from the Hugging Face repo when the configured local checkpoint is absent and network access is available. `train.sh` runs in offline mode, so download the weight before using that launcher. `train.align_params.spatial_forcing.checkpoint_path` points at the local download above; `repo_id` is the fallback. VGGT targets are built only for training batches and are not written to checkpoints or the repository.
+
+## Precision and no-RTC recipe
+
+`configs/vla/robotwin/robotwin_sf_no_rtc.yaml` is the SF-only recipe with the precision and RTC choices written explicitly. It sets `training_time_rtc: false`, leaves `data.use_future_image: false`, and enables only the SF teacher. Launch it with:
+
+```bash
+bash train.sh tasks/vla/train_lingbotvla.py configs/vla/robotwin/robotwin_sf_no_rtc.yaml
+```
+
+The repository's FSDP2 baseline is mixed precision at the model level: `enable_mixed_precision` defaults to `true`, while `enable_fp32: true` selects FP32 for the action-expert FSDP groups. The Qwen-VL groups remain BF16 under the FSDP2 policy, so this is not an all-parameter FP32 run. The depth/video/VGGT teacher paths also use BF16 CUDA autocast; SF targets are stored as BF16 by default. The new recipe makes these baseline choices explicit and does not enable RTC.
