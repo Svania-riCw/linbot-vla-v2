@@ -25,3 +25,9 @@ bash ysj_utils/resume_spline.sh
 验证证据：[reports/spline_10k_continuation_started_2026-10-19.json](reports/spline_10k_continuation_started_2026-10-19.json)。查看日志：`tmux attach -t ysj-spline10k`。训练日志与最终评测结果均写入上述独立输出目录。
 
 这是**5k终点继续训练到10k**，不是从一开始使用10k cosine的独立10k实验。评测首先与原Spline 5k比较；与历史baseline10k比较时必须同时说明学习率路径、代码版本和评测随机性差异，不能仅凭总步数相同宣称完全同预算同配置。
+
+## 最终结果（2026-10-19）
+
+训练及350次评测已完成：clean92/175（52.57%），random35/175（20.00%），总体127/350（36.29%）。相比Spline5k增加6次成功、1.71个百分点；历史baseline10k为162/350（46.29%），学习率路径不同，不能视为严格单因素对照。
+
+完整逐任务结果与限制见[结果报告](reports/spline_5k_vs_10k_2026-10-19.md)。
