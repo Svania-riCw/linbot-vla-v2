@@ -1,0 +1,82 @@
+{
+  "at": "2026-10-19T05:56:34.499629+00:00",
+  "tmux": "ysj-spline10k",
+  "output": "/2025233210/ysj/lingbot_ws/outputs/spline_5k_to_10k_20261019",
+  "identity": {
+    "source_run": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/train",
+    "source_config_sha256": "b842688ed2349e855571225c0d55a9ed94922eee9b4b65636f0cc25659b99398",
+    "target_steps": 10000,
+    "source_steps": 5000,
+    "gpus": [
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7"
+    ],
+    "norm_sha256": "bd1ada4579d9c3cd5106255f4a53385af2cd82999322b395d4204c28d85a29f6",
+    "robot_sha256": "e5f333c5ec76f3f11a5f0344eb70f3a4c6dbe099c0213ede09854fe5adb43931",
+    "receipt_sha256": "f8e49197de15a6ffb1d264b1fb439292b6aee2a954b7542f37b452ae6a1562aa",
+    "train_list_sha256": "8ff079a9d23511b7b47c774243422c9e11ae69752fc6b2268e239b74d26e9f44",
+    "lr_schedule_steps": 5000,
+    "prefetch_factor": 1,
+    "inference_compile": false,
+    "experiment": "spline_absolute"
+  },
+  "actual_config_diff": {
+    "data": {},
+    "model": {},
+    "train": {
+      "enable_resume": {
+        "source5k": false,
+        "continued": true
+      },
+      "load_checkpoint_path": {
+        "source5k": null,
+        "continued": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/train/checkpoints/global_step_5000"
+      },
+      "lr_schedule_steps": {
+        "source5k": null,
+        "continued": 5000
+      },
+      "max_steps": {
+        "source5k": 5000,
+        "continued": 10000
+      },
+      "output_dir": {
+        "source5k": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/train",
+        "continued": "/2025233210/ysj/lingbot_ws/outputs/spline_5k_to_10k_20261019"
+      },
+      "require_resume": {
+        "source5k": false,
+        "continued": true
+      }
+    }
+  },
+  "restores": [
+    "10/19/2026 05:55:23 - INFO - __main__ - Load distributed checkpoint from /2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/train/checkpoints/global_step_5000 successfully!"
+  ],
+  "first_updates": [
+    "Step 5001/4295, Epoch 2, Loss 0.0241, VLA_Loss 0.0198, Depth_Loss 0.3123, Future_Depth_Loss 0.4394, FutureVideo_Loss 0.0319, SeqWise_Loss 0.0011, RouterZ_Loss 0.0000, GradNorm 0.5062, LR 5.00e-05, Expert_LR 1.41e-04, StepTime 32.976s, Depth_Forward_Time  2.420s, Ignore_Batch_Num 0",
+    "Step 5002/4295, Epoch 2, Loss 0.0322, VLA_Loss 0.0280, Depth_Loss 0.3004, Future_Depth_Loss 0.4363, FutureVideo_Loss 0.0316, SeqWise_Loss 0.0011, RouterZ_Loss 0.0000, MaxVio 1.0312, AvgSigmoid 0.0728, GradNorm 0.4943, LR 5.00e-05, Expert_LR 1.41e-04, StepTime 8.884s, Depth_Forward_Time  0.374s, Ignore_Batch_Num 0",
+    "Step 5003/4295, Epoch 2, Loss 0.0287, VLA_Loss 0.0246, Depth_Loss 0.2990, Future_Depth_Loss 0.4313, FutureVideo_Loss 0.0310, SeqWise_Loss 0.0011, RouterZ_Loss 0.0000, MaxVio 1.1328, AvgSigmoid 0.0747, GradNorm 0.4981, LR 5.00e-05, Expert_LR 1.41e-04, StepTime 8.151s, Depth_Forward_Time  0.376s, Ignore_Batch_Num 0",
+    "Step 5004/4295, Epoch 2, Loss 0.0298, VLA_Loss 0.0255, Depth_Loss 0.3293, Future_Depth_Loss 0.4385, FutureVideo_Loss 0.0320, SeqWise_Loss 0.0011, RouterZ_Loss 0.0000, MaxVio 1.1016, AvgSigmoid 0.0747, GradNorm 0.4746, LR 5.00e-05, Expert_LR 1.41e-04, StepTime 8.129s, Depth_Forward_Time  0.374s, Ignore_Batch_Num 0",
+    "Step 5005/4295, Epoch 2, Loss 0.0398, VLA_Loss 0.0356, Depth_Loss 0.3202, Future_Depth_Loss 0.4082, FutureVideo_Loss 0.0320, SeqWise_Loss 0.0011, RouterZ_Loss 0.0000, MaxVio 1.0781, AvgSigmoid 0.0737, GradNorm 0.4417, LR 5.00e-05, Expert_LR 1.41e-04, StepTime 8.118s, Depth_Forward_Time  0.373s, Ignore_Batch_Num 0"
+  ],
+  "latest_updates": [
+    "Step 5003/4295, Epoch 2, Loss 0.0287, VLA_Loss 0.0246, Depth_Loss 0.2990, Future_Depth_Loss 0.4313, FutureVideo_Loss 0.0310, SeqWise_Loss 0.0011, RouterZ_Loss 0.0000, MaxVio 1.1328, AvgSigmoid 0.0747, GradNorm 0.4981, LR 5.00e-05, Expert_LR 1.41e-04, StepTime 8.151s, Depth_Forward_Time  0.376s, Ignore_Batch_Num 0",
+    "Step 5004/4295, Epoch 2, Loss 0.0298, VLA_Loss 0.0255, Depth_Loss 0.3293, Future_Depth_Loss 0.4385, FutureVideo_Loss 0.0320, SeqWise_Loss 0.0011, RouterZ_Loss 0.0000, MaxVio 1.1016, AvgSigmoid 0.0747, GradNorm 0.4746, LR 5.00e-05, Expert_LR 1.41e-04, StepTime 8.129s, Depth_Forward_Time  0.374s, Ignore_Batch_Num 0",
+    "Step 5005/4295, Epoch 2, Loss 0.0398, VLA_Loss 0.0356, Depth_Loss 0.3202, Future_Depth_Loss 0.4082, FutureVideo_Loss 0.0320, SeqWise_Loss 0.0011, RouterZ_Loss 0.0000, MaxVio 1.0781, AvgSigmoid 0.0737, GradNorm 0.4417, LR 5.00e-05, Expert_LR 1.41e-04, StepTime 8.118s, Depth_Forward_Time  0.373s, Ignore_Batch_Num 0"
+  ],
+  "observed_new_updates": 5,
+  "tests": {
+    "local_resume": 10,
+    "server_all": 110,
+    "status": "PASSED"
+  },
+  "code_commit": "065ac4e1e1b36066154f09d98dcc314f6acfc95f",
+  "gpu": "0, 89192, 99\n1, 86888, 88\n2, 86888, 99\n3, 86888, 85\n4, 86888, 99\n5, 86888, 99\n6, 86888, 95\n7, 86888, 99\n"
+}
