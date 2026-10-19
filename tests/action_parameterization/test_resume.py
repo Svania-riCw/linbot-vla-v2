@@ -11,7 +11,7 @@ from unittest.mock import patch
 from dataclasses import dataclass, field
 from typing import Optional
 
-from ysj_utils.resume_joint_delta import continuation_config, build_commands, inspect_checkpoint, select_checkpoint, ROOT
+from ysj_utils.resume_joint_delta import continuation_config, build_commands, inspect_checkpoint, select_checkpoint, validate_source_experiment, ROOT
 
 @dataclass
 class SavedOptions:
@@ -25,6 +25,33 @@ class SavedRoot:
 
 
 class ResumeTests(unittest.TestCase):
+    def test_spline_resume_preserves_representation_precision_and_padding(self):
+        train = dict(max_steps=5000, global_batch_size=128, micro_batch_size=16, spline_control_points=16,
+                     spline_degree=3, mask_action_padding=False, enable_fp32=True, enable_mixed_precision=True,
+                     joint_ee_aux_weight=-1., flow_gibbs_epsilon=0., flow_dimension_weights=None, flow_horizon_weights=None)
+        validate_source_experiment(train, 'joint_absolute', 'spline_absolute')
+        original = dict(train=train, data=dict(prefetch_factor=1, norm_stats_file='original'))
+        continued = continuation_config(original, Path('/continued'), '/original/global_step_5000', 10000, 1)
+        for field in ('spline_control_points','spline_degree','mask_action_padding','enable_fp32','enable_mixed_precision'):
+            self.assertEqual(continued['train'][field], train[field])
+        self.assertEqual(continued['data'], original['data'])
+        self.assertEqual(continued['train']['lr_schedule_steps'], 5000)
+        self.assertTrue(continued['train']['require_resume'])
+        for field, bad in [('spline_control_points',8),('mask_action_padding',True),('enable_fp32',False),('flow_gibbs_epsilon',.5)]:
+            with self.subTest(field=field),self.assertRaises(ValueError):
+                validate_source_experiment(dict(train, **{field:bad}), 'joint_absolute', 'spline_absolute')
+        with self.assertRaises(ValueError): validate_source_experiment(train,'joint_delta','spline_absolute')
+
+    def test_spline_wrapper_and_uncompiled_eval_target_global_10000(self):
+        from ysj_utils.resume_spline import command_defaults
+        defaults = command_defaults()
+        self.assertEqual(defaults[defaults.index('--inference-compile')+1], 'false')
+        self.assertEqual(defaults[defaults.index('--additional-steps')+1], '5000')
+        _, command = build_commands(Path('/cfg'),Path('/out'),[str(i) for i in range(8)],10000,use_compile=False)
+        self.assertEqual(command[command.index('--use-compile')+1], 'false')
+        self.assertEqual(Path(command[command.index('--checkpoint')+1]).parts[-2:], ('global_step_10000','hf_ckpt'))
+        self.assertTrue(command[command.index('--summary-output')+1].endswith('evaluation_compile_false.json'))
+
     def test_resolved_yaml_empty_list_and_null_round_trip(self):
         import argparse,dataclasses,typing,types,inspect,os,sys,yaml
         from collections import defaultdict
