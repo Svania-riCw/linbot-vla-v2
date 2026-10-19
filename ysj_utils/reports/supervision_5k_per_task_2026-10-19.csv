@@ -1,0 +1,15 @@
+task,setting,episodes,Baseline5k,Weighted,Spline,Weighted_difference_pp,Spline_difference_pp
+blocks_ranking_rgb,clean,25,9,12,18,12,36
+blocks_ranking_rgb,random,25,8,4,7,-16,-4
+hanging_mug,clean,25,7,4,3,-12,-16
+hanging_mug,random,25,1,0,1,-4,0
+open_laptop,clean,25,21,21,20,0,-4
+open_laptop,random,25,12,8,7,-16,-20
+pick_diverse_bottles,clean,25,8,2,0,-24,-32
+pick_diverse_bottles,random,25,3,2,2,-4,-4
+rotate_qrcode,clean,25,13,11,15,-8,8
+rotate_qrcode,random,25,6,5,2,-4,-16
+stack_blocks_three,clean,25,2,1,11,-4,36
+stack_blocks_three,random,25,3,1,3,-8,0
+place_shoe,clean,25,17,15,20,-8,12
+place_shoe,random,25,14,8,12,-24,-8

@@ -1,0 +1,151 @@
+{
+  "mode": "full",
+  "checkpoint": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/train/checkpoints/global_step_5000/hf_ckpt",
+  "seed": 0,
+  "tasks": [
+    "blocks_ranking_rgb",
+    "hanging_mug",
+    "open_laptop",
+    "pick_diverse_bottles",
+    "rotate_qrcode",
+    "stack_blocks_three",
+    "place_shoe"
+  ],
+  "configs": [
+    "demo_clean",
+    "demo_randomized"
+  ],
+  "episodes": 25,
+  "total_episodes": 350,
+  "inference_precision": "fp32",
+  "use_compile": false,
+  "use_length": 50,
+  "gpus": [
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7"
+  ],
+  "command": [
+    "bash",
+    "/2025233210/ysj/lingbot_ws/linbot-vla-v2/xsy_utils/eval_baseline.sh",
+    "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/train/checkpoints/global_step_5000/hf_ckpt"
+  ],
+  "contract": {
+    "robot_config_root": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/robot_configs",
+    "robot_config": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/robot_configs/robotwin.yaml",
+    "norm_stats": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/norm_stats.json",
+    "mode": "joint_absolute",
+    "config": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/train/lingbotvla_cli.yaml"
+  },
+  "process_exit_code": 0,
+  "run_dir": "/2025233210/ysj/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/ysj_full_9b09c1f32311/run_20261019_033016",
+  "code_commit": "c5aa3cbed7c4968483caf474f918021a592d6692",
+  "norm_sha256": "bd1ada4579d9c3cd5106255f4a53385af2cd82999322b395d4204c28d85a29f6",
+  "robot_sha256": "e5f333c5ec76f3f11a5f0344eb70f3a4c6dbe099c0213ede09854fe5adb43931",
+  "training_config_sha256": "b842688ed2349e855571225c0d55a9ed94922eee9b4b65636f0cc25659b99398",
+  "state_features_sha256": "bee0e7383352e7effaaa21d656225f7851b01819c67beb90f6b879cdfa98357b",
+  "label_manifests": {},
+  "action_loss": {
+    "joint_ee_aux_weight": -1.0,
+    "mask_action_padding": false
+  },
+  "action_supervision": {
+    "flow_dimension_weights": null,
+    "flow_horizon_weights": null,
+    "spline_control_points": 16,
+    "spline_degree": 3,
+    "temporal_padding": "supervise_repeated_terminal_actions"
+  },
+  "training_summary": {
+    "global_batch_size": 128,
+    "max_steps": 5000,
+    "enable_fp32": true,
+    "enable_mixed_precision": true,
+    "seed": 42,
+    "chunk_size": 50,
+    "lr": 0.0001,
+    "lr_min": 5e-05,
+    "lr_decay_style": "cosine",
+    "optimizer": "muon",
+    "training_time_rtc": false,
+    "loss_type": "L1_fm",
+    "align_params": {
+      "depth": {
+        "block_future_depth_to_action": false,
+        "detach_future_image_feats": true,
+        "dim_head": 32,
+        "dim_out": 1024,
+        "ff_mult": 1,
+        "input_size": 224,
+        "model_type": "MoRGBD",
+        "moge_path": "/2025233210/xiesy/lingbot_ws/checkpoints/moge-2-vitb-normal/model.pt",
+        "morgbd_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/depth/model.pt",
+        "num_backbone_tokens": 256,
+        "num_heads": 4,
+        "num_layers": 1,
+        "token_size": 16,
+        "use_future_depth": true
+      },
+      "depth_loss_weight": 0.004,
+      "future_depth_loss_weight": 0.004,
+      "llm": {
+        "dim_out": 2560,
+        "image_input_size": 224,
+        "image_token_size": 8
+      },
+      "mode": "query",
+      "num_task_tokens": 8,
+      "use_future_video": true,
+      "video": {
+        "attention_mode": "flex_block_causal",
+        "block_suffix_to_future_video": false,
+        "ckpt_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/dino_video/teacher_step_10000.pth",
+        "cls_loss_type": "mse",
+        "cls_loss_weight": 0.2,
+        "cls_pool": "last",
+        "config_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/dino_video/config.yaml",
+        "cosine_loss_weight": 0.2,
+        "detach_image_feats": true,
+        "dim_head": 32,
+        "dim_out": 1024,
+        "effective_fps": 1.0,
+        "ff_mult": 1,
+        "future_video_loss_weight": 0.004,
+        "input_size": 256,
+        "log_max_samples": 32,
+        "log_scale": 16,
+        "mse_loss_weight": 1.0,
+        "n_blocks": 1,
+        "num_backbone_tokens": 256,
+        "num_future_frames": 1,
+        "num_heads": 4,
+        "num_layers": 1,
+        "share_future_depth_query": true,
+        "use_cls_loss": false,
+        "use_cosine_loss": true,
+        "use_current_patch_loss": true,
+        "use_current_shared_task_proj": true,
+        "use_mse_loss": true,
+        "use_patch_loss": true,
+        "use_shared_future_task_proj": true,
+        "use_smooth_l1_loss": false,
+        "use_warmup_frame": true
+      },
+      "visual_steps": 5000
+    },
+    "use_compile": true,
+    "lr_schedule_steps": null
+  },
+  "initial_model": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b",
+  "train_list_sha256": "8ff079a9d23511b7b47c774243422c9e11ae69752fc6b2268e239b74d26e9f44",
+  "status": "COMPLETE",
+  "rates": {
+    "clean": 0.49714285714285716,
+    "random": 0.1942857142857143
+  }
+}

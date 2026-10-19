@@ -1,0 +1,180 @@
+{
+  "Weighted": {
+    "tb_directories": [
+      "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Weighted/train/runs"
+    ],
+    "metrics": {
+      "training/loss": {
+        "n": 5000,
+        "first": 0.3916015625,
+        "last": 0.0253753662109375,
+        "last500_mean": 0.028456939697265624,
+        "min": 0.0198516845703125,
+        "max": 0.3916015625
+      },
+      "training/vla_loss": {
+        "n": 5000,
+        "first": 0.36083984375,
+        "last": 0.0213623046875,
+        "last500_mean": 0.02435765075683594,
+        "min": 0.01604461669921875,
+        "max": 0.36083984375
+      },
+      "action/gibbs_weight_mean": {
+        "n": 5000,
+        "first": 1.0390625,
+        "last": 1.0078125,
+        "last500_mean": 1.010203125,
+        "min": 0.859375,
+        "max": 1.078125
+      },
+      "action/gibbs_weight_max": {
+        "n": 5000,
+        "first": 1.1171875,
+        "last": 1.140625,
+        "last500_mean": 1.171734375,
+        "min": 1.0234375,
+        "max": 1.4140625
+      },
+      "action/gibbs_ess_fraction": {
+        "n": 5000,
+        "first": 1.0,
+        "last": 0.99609375,
+        "last500_mean": 0.99178125,
+        "min": 0.87890625,
+        "max": 1.0
+      },
+      "action/gibbs_cost_mean": {
+        "n": 5000,
+        "first": 1.1796875,
+        "last": 1.1953125,
+        "last500_mean": 1.1936875,
+        "min": 1.15625,
+        "max": 1.4296875
+      },
+      "action/unweighted_flow_loss": {
+        "n": 5000,
+        "first": 0.330078125,
+        "last": 0.02099609375,
+        "last500_mean": 0.0242493896484375,
+        "min": 0.0130615234375,
+        "max": 0.345703125
+      },
+      "training/grad_norm": {
+        "n": 5000,
+        "first": 0.7875125408172607,
+        "last": 0.37781405448913574,
+        "last500_mean": 0.4648522083759308,
+        "min": 0.22928974032402039,
+        "max": 0.9138241410255432
+      }
+    },
+    "eval_complete": true,
+    "evaluation": {
+      "status": "COMPLETE",
+      "rates": {
+        "clean": 0.37714285714285717,
+        "random": 0.16
+      }
+    },
+    "eval_tail": "\",\n        \"cosine_loss_weight\": 0.2,\n        \"detach_image_feats\": true,\n        \"dim_head\": 32,\n        \"dim_out\": 1024,\n        \"effective_fps\": 1.0,\n        \"ff_mult\": 1,\n        \"future_video_loss_weight\": 0.004,\n        \"input_size\": 256,\n        \"log_max_samples\": 32,\n        \"log_scale\": 16,\n        \"mse_loss_weight\": 1.0,\n        \"n_blocks\": 1,\n        \"num_backbone_tokens\": 256,\n        \"num_future_frames\": 1,\n        \"num_heads\": 4,\n        \"num_layers\": 1,\n        \"share_future_depth_query\": true,\n        \"use_cls_loss\": false,\n        \"use_cosine_loss\": true,\n        \"use_current_patch_loss\": true,\n        \"use_current_shared_task_proj\": true,\n        \"use_mse_loss\": true,\n        \"use_patch_loss\": true,\n        \"use_shared_future_task_proj\": true,\n        \"use_smooth_l1_loss\": false,\n        \"use_warmup_frame\": true\n      },\n      \"visual_steps\": 5000\n    },\n    \"use_compile\": true,\n    \"lr_schedule_steps\": null\n  },\n  \"initial_model\": \"/2025233210/lmx/checkpoints/lingbot-vla-v2-6b\",\n  \"train_list_sha256\": \"8ff079a9d23511b7b47c774243422c9e11ae69752fc6b2268e239b74d26e9f44\",\n  \"status\": \"COMPLETE\",\n  \"rates\": {\n    \"clean\": 0.37714285714285717,\n    \"random\": 0.16\n  }\n}\n",
+    "completed_units": [
+      "open_laptop_clean",
+      "pick_diverse_bottles_clean",
+      "pick_diverse_bottles_random",
+      "rotate_qrcode_clean",
+      "open_laptop_random",
+      "blocks_ranking_rgb_clean",
+      "hanging_mug_clean",
+      "rotate_qrcode_random",
+      "place_shoe_clean",
+      "blocks_ranking_rgb_random",
+      "hanging_mug_random",
+      "place_shoe_random",
+      "stack_blocks_three_clean",
+      "stack_blocks_three_random"
+    ],
+    "raw_results": "blocks_ranking_rgb\tclean\t12/25\t0.48\nhanging_mug\tclean\t4/25\t0.16\nopen_laptop\tclean\t21/25\t0.84\npick_diverse_bottles\tclean\t2/25\t0.08\nplace_shoe\tclean\t15/25\t0.6\nrotate_qrcode\tclean\t11/25\t0.44\nstack_blocks_three\tclean\t1/25\t0.04\nblocks_ranking_rgb\trandom\t4/25\t0.16\nhanging_mug\trandom\t0/25\t0.0\nopen_laptop\trandom\t8/25\t0.32\npick_diverse_bottles\trandom\t2/25\t0.08\nplace_shoe\trandom\t8/25\t0.32\nrotate_qrcode\trandom\t5/25\t0.2\nstack_blocks_three\trandom\t1/25\t0.04\n# ---- summary: mean of per-unit success rates ----\n# all_clean_avg\t0.3771\t(7 units, 66/175 episodes)\n# all_random_avg\t0.1600\t(7 units, 28/175 episodes)\n# all_avg\t0.2686\t(14 units, 94/350 episodes)\n"
+  },
+  "Spline": {
+    "tb_directories": [
+      "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/train/runs"
+    ],
+    "metrics": {
+      "training/loss": {
+        "n": 5000,
+        "first": 0.5361328125,
+        "last": 0.035064697265625,
+        "last500_mean": 0.03224481201171875,
+        "min": 0.02203369140625,
+        "max": 0.5361328125
+      },
+      "training/vla_loss": {
+        "n": 5000,
+        "first": 0.5048828125,
+        "last": 0.0309600830078125,
+        "last500_mean": 0.028038360595703124,
+        "min": 0.0178375244140625,
+        "max": 0.5048828125
+      },
+      "spline/target_rmse": {
+        "n": 5000,
+        "first": 0.0028839111328125,
+        "last": 0.0023040771484375,
+        "last500_mean": 0.0026944732666015626,
+        "min": 0.001495361328125,
+        "max": 0.0223388671875
+      },
+      "spline/target_max_error": {
+        "n": 5000,
+        "first": 0.06640625,
+        "last": 0.064453125,
+        "last500_mean": 0.06797509765625,
+        "min": 0.045166015625,
+        "max": 1.5859375
+      },
+      "spline/gripper_target_mae": {
+        "n": 5000,
+        "first": 0.0027008056640625,
+        "last": 0.00170135498046875,
+        "last500_mean": 0.00232208251953125,
+        "min": 0.000545501708984375,
+        "max": 0.00421142578125
+      },
+      "training/grad_norm": {
+        "n": 5000,
+        "first": 1.4232932329177856,
+        "last": 0.4698963463306427,
+        "last500_mean": 0.47680218786001205,
+        "min": 0.2775692641735077,
+        "max": 2.0196335315704346
+      }
+    },
+    "eval_complete": true,
+    "evaluation": {
+      "status": "COMPLETE",
+      "rates": {
+        "clean": 0.49714285714285716,
+        "random": 0.1942857142857143
+      }
+    },
+    "eval_tail": "sine_loss_weight\": 0.2,\n        \"detach_image_feats\": true,\n        \"dim_head\": 32,\n        \"dim_out\": 1024,\n        \"effective_fps\": 1.0,\n        \"ff_mult\": 1,\n        \"future_video_loss_weight\": 0.004,\n        \"input_size\": 256,\n        \"log_max_samples\": 32,\n        \"log_scale\": 16,\n        \"mse_loss_weight\": 1.0,\n        \"n_blocks\": 1,\n        \"num_backbone_tokens\": 256,\n        \"num_future_frames\": 1,\n        \"num_heads\": 4,\n        \"num_layers\": 1,\n        \"share_future_depth_query\": true,\n        \"use_cls_loss\": false,\n        \"use_cosine_loss\": true,\n        \"use_current_patch_loss\": true,\n        \"use_current_shared_task_proj\": true,\n        \"use_mse_loss\": true,\n        \"use_patch_loss\": true,\n        \"use_shared_future_task_proj\": true,\n        \"use_smooth_l1_loss\": false,\n        \"use_warmup_frame\": true\n      },\n      \"visual_steps\": 5000\n    },\n    \"use_compile\": true,\n    \"lr_schedule_steps\": null\n  },\n  \"initial_model\": \"/2025233210/lmx/checkpoints/lingbot-vla-v2-6b\",\n  \"train_list_sha256\": \"8ff079a9d23511b7b47c774243422c9e11ae69752fc6b2268e239b74d26e9f44\",\n  \"status\": \"COMPLETE\",\n  \"rates\": {\n    \"clean\": 0.49714285714285716,\n    \"random\": 0.1942857142857143\n  }\n}\n",
+    "completed_units": [
+      "open_laptop_clean",
+      "pick_diverse_bottles_clean",
+      "open_laptop_random",
+      "pick_diverse_bottles_random",
+      "rotate_qrcode_clean",
+      "blocks_ranking_rgb_clean",
+      "hanging_mug_clean",
+      "place_shoe_clean",
+      "blocks_ranking_rgb_random",
+      "rotate_qrcode_random",
+      "hanging_mug_random",
+      "place_shoe_random",
+      "stack_blocks_three_clean",
+      "stack_blocks_three_random"
+    ],
+    "raw_results": "blocks_ranking_rgb\tclean\t18/25\t0.72\nhanging_mug\tclean\t3/25\t0.12\nopen_laptop\tclean\t20/25\t0.8\npick_diverse_bottles\tclean\t0/25\t0.0\nplace_shoe\tclean\t20/25\t0.8\nrotate_qrcode\tclean\t15/25\t0.6\nstack_blocks_three\tclean\t11/25\t0.44\nblocks_ranking_rgb\trandom\t7/25\t0.28\nhanging_mug\trandom\t1/25\t0.04\nopen_laptop\trandom\t7/25\t0.28\npick_diverse_bottles\trandom\t2/25\t0.08\nplace_shoe\trandom\t12/25\t0.48\nrotate_qrcode\trandom\t2/25\t0.08\nstack_blocks_three\trandom\t3/25\t0.12\n# ---- summary: mean of per-unit success rates ----\n# all_clean_avg\t0.4971\t(7 units, 87/175 episodes)\n# all_random_avg\t0.1943\t(7 units, 34/175 episodes)\n# all_avg\t0.3457\t(14 units, 121/350 episodes)\n"
+  }
+}

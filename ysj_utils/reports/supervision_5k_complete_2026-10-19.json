@@ -1,0 +1,213 @@
+{
+  "at": "2026-10-19T05:21:30.326904+00:00",
+  "status": {
+    "state": "COMPLETE",
+    "updated_at": "2026-10-19T04:28:15.595995+00:00",
+    "group": "Spline",
+    "step": 5000,
+    "last_step_log": "Train: 5000/5000 [5:59:17<00:00,  5.13s/step], loss=0.0351, lr=5.00e-0510/19/2026 03:27:21 - INFO - __main__ - Step 5000/4295, Epoch 2, Loss 0.0351, VLA_Loss 0.0310, Depth_Loss 0.3052, Future_Depth_Loss 0.4065, FutureVideo_Loss 0.0305, SeqWise_Loss 0.0011, RouterZ_Loss 0.0000, MaxVio 1.1094, AvgSigmoid 0.0732, GradNorm 0.4699, LR 5.00e-05, Expert_LR 1.41e-04, StepTime 4.214s, Depth_Forward_Time  0.373s, Ignore_Batch_Num 0",
+    "checkpoint": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/train/checkpoints/global_step_5000/hf_ckpt",
+    "result": null
+  },
+  "sources": {
+    "Baseline5k": "/2025233210/xiesy/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/baseline_gbs128_5k_global_step_5000/run_20261014_180019/_result.txt",
+    "Weighted": "/2025233210/ysj/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/ysj_full_28c55035d34c/run_20261018_195745/_result.txt",
+    "Spline": "/2025233210/ysj/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/ysj_full_9b09c1f32311/run_20261019_033016/_result.txt"
+  },
+  "totals": {
+    "Baseline5k": {
+      "clean": {
+        "successes": 77,
+        "episodes": 175,
+        "rate": 0.44
+      },
+      "random": {
+        "successes": 47,
+        "episodes": 175,
+        "rate": 0.26857142857142857
+      },
+      "overall": {
+        "successes": 124,
+        "episodes": 350,
+        "rate": 0.35428571428571426
+      }
+    },
+    "Weighted": {
+      "clean": {
+        "successes": 66,
+        "episodes": 175,
+        "rate": 0.37714285714285717
+      },
+      "random": {
+        "successes": 28,
+        "episodes": 175,
+        "rate": 0.16
+      },
+      "overall": {
+        "successes": 94,
+        "episodes": 350,
+        "rate": 0.26857142857142857
+      }
+    },
+    "Spline": {
+      "clean": {
+        "successes": 87,
+        "episodes": 175,
+        "rate": 0.49714285714285716
+      },
+      "random": {
+        "successes": 34,
+        "episodes": 175,
+        "rate": 0.19428571428571428
+      },
+      "overall": {
+        "successes": 121,
+        "episodes": 350,
+        "rate": 0.3457142857142857
+      }
+    }
+  },
+  "per_task": [
+    {
+      "task": "blocks_ranking_rgb",
+      "setting": "clean",
+      "episodes": 25,
+      "Baseline5k": 9,
+      "Weighted": 12,
+      "Spline": 18,
+      "Weighted_difference_pp": 12,
+      "Spline_difference_pp": 36
+    },
+    {
+      "task": "blocks_ranking_rgb",
+      "setting": "random",
+      "episodes": 25,
+      "Baseline5k": 8,
+      "Weighted": 4,
+      "Spline": 7,
+      "Weighted_difference_pp": -16,
+      "Spline_difference_pp": -4
+    },
+    {
+      "task": "hanging_mug",
+      "setting": "clean",
+      "episodes": 25,
+      "Baseline5k": 7,
+      "Weighted": 4,
+      "Spline": 3,
+      "Weighted_difference_pp": -12,
+      "Spline_difference_pp": -16
+    },
+    {
+      "task": "hanging_mug",
+      "setting": "random",
+      "episodes": 25,
+      "Baseline5k": 1,
+      "Weighted": 0,
+      "Spline": 1,
+      "Weighted_difference_pp": -4,
+      "Spline_difference_pp": 0
+    },
+    {
+      "task": "open_laptop",
+      "setting": "clean",
+      "episodes": 25,
+      "Baseline5k": 21,
+      "Weighted": 21,
+      "Spline": 20,
+      "Weighted_difference_pp": 0,
+      "Spline_difference_pp": -4
+    },
+    {
+      "task": "open_laptop",
+      "setting": "random",
+      "episodes": 25,
+      "Baseline5k": 12,
+      "Weighted": 8,
+      "Spline": 7,
+      "Weighted_difference_pp": -16,
+      "Spline_difference_pp": -20
+    },
+    {
+      "task": "pick_diverse_bottles",
+      "setting": "clean",
+      "episodes": 25,
+      "Baseline5k": 8,
+      "Weighted": 2,
+      "Spline": 0,
+      "Weighted_difference_pp": -24,
+      "Spline_difference_pp": -32
+    },
+    {
+      "task": "pick_diverse_bottles",
+      "setting": "random",
+      "episodes": 25,
+      "Baseline5k": 3,
+      "Weighted": 2,
+      "Spline": 2,
+      "Weighted_difference_pp": -4,
+      "Spline_difference_pp": -4
+    },
+    {
+      "task": "rotate_qrcode",
+      "setting": "clean",
+      "episodes": 25,
+      "Baseline5k": 13,
+      "Weighted": 11,
+      "Spline": 15,
+      "Weighted_difference_pp": -8,
+      "Spline_difference_pp": 8
+    },
+    {
+      "task": "rotate_qrcode",
+      "setting": "random",
+      "episodes": 25,
+      "Baseline5k": 6,
+      "Weighted": 5,
+      "Spline": 2,
+      "Weighted_difference_pp": -4,
+      "Spline_difference_pp": -16
+    },
+    {
+      "task": "stack_blocks_three",
+      "setting": "clean",
+      "episodes": 25,
+      "Baseline5k": 2,
+      "Weighted": 1,
+      "Spline": 11,
+      "Weighted_difference_pp": -4,
+      "Spline_difference_pp": 36
+    },
+    {
+      "task": "stack_blocks_three",
+      "setting": "random",
+      "episodes": 25,
+      "Baseline5k": 3,
+      "Weighted": 1,
+      "Spline": 3,
+      "Weighted_difference_pp": -8,
+      "Spline_difference_pp": 0
+    },
+    {
+      "task": "place_shoe",
+      "setting": "clean",
+      "episodes": 25,
+      "Baseline5k": 17,
+      "Weighted": 15,
+      "Spline": 20,
+      "Weighted_difference_pp": -8,
+      "Spline_difference_pp": 12
+    },
+    {
+      "task": "place_shoe",
+      "setting": "random",
+      "episodes": 25,
+      "Baseline5k": 14,
+      "Weighted": 8,
+      "Spline": 12,
+      "Weighted_difference_pp": -24,
+      "Spline_difference_pp": -8
+    }
+  ],
+  "interpretation": "Historical baseline comparison; single training seed, no claim of paired policy noise or statistical significance. New runs share fp32, absolute joints, no EE input, baseline temporal padding and BS128/5k; prefetch4->1 and code versions remain recorded."
+}

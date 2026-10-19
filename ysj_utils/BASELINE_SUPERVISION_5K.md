@@ -2,6 +2,24 @@
 
 用户于2026-10-18明确选择重开：**保留原动作维度 mask，取消额外时间 padding 屏蔽，补齐的末尾重复动作参与训练。** 两组均从官方预训练模型重新开始，各5000次更新，不从旧任务中途权重续训。
 
+## 最终结果（2026-10-19）
+
+两组训练和各350次评测全部完成，队列于北京时间10月19日12:28结束，历时约14小时34分。DCP和HF checkpoint均完整，评测进程均exit=0，compile=False。完成后检查8张H20均空闲。
+
+| 方法（均5k） | Clean | Random | 总体 |
+| --- | --- | --- | --- |
+| 历史baseline | 77/175（44.00%） | 47/175（26.86%） | 124/350（35.43%） |
+| Weighted | 66/175（37.71%） | 28/175（16.00%） | 94/350（26.86%） |
+| Spline | 87/175（49.71%） | 34/175（19.43%） | 121/350（34.57%） |
+
+Spline的clean多10次成功（+5.71个百分点），random少13次（-7.43个百分点），总体少3次（-0.86个百分点）。这说明本次观察到clean改善、random退化，总体接近历史baseline；不能说已实现稳定总体提升。Weighted总体少30次成功（-8.57个百分点），本设置未体现收益。
+
+Spline的clean排序为18/25（baseline9/25），三层叠块为11/25（baseline2/25），瓶子抓取为0/25（baseline8/25）。任务之间收益不一致；失败原因需进一步通过动作/视频分析判断，不能直接归因于平滑、过拟合或训练步数。
+
+完整逐任务材料：[汇报表格](reports/supervision_5k_complete_2026-10-19.md)、[CSV](reports/supervision_5k_per_task_2026-10-19.csv)、[原始来源及汇总JSON](reports/supervision_5k_complete_2026-10-19.json)。原始评测报告：[Weighted](reports/h20_weighted5k_aligned_2026-10-19.json)、[Spline](reports/h20_spline5k_aligned_2026-10-19.json)。训练诊断：[TensorBoard摘要](reports/supervision_diagnostics_2026-10-19.json)。
+
+以下是本轮实现、配置与执行记录。
+
 | 项目 | 两组公共配置 |
 | --- | --- |
 | 配置来源 | 团队实际 baseline_gbs128_5k/lingbotvla_cli.yaml，记录main及实际代码提交 |
