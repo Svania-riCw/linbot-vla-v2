@@ -38,6 +38,7 @@ from lingbotvla.utils.arguments import EvalArguments, DataArguments, ModelArgume
 from lingbotvla.utils.dist_utils import all_reduce
 from lingbotvla.models.config_registry import get_config_registry
 from lingbotvla.utils.training_schedule import training_stop_step, capture_rng_state, restore_rng_state
+from lingbotvla.utils.loader_resume import migrate_loader_workers
 
 from lingbotvla.models.vla.vision_models.module_utils import (
     build_depth_model,
@@ -202,6 +203,10 @@ class MyTrainingArguments(TrainingArguments):
     resume_dataloader_state: bool = field(
         default=True,
         metadata={"help": "Whether to resume dataloader."},
+    )
+    allow_dataloader_worker_change: bool = field(
+        default=False,
+        metadata={"help": "Explicitly migrate stateless map-loader workers while keeping the saved sampler position."},
     )
     use_moe: bool = field(
         default=False,
@@ -698,7 +703,19 @@ def main():
                 start_step = global_step % args.train.train_steps
                 lr_scheduler.load_state_dict(state["extra_state"]["lr_scheduler"])
                 if start_step > 0 and args.train.resume_dataloader_state:
-                    train_dataloader.load_state_dict(state["extra_state"]["train_dataloader"])
+                    loader_state = state["extra_state"]["train_dataloader"]
+                    if args.train.allow_dataloader_worker_change:
+                        from torch.utils.data import IterableDataset
+                        from lingbotvla.data.data_loader import DistributedDataloader
+                        if (not isinstance(train_dataloader, DistributedDataloader)
+                                or isinstance(train_dataloader.dataset, IterableDataset)
+                                or not train_dataloader.in_order):
+                            raise ValueError("Worker migration requires the ordered native map loader")
+                        old_workers = loader_state.get('_snapshot', {}).get('_main_snapshot', {}).get('_num_workers')
+                        loader_state = migrate_loader_workers(loader_state, args.data.num_workers)
+                        logger.info_rank0(f"Dataloader worker migration {old_workers}->{args.data.num_workers}; "
+                                          f"preserving sampler at global_step={global_step}")
+                    train_dataloader.load_state_dict(loader_state)
                 environ_meter.load_state_dict(state["extra_state"]["environ_meter"])
                 if "rng_state" in state["extra_state"]:
                     restore_rng_state(state["extra_state"]["rng_state"])
