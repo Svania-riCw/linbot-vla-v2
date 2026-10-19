@@ -6,6 +6,7 @@ from pathlib import Path
 import tempfile
 import threading
 import unittest
+import uuid
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,6 +19,44 @@ spec.loader.exec_module(engine)
 
 
 class PriorityQueueTest(unittest.TestCase):
+    def stage_transfer(self, root):
+        owner = self.idle_claim(root)
+        worker.atomic_json(root / 'job.json', {'expected_head': 'new-head'})
+        transfer_id = uuid.uuid4().hex
+        transfer = dict(status='pending', target_node='node1',
+            target_hostname=worker.socket.gethostname(), source_owner=owner,
+            source_pid_alive=False, source_children=[], source_verified_utc='test-time',
+            expected_head='new-head')
+        path = root / 'claim/transfers' / (transfer_id + '.json')
+        worker.atomic_json(path, transfer)
+        return owner, transfer_id, path
+
+    def test_verified_idle_transfer_retains_one_claim_and_cannot_replay(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            original, transfer_id, path = self.stage_transfer(root)
+            owner = worker.accept_idle_transfer(root, 'node1', 200, transfer_id)
+            self.assertEqual(owner['node'], 'node1')
+            self.assertEqual(owner['previous_node'], 'node2')
+            self.assertEqual(owner['claimed_utc'], original['claimed_utc'])
+            self.assertEqual(json.loads(path.read_text())['status'], 'accepted')
+            self.assertIsNone(worker.try_claim(root, 'node0', 300))
+            with self.assertRaises(RuntimeError):
+                worker.accept_idle_transfer(root, 'node1', 300, transfer_id)
+
+    def test_idle_transfer_rejects_unverified_source_and_wrong_target(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            original, transfer_id, path = self.stage_transfer(root)
+            with self.assertRaises(RuntimeError):
+                worker.accept_idle_transfer(root, 'node0', 200, transfer_id)
+            transfer = json.loads(path.read_text())
+            transfer['source_pid_alive'] = True
+            worker.atomic_json(path, transfer)
+            with self.assertRaises(RuntimeError):
+                worker.accept_idle_transfer(root, 'node1', 200, transfer_id)
+            self.assertEqual(worker.read_owner(root), original)
+
     def test_cold_starting_trainer_is_visible_before_gpu_allocation(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

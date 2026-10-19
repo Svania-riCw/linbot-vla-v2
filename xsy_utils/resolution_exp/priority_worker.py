@@ -5,6 +5,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import socket
 import sys
 import time
@@ -62,6 +63,38 @@ def resume_idle_claim(shared, node, pid, pid_alive=None):
     return owner
 
 
+def accept_idle_transfer(shared, node, pid, transfer_id):
+    """Accept an explicit handoff after the source host verified its waiter exited."""
+    if not re.fullmatch(r'[0-9a-f]{32}', transfer_id):
+        raise RuntimeError('Invalid transfer identifier')
+    shared = Path(shared)
+    path = shared / 'claim/transfers' / (transfer_id + '.json')
+    transfer = json.loads(path.read_text())
+    owner = read_owner(shared)
+    state = json.loads((shared / 'engine_state/status.json').read_text())
+    job = json.loads((shared / 'job.json').read_text())
+    if (transfer.get('status') != 'pending' or transfer.get('target_node') != node
+            or transfer.get('target_hostname') != socket.gethostname()
+            or not owner or owner.get('node') == node or owner.get('result')
+            or transfer.get('source_owner') != owner
+            or transfer.get('source_pid_alive') is not False
+            or transfer.get('source_children') != []
+            or not transfer.get('source_verified_utc')
+            or transfer.get('expected_head') != job.get('expected_head')
+            or state.get('phase') != 'waiting_for_idle_gpus'
+            or state.get('owner_node') != owner.get('node')
+            or state.get('pid') != owner.get('pid') or state.get('child_pid') is not None):
+        raise RuntimeError('Transfer requires a verified stopped idle source and the exact target host')
+    owner = dict(owner, node=node, hostname=socket.gethostname(), pid=pid,
+                 previous_node=owner['node'], previous_pid=owner['pid'],
+                 transfer_id=transfer_id, transferred_utc=dt.datetime.now(dt.timezone.utc).isoformat())
+    # The claim directory and original claim timestamp are never removed.
+    atomic_json(shared / 'claim/owner.json', owner)
+    transfer.update(status='accepted', accepted_pid=pid, accepted_utc=owner['transferred_utc'])
+    atomic_json(path, transfer)
+    return owner
+
+
 def next_actions(state, queue_id, micro):
     """Resume the existing successful smoke; never repeat completed stages."""
     completed = {(r.get('phase'), r.get('micro_batch'), r.get('steps'))
@@ -116,8 +149,11 @@ def main():
     parser.add_argument('--node', choices=['node0', 'node1', 'node2'], required=True)
     parser.add_argument('--repo', type=Path, default=Path('/root/ql/linbot-vla-v2'))
     parser.add_argument('--poll-seconds', type=float, default=2)
-    parser.add_argument('--resume-idle-claim', action='store_true',
-                        help='Explicit same-host continuation after the idle controller has stopped')
+    continuation = parser.add_mutually_exclusive_group()
+    continuation.add_argument('--resume-idle-claim', action='store_true',
+                              help='Explicit same-host continuation after the idle controller has stopped')
+    continuation.add_argument('--accept-idle-transfer', metavar='TRANSFER_ID',
+                              help='Accept an explicitly staged handoff from a verified stopped idle host')
     args = parser.parse_args()
     shared = args.shared.resolve()
     job = json.loads((shared / 'job.json').read_text())
@@ -137,7 +173,11 @@ def main():
             atomic_json(status_path, dict(node=args.node, pid=os.getpid(), phase=phase,
                         updated_utc=dt.datetime.now(dt.timezone.utc).isoformat(), **fields))
         consecutive = 0
-        continued_owner = resume_idle_claim(shared, args.node, os.getpid()) if args.resume_idle_claim else None
+        continued_owner = None
+        if args.resume_idle_claim:
+            continued_owner = resume_idle_claim(shared, args.node, os.getpid())
+        elif args.accept_idle_transfer:
+            continued_owner = accept_idle_transfer(shared, args.node, os.getpid(), args.accept_idle_transfer)
         while True:
             if continued_owner is not None:
                 owner = continued_owner
