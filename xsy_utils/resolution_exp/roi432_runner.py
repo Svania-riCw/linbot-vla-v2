@@ -89,13 +89,34 @@ def claim_once(path):
     return True
 
 
+def validate_smoke_continuation(record, owner, state, plan):
+    """Only the audited, stopped owner may continue its unstarted DCP2 resume."""
+    expected_error = "Live GPU workload detected; no interference"
+    if (record.get("next_phase") != "smoke_resume" or record.get("checkpoint_step") != 2
+            or not record.get("checkpoint_complete") or record.get("wandb_step") != 2
+            or record.get("wandb_state") != "finished"):
+        raise ValueError("Continuation requires an audited, completed two-step smoke")
+    for key in ("node", "hostname"):
+        if owner.get(key) != plan[key] or record.get(key) != plan[key]:
+            raise ValueError("Continuation must remain on the verified owner host")
+    if (owner.get("result") != "failed" or owner.get("error") != expected_error
+            or state.get("phase") != "failed" or state.get("error") != expected_error
+            or state.get("target_steps") != 2 or state.get("child_pid") is not None
+            or state.get("resumed_from_step") != 0
+            or record.get("previous_pid") != owner.get("pid")
+            or record.get("config_sha256") != plan["config_sha256"]):
+        raise ValueError("This record does not describe a stopped smoke-to-resume resource conflict")
+
+
 def main():
     import fcntl  # Linux-only process lock; recipe validation also runs on Windows.
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", type=Path, required=True)
-    parser.add_argument("--mode", choices=("smoke", "formal", "auto"), required=True)
+    parser.add_argument("--mode", choices=("smoke", "formal", "auto", "continue-smoke"), required=True)
+    parser.add_argument("--continuation", type=Path)
     args = parser.parse_args()
+    assert (args.mode == "continue-smoke") == (args.continuation is not None)
     plan = read(args.plan)
     node = plan["node"]
     assert node in ("node0", "node1", "node2")
@@ -163,7 +184,7 @@ def main():
                        dict(node=node, pid=os.getpid(), phase="waiting_for_idle_gpus",
                             utc=utc(), reason=str(error)))
                 time.sleep(60)
-    else:
+    elif args.mode != "continue-smoke":
         idle()
     claim = job / "claim"
     if args.mode in ("smoke", "auto"):
@@ -174,6 +195,31 @@ def main():
                    dict(node=node, pid=os.getpid(), phase="cancelled_other_node_selected", utc=utc()))
             return
         owner = dict(node=node, hostname=plan["hostname"], pid=os.getpid(), claimed_utc=utc())
+    elif args.mode == "continue-smoke":
+        record_path = args.continuation.resolve()
+        record_path.relative_to(state_dir / "recoveries")
+        recovery = read(record_path)
+        owner = read(claim / "owner.json")
+        previous_state = read(state_dir / "status.json")
+        validate_smoke_continuation(recovery, owner, previous_state, plan)
+        assert not alive(owner["pid"])
+        assert all(not alive(pid) for pid in recovery["previous_training_pids"])
+        assert hashlib.sha256((claim / "owner.json").read_bytes()).hexdigest() == recovery["owner_sha256"]
+        assert hashlib.sha256((state_dir / "status.json").read_bytes()).hexdigest() == recovery["state_sha256"]
+        for filename, expected in recovery["checkpoint_file_hashes"].items():
+            assert hashlib.sha256(Path(filename).read_bytes()).hexdigest() == expected
+        output = job / "outputs" / f'{plan["experiment_id"]}_smoke_b1_384_m4'
+        assert Path(previous_state["output"]) == output
+        engine.checkpoint_valid(output, 2)
+        assert not (output / "checkpoints/global_step_4").exists()
+        assert not (job / "outputs" / f'{plan["experiment_id"]}_train_b1_384_m4').exists()
+        assert not (state_dir / f'{output.name}_smoke_resume.log').exists()
+        # Exclusive marker prevents replay, including after a crash before owner publication.
+        with record_path.with_suffix(".accepted.json").open("x") as stream:
+            json.dump(dict(pid=os.getpid(), utc=utc(), node=node), stream)
+        owner.update(previous_pid=owner["pid"], pid=os.getpid(), result=None,
+                     continuation=str(record_path), continued_utc=utc())
+        owner.pop("error", None)
     else:
         owner = read(claim / "owner.json")
         assert owner["hostname"] == plan["hostname"] and owner["node"] == node
@@ -185,6 +231,8 @@ def main():
     atomic(job / "nodes" / f"{node}.json", dict(node=node, pid=os.getpid(), phase="selected", utc=utc()))
     state = dict(pid=os.getpid(), owner_node=node, head=head, experiment="roi432_ee",
                  mode=args.mode, job=str(job), config=str(config_path), started_utc=utc())
+    if args.mode == "continue-smoke":
+        state.update(continuation=str(record_path), next_phase="smoke_resume", resumed_from_step=2)
     logging = read(state_dir / "wandb_settings.json")
     assert logging["entity"] == "qlei34151-shanghaitech-university"
     assert logging["project"] == "lingbot-vla-roi"
@@ -202,7 +250,8 @@ def main():
         output = job / "outputs" / run_name
         if resume:
             engine.checkpoint_valid(output, resume_step)
-            before = state_dir / (phase + "_before_resume")
+            suffix = "_" + record_path.parent.name if args.mode == "continue-smoke" else ""
+            before = state_dir / (phase + "_before_resume" + suffix)
             before.mkdir()
             for filename in ("lingbotvla_cli.yaml", "run_info.txt", "config.yaml"):
                 shutil.copy2(output / filename, before / filename)
@@ -309,13 +358,29 @@ def main():
         atomic(job / "inputs/verified_smoke.json", evidence)
 
     try:
+        if args.mode == "continue-smoke":
+            # This explicitly approved continuation holds the same claim while
+            # waiting; it never touches another candidate or retries a child.
+            while True:
+                current_owner = read(claim / "owner.json")
+                assert current_owner["pid"] == os.getpid() and current_owner["node"] == node
+                try:
+                    idle()
+                    break
+                except (RuntimeError, subprocess.TimeoutExpired, subprocess.CalledProcessError) as error:
+                    engine.write_state(state, "waiting_for_smoke_resume_resources", child_pid=None,
+                                       reason=str(error), target_steps=4)
+                    atomic(job / "nodes" / f"{node}.json", dict(node=node, pid=os.getpid(),
+                           phase="waiting_for_smoke_resume_resources", utc=utc()))
+                    time.sleep(60)
+            train(True, True)
         if args.mode in ("smoke", "auto"):
             train(True, False)
             train(True, True)
             result = "smoke_complete"
-        if args.mode == "auto":
+        if args.mode in ("auto", "continue-smoke"):
             verify_smoke()
-        if args.mode in ("formal", "auto"):
+        if args.mode in ("formal", "auto", "continue-smoke"):
             train(False, False)
             engine.run_evaluation(state, experiment, 4, 5000, None)
             train(False, True)

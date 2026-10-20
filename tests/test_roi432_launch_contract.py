@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 from tools.prepare_roi432 import recipes
-from xsy_utils.resolution_exp.roi432_runner import claim_once, validate_recipe
+from xsy_utils.resolution_exp.roi432_runner import claim_once, validate_recipe, validate_smoke_continuation
 
 
 class LaunchContractTest(unittest.TestCase):
@@ -58,6 +58,25 @@ class LaunchContractTest(unittest.TestCase):
             self.assertFalse(claim_once(claim))
             (claim / "owner.json").write_text('{"result":"failed"}')
             self.assertFalse(claim_once(claim))
+
+    def test_continuation_is_bound_to_stopped_owner_and_step(self):
+        error = "Live GPU workload detected; no interference"
+        plan = dict(node="node0", hostname="host0", config_sha256="config")
+        owner = dict(node="node0", hostname="host0", pid=17, result="failed", error=error)
+        state = dict(phase="failed", error=error, target_steps=2, child_pid=None, resumed_from_step=0)
+        record = dict(node="node0", hostname="host0", previous_pid=17, config_sha256="config",
+                      next_phase="smoke_resume", checkpoint_step=2, checkpoint_complete=True,
+                      wandb_step=2, wandb_state="finished")
+        validate_smoke_continuation(record, owner, state, plan)
+        for subject, key, value in ((owner,"node","node1"),(owner,"pid",18),
+                (owner,"error","CUDA OOM"),(state,"target_steps",5000),
+                (state,"child_pid",19),(state,"resumed_from_step",2),
+                (record,"checkpoint_complete",False),(record,"wandb_step",0),
+                (record,"config_sha256","different")):
+            changed = dict(subject); changed[key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                validate_smoke_continuation(changed if subject is record else record,
+                    changed if subject is owner else owner, changed if subject is state else state, plan)
 
 
 if __name__ == "__main__":
