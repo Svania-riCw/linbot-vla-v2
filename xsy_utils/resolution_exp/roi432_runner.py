@@ -1,6 +1,6 @@
-"""Run one prepared ROI-432 experiment on its verified host, without a GPU queue.
+"""Run one prepared ROI-432 experiment on the first fully idle verified host.
 
-Smoke and formal are separate invocations: formal requires reviewed smoke evidence.
+Auto candidates share an atomic claim and verify ROI save/resume before formal training.
 No failed phase is retried, no existing output is deleted, and no other job is stopped.
 """
 import argparse
@@ -8,12 +8,14 @@ import datetime as dt
 import hashlib
 import importlib.util
 import json
+import math
 import os
 from pathlib import Path
 import re
 import shutil
 import socket
 import subprocess
+import sys
 import time
 
 import yaml
@@ -78,12 +80,21 @@ def alive(pid):
         return False
 
 
+def claim_once(path):
+    """An existing directory is occupied even before its owner is published."""
+    try:
+        Path(path).mkdir()
+    except FileExistsError:
+        return False
+    return True
+
+
 def main():
     import fcntl  # Linux-only process lock; recipe validation also runs on Windows.
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", type=Path, required=True)
-    parser.add_argument("--mode", choices=("smoke", "formal"), required=True)
+    parser.add_argument("--mode", choices=("smoke", "formal", "auto"), required=True)
     args = parser.parse_args()
     plan = read(args.plan)
     node = plan["node"]
@@ -104,6 +115,11 @@ def main():
     assert Path(plan["ipc_so"]).is_file()
     ipc = Path(plan["ipc_directory"])
     assert ipc.is_dir() and ipc.stat().st_mode & 0o077 == 0
+    hardware = subprocess.check_output(
+        ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"],
+        text=True, timeout=30).strip().splitlines()
+    assert len(hardware) == 8 and all(
+        "H20" in row.split(",")[0] and int(row.split(",")[1]) >= 97000 for row in hardware)
     lock = (repo / ".runtime/priority_worker.lock").open("a")
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     os.environ.update(QL_REPO=str(repo), QL_QUEUE_STATE_DIR=str(state_dir),
@@ -113,20 +129,50 @@ def main():
     spec.loader.exec_module(engine)
 
     def idle(current=None, deadline=None):
-        # Thirty seconds of consecutive real idleness; fail immediately on a job.
+        # Allow the previous phase's driver allocations to disappear. Any live
+        # compute application or pre-CUDA workload still fails immediately.
+        release_deadline = time.monotonic() + 10
         for check in range(3):
-            cards, apps = engine.gpu_snapshot()
-            workloads = [w for w in engine.active_gpu_workloads() if alive(w["pid"])]
-            if apps.strip() or workloads or not engine.snapshot_idle(cards, apps):
-                raise RuntimeError("GPUs are occupied or not released; no queue, restart or interference")
+            while True:
+                cards, apps = engine.gpu_snapshot()
+                workloads = [w for w in engine.active_gpu_workloads() if alive(w["pid"])]
+                if apps.strip() or workloads:
+                    raise RuntimeError("Live GPU workload detected; no interference")
+                if engine.snapshot_idle(cards, apps):
+                    break
+                if time.monotonic() >= release_deadline:
+                    raise RuntimeError("GPU memory or utilization has not become idle")
+                time.sleep(1)
             if check < 2:
                 time.sleep(15)
 
     engine.wait_idle = idle
-    idle()
+    if args.mode == "auto":
+        # New ROI candidates only. Shared mkdir below chooses one host; a claim
+        # without owner.json is also occupied and is never cleared on timeout.
+        while True:
+            if (job / "claim").exists():
+                atomic(job / "nodes" / f"{node}.json",
+                       dict(node=node, pid=os.getpid(), phase="cancelled_other_node_selected", utc=utc()))
+                return
+            try:
+                idle()
+                break
+            except (RuntimeError, subprocess.TimeoutExpired, subprocess.CalledProcessError) as error:
+                atomic(job / "nodes" / f"{node}.json",
+                       dict(node=node, pid=os.getpid(), phase="waiting_for_idle_gpus",
+                            utc=utc(), reason=str(error)))
+                time.sleep(60)
+    else:
+        idle()
     claim = job / "claim"
-    if args.mode == "smoke":
-        claim.mkdir()  # Never remove or silently reuse a failed claim.
+    if args.mode in ("smoke", "auto"):
+        if not claim_once(claim):
+            if args.mode != "auto":
+                raise FileExistsError(f"Preserving existing claim: {claim}")
+            atomic(job / "nodes" / f"{node}.json",
+                   dict(node=node, pid=os.getpid(), phase="cancelled_other_node_selected", utc=utc()))
+            return
         owner = dict(node=node, hostname=plan["hostname"], pid=os.getpid(), claimed_utc=utc())
     else:
         owner = read(claim / "owner.json")
@@ -136,6 +182,7 @@ def main():
         assert review["ready"] is True and review["config_sha256"] == plan["config_sha256"]
         owner.update(previous_pid=owner["pid"], pid=os.getpid(), result=None, formal_started_utc=utc())
     atomic(claim / "owner.json", owner)
+    atomic(job / "nodes" / f"{node}.json", dict(node=node, pid=os.getpid(), phase="selected", utc=utc()))
     state = dict(pid=os.getpid(), owner_node=node, head=head, experiment="roi432_ee",
                  mode=args.mode, job=str(job), config=str(config_path), started_utc=utc())
     logging = read(state_dir / "wandb_settings.json")
@@ -223,12 +270,52 @@ def main():
         engine.checkpoint_valid(output, target)
         engine.write_state(state, "phase_completed", child_pid=None)
 
+    def verify_smoke():
+        sys.path.insert(0, str(repo))
+        from tools.audit_roi_checkpoint import audit
+        output = Path(state["output"])
+        audits = [audit(output / f"checkpoints/global_step_{step}", step, plan["roi_config_sha256"])
+                  for step in (2, 4)]
+        assert all(item["complete"] for item in audits), "ROI smoke checkpoint audit failed"
+        actual = yaml.safe_load((output / "lingbotvla_cli.yaml").read_text())
+        for section, fields in {
+            "train": {"max_steps": 10000, "micro_batch_size": 4, "global_batch_size": 128,
+                      "gradient_accumulation_steps": 4, "seed": 42, "enable_fp32": True},
+            "data": {"img_size": 384, "num_workers": 8, "prefetch_factor": 4, "pin_memory": True},
+        }.items():
+            assert all(actual[section][key] == value for key, value in fields.items()), section
+        log = Path(state["log"]).read_text(errors="replace")
+        prefix = f"https://wandb.ai/{logging['entity']}/{logging['project']}/runs/"
+        run_id = re.findall(re.escape(prefix) + r"([A-Za-z0-9]+)", log)[-1]
+        sys.path.insert(0, logging["sdk_path"])
+        for key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
+            os.environ.pop(key, None)
+        os.environ["WANDB_BASE_URL"] = logging["base_url"]
+        import wandb
+        api = wandb.Api(api_key=read(secret)["api_key"], timeout=30)
+        remote = api.run(f"{logging['entity']}/{logging['project']}/{run_id}")
+        summary = dict(remote.summary)
+        assert summary.get("completed_global_step") == 4, "W&B has not confirmed smoke completion"
+        metrics = ("training/loss", "training/vla_loss", "training/depth_loss",
+                   "training/future_depth_loss", "training/future_video_loss",
+                   "training/grad_norm", "training/lr", "steptime",
+                   "samples_per_second", "max_memory_allocated(GB)", "max_memory_reserved(GB)")
+        assert all(isinstance(summary.get(key), (int, float)) and math.isfinite(summary[key])
+                   for key in metrics), "Missing/non-finite smoke metrics"
+        assert remote.state == "finished", "Smoke W&B run has not finished"
+        evidence = dict(ready=True, config_sha256=plan["config_sha256"], audits=audits,
+                        wandb_run=run_id, metrics={key: summary[key] for key in metrics},
+                        utc=utc(), validation="real ROI save, DCP resume, file audit and remote metrics")
+        atomic(job / "inputs/verified_smoke.json", evidence)
+
     try:
-        if args.mode == "smoke":
+        if args.mode in ("smoke", "auto"):
             train(True, False)
             train(True, True)
             result = "smoke_complete"
-        else:
+        if args.mode == "auto":
+            verify_smoke()
+        if args.mode in ("formal", "auto"):
             train(False, False)
             engine.run_evaluation(state, experiment, 4, 5000, None)
             train(False, True)

@@ -1,9 +1,12 @@
 """Guard the user's batch/precision/comparison contract before any GPU launch."""
 import copy
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+import tempfile
 import unittest
 
 from tools.prepare_roi432 import recipes
-from xsy_utils.resolution_exp.roi432_runner import validate_recipe
+from xsy_utils.resolution_exp.roi432_runner import claim_once, validate_recipe
 
 
 class LaunchContractTest(unittest.TestCase):
@@ -44,6 +47,17 @@ class LaunchContractTest(unittest.TestCase):
             config[section][key] = value
             with self.subTest(key=key), self.assertRaises(ValueError):
                 validate_recipe(config, self.source)
+
+    def test_concurrent_candidates_have_one_winner_and_no_takeover(self):
+        with tempfile.TemporaryDirectory() as directory:
+            claim = Path(directory) / "claim"
+            with ThreadPoolExecutor(max_workers=8) as workers:
+                winners = list(workers.map(lambda _: claim_once(claim), range(8)))
+            self.assertEqual(sum(winners), 1)
+            self.assertFalse((claim / "owner.json").exists())
+            self.assertFalse(claim_once(claim))
+            (claim / "owner.json").write_text('{"result":"failed"}')
+            self.assertFalse(claim_once(claim))
 
 
 if __name__ == "__main__":
