@@ -1,0 +1,127 @@
+﻿experiment,name,task,setting,success,total,rate,percent
+baseline5k,历史baseline 5k,blocks_ranking_rgb,clean,9,25,0.36,36.0
+baseline5k,历史baseline 5k,hanging_mug,clean,7,25,0.28,28.000000000000004
+baseline5k,历史baseline 5k,open_laptop,clean,21,25,0.84,84.0
+baseline5k,历史baseline 5k,pick_diverse_bottles,clean,8,25,0.32,32.0
+baseline5k,历史baseline 5k,place_shoe,clean,17,25,0.68,68.0
+baseline5k,历史baseline 5k,rotate_qrcode,clean,13,25,0.52,52.0
+baseline5k,历史baseline 5k,stack_blocks_three,clean,2,25,0.08,8.0
+baseline5k,历史baseline 5k,blocks_ranking_rgb,random,8,25,0.32,32.0
+baseline5k,历史baseline 5k,hanging_mug,random,1,25,0.04,4.0
+baseline5k,历史baseline 5k,open_laptop,random,12,25,0.48,48.0
+baseline5k,历史baseline 5k,pick_diverse_bottles,random,3,25,0.12,12.0
+baseline5k,历史baseline 5k,place_shoe,random,14,25,0.56,56.00000000000001
+baseline5k,历史baseline 5k,rotate_qrcode,random,6,25,0.24,24.0
+baseline5k,历史baseline 5k,stack_blocks_three,random,3,25,0.12,12.0
+baseline10k,历史baseline 10k,blocks_ranking_rgb,clean,15,25,0.6,60.0
+baseline10k,历史baseline 10k,hanging_mug,clean,6,25,0.24,24.0
+baseline10k,历史baseline 10k,open_laptop,clean,22,25,0.88,88.0
+baseline10k,历史baseline 10k,pick_diverse_bottles,clean,7,25,0.28,28.000000000000004
+baseline10k,历史baseline 10k,place_shoe,clean,21,25,0.84,84.0
+baseline10k,历史baseline 10k,rotate_qrcode,clean,18,25,0.72,72.0
+baseline10k,历史baseline 10k,stack_blocks_three,clean,20,25,0.8,80.0
+baseline10k,历史baseline 10k,blocks_ranking_rgb,random,16,25,0.64,64.0
+baseline10k,历史baseline 10k,hanging_mug,random,0,25,0.0,0.0
+baseline10k,历史baseline 10k,open_laptop,random,12,25,0.48,48.0
+baseline10k,历史baseline 10k,pick_diverse_bottles,random,5,25,0.2,20.0
+baseline10k,历史baseline 10k,place_shoe,random,13,25,0.52,52.0
+baseline10k,历史baseline 10k,rotate_qrcode,random,2,25,0.08,8.0
+baseline10k,历史baseline 10k,stack_blocks_three,random,5,25,0.2,20.0
+joint_delta5k,Joint Delta 5k,blocks_ranking_rgb,clean,16,25,0.64,64.0
+joint_delta5k,Joint Delta 5k,hanging_mug,clean,5,25,0.2,20.0
+joint_delta5k,Joint Delta 5k,open_laptop,clean,18,25,0.72,72.0
+joint_delta5k,Joint Delta 5k,pick_diverse_bottles,clean,11,25,0.44,44.0
+joint_delta5k,Joint Delta 5k,place_shoe,clean,19,25,0.76,76.0
+joint_delta5k,Joint Delta 5k,rotate_qrcode,clean,18,25,0.72,72.0
+joint_delta5k,Joint Delta 5k,stack_blocks_three,clean,4,25,0.16,16.0
+joint_delta5k,Joint Delta 5k,blocks_ranking_rgb,random,4,25,0.16,16.0
+joint_delta5k,Joint Delta 5k,hanging_mug,random,2,25,0.08,8.0
+joint_delta5k,Joint Delta 5k,open_laptop,random,7,25,0.28,28.000000000000004
+joint_delta5k,Joint Delta 5k,pick_diverse_bottles,random,5,25,0.2,20.0
+joint_delta5k,Joint Delta 5k,place_shoe,random,12,25,0.48,48.0
+joint_delta5k,Joint Delta 5k,rotate_qrcode,random,3,25,0.12,12.0
+joint_delta5k,Joint Delta 5k,stack_blocks_three,random,0,25,0.0,0.0
+joint_ee10k,Joint+EE 10k（λ=0.1）,blocks_ranking_rgb,clean,18,25,0.72,72.0
+joint_ee10k,Joint+EE 10k（λ=0.1）,hanging_mug,clean,4,25,0.16,16.0
+joint_ee10k,Joint+EE 10k（λ=0.1）,open_laptop,clean,21,25,0.84,84.0
+joint_ee10k,Joint+EE 10k（λ=0.1）,pick_diverse_bottles,clean,13,25,0.52,52.0
+joint_ee10k,Joint+EE 10k（λ=0.1）,place_shoe,clean,18,25,0.72,72.0
+joint_ee10k,Joint+EE 10k（λ=0.1）,rotate_qrcode,clean,14,25,0.56,56.00000000000001
+joint_ee10k,Joint+EE 10k（λ=0.1）,stack_blocks_three,clean,10,25,0.4,40.0
+joint_ee10k,Joint+EE 10k（λ=0.1）,blocks_ranking_rgb,random,11,25,0.44,44.0
+joint_ee10k,Joint+EE 10k（λ=0.1）,hanging_mug,random,3,25,0.12,12.0
+joint_ee10k,Joint+EE 10k（λ=0.1）,open_laptop,random,7,25,0.28,28.000000000000004
+joint_ee10k,Joint+EE 10k（λ=0.1）,pick_diverse_bottles,random,5,25,0.2,20.0
+joint_ee10k,Joint+EE 10k（λ=0.1）,place_shoe,random,11,25,0.44,44.0
+joint_ee10k,Joint+EE 10k（λ=0.1）,rotate_qrcode,random,2,25,0.08,8.0
+joint_ee10k,Joint+EE 10k（λ=0.1）,stack_blocks_three,random,4,25,0.16,16.0
+joint_delta10k_compile_false,Joint Delta 5k→10k（compile=False）,blocks_ranking_rgb,clean,16,25,0.64,64.0
+joint_delta10k_compile_false,Joint Delta 5k→10k（compile=False）,hanging_mug,clean,6,25,0.24,24.0
+joint_delta10k_compile_false,Joint Delta 5k→10k（compile=False）,open_laptop,clean,19,25,0.76,76.0
+joint_delta10k_compile_false,Joint Delta 5k→10k（compile=False）,pick_diverse_bottles,clean,11,25,0.44,44.0
+joint_delta10k_compile_false,Joint Delta 5k→10k（compile=False）,place_shoe,clean,18,25,0.72,72.0
+joint_delta10k_compile_false,Joint Delta 5k→10k（compile=False）,rotate_qrcode,clean,21,25,0.84,84.0
+joint_delta10k_compile_false,Joint Delta 5k→10k（compile=False）,stack_blocks_three,clean,6,25,0.24,24.0
+joint_delta10k_compile_false,Joint Delta 5k→10k（compile=False）,blocks_ranking_rgb,random,12,25,0.48,48.0
+joint_delta10k_compile_false,Joint Delta 5k→10k（compile=False）,hanging_mug,random,1,25,0.04,4.0
+joint_delta10k_compile_false,Joint Delta 5k→10k（compile=False）,open_laptop,random,5,25,0.2,20.0
+joint_delta10k_compile_false,Joint Delta 5k→10k（compile=False）,pick_diverse_bottles,random,2,25,0.08,8.0
+joint_delta10k_compile_false,Joint Delta 5k→10k（compile=False）,place_shoe,random,13,25,0.52,52.0
+joint_delta10k_compile_false,Joint Delta 5k→10k（compile=False）,rotate_qrcode,random,3,25,0.12,12.0
+joint_delta10k_compile_false,Joint Delta 5k→10k（compile=False）,stack_blocks_three,random,3,25,0.12,12.0
+joint_delta10k_compile_true,Joint Delta 5k→10k（compile=True）,blocks_ranking_rgb,clean,14,25,0.56,56.00000000000001
+joint_delta10k_compile_true,Joint Delta 5k→10k（compile=True）,hanging_mug,clean,4,25,0.16,16.0
+joint_delta10k_compile_true,Joint Delta 5k→10k（compile=True）,open_laptop,clean,19,25,0.76,76.0
+joint_delta10k_compile_true,Joint Delta 5k→10k（compile=True）,pick_diverse_bottles,clean,11,25,0.44,44.0
+joint_delta10k_compile_true,Joint Delta 5k→10k（compile=True）,place_shoe,clean,16,25,0.64,64.0
+joint_delta10k_compile_true,Joint Delta 5k→10k（compile=True）,rotate_qrcode,clean,18,25,0.72,72.0
+joint_delta10k_compile_true,Joint Delta 5k→10k（compile=True）,stack_blocks_three,clean,4,25,0.16,16.0
+joint_delta10k_compile_true,Joint Delta 5k→10k（compile=True）,blocks_ranking_rgb,random,10,25,0.4,40.0
+joint_delta10k_compile_true,Joint Delta 5k→10k（compile=True）,hanging_mug,random,1,25,0.04,4.0
+joint_delta10k_compile_true,Joint Delta 5k→10k（compile=True）,open_laptop,random,5,25,0.2,20.0
+joint_delta10k_compile_true,Joint Delta 5k→10k（compile=True）,pick_diverse_bottles,random,5,25,0.2,20.0
+joint_delta10k_compile_true,Joint Delta 5k→10k（compile=True）,place_shoe,random,13,25,0.52,52.0
+joint_delta10k_compile_true,Joint Delta 5k→10k（compile=True）,rotate_qrcode,random,4,25,0.16,16.0
+joint_delta10k_compile_true,Joint Delta 5k→10k（compile=True）,stack_blocks_three,random,3,25,0.12,12.0
+weighted5k,Weighted Flow-matching 5k,blocks_ranking_rgb,clean,12,25,0.48,48.0
+weighted5k,Weighted Flow-matching 5k,hanging_mug,clean,4,25,0.16,16.0
+weighted5k,Weighted Flow-matching 5k,open_laptop,clean,21,25,0.84,84.0
+weighted5k,Weighted Flow-matching 5k,pick_diverse_bottles,clean,2,25,0.08,8.0
+weighted5k,Weighted Flow-matching 5k,place_shoe,clean,15,25,0.6,60.0
+weighted5k,Weighted Flow-matching 5k,rotate_qrcode,clean,11,25,0.44,44.0
+weighted5k,Weighted Flow-matching 5k,stack_blocks_three,clean,1,25,0.04,4.0
+weighted5k,Weighted Flow-matching 5k,blocks_ranking_rgb,random,4,25,0.16,16.0
+weighted5k,Weighted Flow-matching 5k,hanging_mug,random,0,25,0.0,0.0
+weighted5k,Weighted Flow-matching 5k,open_laptop,random,8,25,0.32,32.0
+weighted5k,Weighted Flow-matching 5k,pick_diverse_bottles,random,2,25,0.08,8.0
+weighted5k,Weighted Flow-matching 5k,place_shoe,random,8,25,0.32,32.0
+weighted5k,Weighted Flow-matching 5k,rotate_qrcode,random,5,25,0.2,20.0
+weighted5k,Weighted Flow-matching 5k,stack_blocks_three,random,1,25,0.04,4.0
+spline5k,Spline 5k,blocks_ranking_rgb,clean,18,25,0.72,72.0
+spline5k,Spline 5k,hanging_mug,clean,3,25,0.12,12.0
+spline5k,Spline 5k,open_laptop,clean,20,25,0.8,80.0
+spline5k,Spline 5k,pick_diverse_bottles,clean,0,25,0.0,0.0
+spline5k,Spline 5k,place_shoe,clean,20,25,0.8,80.0
+spline5k,Spline 5k,rotate_qrcode,clean,15,25,0.6,60.0
+spline5k,Spline 5k,stack_blocks_three,clean,11,25,0.44,44.0
+spline5k,Spline 5k,blocks_ranking_rgb,random,7,25,0.28,28.000000000000004
+spline5k,Spline 5k,hanging_mug,random,1,25,0.04,4.0
+spline5k,Spline 5k,open_laptop,random,7,25,0.28,28.000000000000004
+spline5k,Spline 5k,pick_diverse_bottles,random,2,25,0.08,8.0
+spline5k,Spline 5k,place_shoe,random,12,25,0.48,48.0
+spline5k,Spline 5k,rotate_qrcode,random,2,25,0.08,8.0
+spline5k,Spline 5k,stack_blocks_three,random,3,25,0.12,12.0
+spline10k,Spline 5k→10k,blocks_ranking_rgb,clean,9,25,0.36,36.0
+spline10k,Spline 5k→10k,hanging_mug,clean,5,25,0.2,20.0
+spline10k,Spline 5k→10k,open_laptop,clean,21,25,0.84,84.0
+spline10k,Spline 5k→10k,pick_diverse_bottles,clean,4,25,0.16,16.0
+spline10k,Spline 5k→10k,place_shoe,clean,17,25,0.68,68.0
+spline10k,Spline 5k→10k,rotate_qrcode,clean,21,25,0.84,84.0
+spline10k,Spline 5k→10k,stack_blocks_three,clean,15,25,0.6,60.0
+spline10k,Spline 5k→10k,blocks_ranking_rgb,random,11,25,0.44,44.0
+spline10k,Spline 5k→10k,hanging_mug,random,1,25,0.04,4.0
+spline10k,Spline 5k→10k,open_laptop,random,2,25,0.08,8.0
+spline10k,Spline 5k→10k,pick_diverse_bottles,random,2,25,0.08,8.0
+spline10k,Spline 5k→10k,place_shoe,random,11,25,0.44,44.0
+spline10k,Spline 5k→10k,rotate_qrcode,random,2,25,0.08,8.0
+spline10k,Spline 5k→10k,stack_blocks_three,random,6,25,0.24,24.0

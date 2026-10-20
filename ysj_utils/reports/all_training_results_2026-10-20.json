@@ -1,0 +1,3333 @@
+{
+  "verified_at": "2026-10-20T13:58:31.514437+00:00",
+  "protocol": {
+    "tasks": [
+      "blocks_ranking_rgb",
+      "hanging_mug",
+      "open_laptop",
+      "pick_diverse_bottles",
+      "rotate_qrcode",
+      "stack_blocks_three",
+      "place_shoe"
+    ],
+    "configs": [
+      "demo_clean",
+      "demo_randomized"
+    ],
+    "episodes": 25
+  },
+  "experiments": {
+    "baseline5k": {
+      "source_raw": "/2025233210/xiesy/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/baseline_gbs128_5k_global_step_5000/run_20261014_180019/_result.txt",
+      "raw_results": "blocks_ranking_rgb\tclean\t9/25\t0.36\nhanging_mug\tclean\t7/25\t0.28\nopen_laptop\tclean\t21/25\t0.84\npick_diverse_bottles\tclean\t8/25\t0.32\nplace_shoe\tclean\t17/25\t0.68\nrotate_qrcode\tclean\t13/25\t0.52\nstack_blocks_three\tclean\t2/25\t0.08\nblocks_ranking_rgb\trandom\t8/25\t0.32\nhanging_mug\trandom\t1/25\t0.04\nopen_laptop\trandom\t12/25\t0.48\npick_diverse_bottles\trandom\t3/25\t0.12\nplace_shoe\trandom\t14/25\t0.56\nrotate_qrcode\trandom\t6/25\t0.24\nstack_blocks_three\trandom\t3/25\t0.12\n# ---- summary: mean of per-unit success rates ----\n# all_clean_avg\t0.4400\t(7 units, 77/175 episodes)\n# all_random_avg\t0.2686\t(7 units, 47/175 episodes)\n# all_avg\t0.3543\t(14 units, 124/350 episodes)\n",
+      "config_path": "/2025233210/xiesy/lingbot_ws/outputs/baseline_gbs128_5k/lingbotvla_cli.yaml",
+      "training": {
+        "max_steps": 5000,
+        "global_batch_size": 128,
+        "micro_batch_size": 16,
+        "enable_fp32": true,
+        "enable_mixed_precision": true,
+        "seed": 42,
+        "chunk_size": 50,
+        "optimizer": "muon",
+        "lr": 0.0001,
+        "lr_min": 5e-05,
+        "lr_decay_style": "cosine",
+        "lr_schedule_steps": null,
+        "enable_resume": true,
+        "load_checkpoint_path": null,
+        "joint_ee_aux_weight": null,
+        "mask_action_padding": null,
+        "spline_control_points": null,
+        "spline_degree": null,
+        "flow_gibbs_epsilon": null,
+        "flow_gibbs_log_normalizer": null,
+        "use_compile": true
+      },
+      "prefetch_factor": 4,
+      "rows": [
+        {
+          "task": "blocks_ranking_rgb",
+          "setting": "clean",
+          "success": 9,
+          "total": 25,
+          "rate": 0.36
+        },
+        {
+          "task": "hanging_mug",
+          "setting": "clean",
+          "success": 7,
+          "total": 25,
+          "rate": 0.28
+        },
+        {
+          "task": "open_laptop",
+          "setting": "clean",
+          "success": 21,
+          "total": 25,
+          "rate": 0.84
+        },
+        {
+          "task": "pick_diverse_bottles",
+          "setting": "clean",
+          "success": 8,
+          "total": 25,
+          "rate": 0.32
+        },
+        {
+          "task": "place_shoe",
+          "setting": "clean",
+          "success": 17,
+          "total": 25,
+          "rate": 0.68
+        },
+        {
+          "task": "rotate_qrcode",
+          "setting": "clean",
+          "success": 13,
+          "total": 25,
+          "rate": 0.52
+        },
+        {
+          "task": "stack_blocks_three",
+          "setting": "clean",
+          "success": 2,
+          "total": 25,
+          "rate": 0.08
+        },
+        {
+          "task": "blocks_ranking_rgb",
+          "setting": "random",
+          "success": 8,
+          "total": 25,
+          "rate": 0.32
+        },
+        {
+          "task": "hanging_mug",
+          "setting": "random",
+          "success": 1,
+          "total": 25,
+          "rate": 0.04
+        },
+        {
+          "task": "open_laptop",
+          "setting": "random",
+          "success": 12,
+          "total": 25,
+          "rate": 0.48
+        },
+        {
+          "task": "pick_diverse_bottles",
+          "setting": "random",
+          "success": 3,
+          "total": 25,
+          "rate": 0.12
+        },
+        {
+          "task": "place_shoe",
+          "setting": "random",
+          "success": 14,
+          "total": 25,
+          "rate": 0.56
+        },
+        {
+          "task": "rotate_qrcode",
+          "setting": "random",
+          "success": 6,
+          "total": 25,
+          "rate": 0.24
+        },
+        {
+          "task": "stack_blocks_three",
+          "setting": "random",
+          "success": 3,
+          "total": 25,
+          "rate": 0.12
+        }
+      ],
+      "totals": {
+        "clean": {
+          "success": 77,
+          "total": 175,
+          "rate": 0.44
+        },
+        "random": {
+          "success": 47,
+          "total": 175,
+          "rate": 0.26857142857142857
+        },
+        "overall": {
+          "success": 124,
+          "total": 350,
+          "rate": 0.35428571428571426
+        }
+      },
+      "evaluation_report": null
+    },
+    "baseline10k": {
+      "source_raw": "/2025233210/xiesy/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/baseline_gbs128_10k_global_step_10000/run_20261015_115635/_result.txt",
+      "raw_results": "blocks_ranking_rgb\tclean\t15/25\t0.6\nhanging_mug\tclean\t6/25\t0.24\nopen_laptop\tclean\t22/25\t0.88\npick_diverse_bottles\tclean\t7/25\t0.28\nplace_shoe\tclean\t21/25\t0.84\nrotate_qrcode\tclean\t18/25\t0.72\nstack_blocks_three\tclean\t20/25\t0.8\nblocks_ranking_rgb\trandom\t16/25\t0.64\nhanging_mug\trandom\t0/25\t0.0\nopen_laptop\trandom\t12/25\t0.48\npick_diverse_bottles\trandom\t5/25\t0.2\nplace_shoe\trandom\t13/25\t0.52\nrotate_qrcode\trandom\t2/25\t0.08\nstack_blocks_three\trandom\t5/25\t0.2\n# ---- summary: mean of per-unit success rates ----\n# all_clean_avg\t0.6229\t(7 units, 109/175 episodes)\n# all_random_avg\t0.3029\t(7 units, 53/175 episodes)\n# all_avg\t0.4629\t(14 units, 162/350 episodes)\n",
+      "config_path": "/2025233210/xiesy/lingbot_ws/outputs/baseline_gbs128_10k/lingbotvla_cli.yaml",
+      "training": {
+        "max_steps": 10000,
+        "global_batch_size": 128,
+        "micro_batch_size": 16,
+        "enable_fp32": true,
+        "enable_mixed_precision": true,
+        "seed": 42,
+        "chunk_size": 50,
+        "optimizer": "muon",
+        "lr": 0.0001,
+        "lr_min": 5e-05,
+        "lr_decay_style": "cosine",
+        "lr_schedule_steps": null,
+        "enable_resume": true,
+        "load_checkpoint_path": null,
+        "joint_ee_aux_weight": null,
+        "mask_action_padding": null,
+        "spline_control_points": null,
+        "spline_degree": null,
+        "flow_gibbs_epsilon": null,
+        "flow_gibbs_log_normalizer": null,
+        "use_compile": true
+      },
+      "prefetch_factor": 4,
+      "rows": [
+        {
+          "task": "blocks_ranking_rgb",
+          "setting": "clean",
+          "success": 15,
+          "total": 25,
+          "rate": 0.6
+        },
+        {
+          "task": "hanging_mug",
+          "setting": "clean",
+          "success": 6,
+          "total": 25,
+          "rate": 0.24
+        },
+        {
+          "task": "open_laptop",
+          "setting": "clean",
+          "success": 22,
+          "total": 25,
+          "rate": 0.88
+        },
+        {
+          "task": "pick_diverse_bottles",
+          "setting": "clean",
+          "success": 7,
+          "total": 25,
+          "rate": 0.28
+        },
+        {
+          "task": "place_shoe",
+          "setting": "clean",
+          "success": 21,
+          "total": 25,
+          "rate": 0.84
+        },
+        {
+          "task": "rotate_qrcode",
+          "setting": "clean",
+          "success": 18,
+          "total": 25,
+          "rate": 0.72
+        },
+        {
+          "task": "stack_blocks_three",
+          "setting": "clean",
+          "success": 20,
+          "total": 25,
+          "rate": 0.8
+        },
+        {
+          "task": "blocks_ranking_rgb",
+          "setting": "random",
+          "success": 16,
+          "total": 25,
+          "rate": 0.64
+        },
+        {
+          "task": "hanging_mug",
+          "setting": "random",
+          "success": 0,
+          "total": 25,
+          "rate": 0.0
+        },
+        {
+          "task": "open_laptop",
+          "setting": "random",
+          "success": 12,
+          "total": 25,
+          "rate": 0.48
+        },
+        {
+          "task": "pick_diverse_bottles",
+          "setting": "random",
+          "success": 5,
+          "total": 25,
+          "rate": 0.2
+        },
+        {
+          "task": "place_shoe",
+          "setting": "random",
+          "success": 13,
+          "total": 25,
+          "rate": 0.52
+        },
+        {
+          "task": "rotate_qrcode",
+          "setting": "random",
+          "success": 2,
+          "total": 25,
+          "rate": 0.08
+        },
+        {
+          "task": "stack_blocks_three",
+          "setting": "random",
+          "success": 5,
+          "total": 25,
+          "rate": 0.2
+        }
+      ],
+      "totals": {
+        "clean": {
+          "success": 109,
+          "total": 175,
+          "rate": 0.6228571428571429
+        },
+        "random": {
+          "success": 53,
+          "total": 175,
+          "rate": 0.3028571428571429
+        },
+        "overall": {
+          "success": 162,
+          "total": 350,
+          "rate": 0.46285714285714286
+        }
+      },
+      "evaluation_report": null
+    },
+    "joint_delta5k": {
+      "source_raw": "/2025233210/ysj/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/ysj_full_d2dcee0b623b/run_20261017_134443/_result.txt",
+      "raw_results": "blocks_ranking_rgb\tclean\t16/25\t0.64\nhanging_mug\tclean\t5/25\t0.2\nopen_laptop\tclean\t18/25\t0.72\npick_diverse_bottles\tclean\t11/25\t0.44\nplace_shoe\tclean\t19/25\t0.76\nrotate_qrcode\tclean\t18/25\t0.72\nstack_blocks_three\tclean\t4/25\t0.16\nblocks_ranking_rgb\trandom\t4/25\t0.16\nhanging_mug\trandom\t2/25\t0.08\nopen_laptop\trandom\t7/25\t0.28\npick_diverse_bottles\trandom\t5/25\t0.2\nplace_shoe\trandom\t12/25\t0.48\nrotate_qrcode\trandom\t3/25\t0.12\nstack_blocks_three\trandom\t0/25\t0.0\n# ---- summary: mean of per-unit success rates ----\n# all_clean_avg\t0.5200\t(7 units, 91/175 episodes)\n# all_random_avg\t0.1886\t(7 units, 33/175 episodes)\n# all_avg\t0.3543\t(14 units, 124/350 episodes)\n",
+      "config_path": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle/JDelta/train/lingbotvla_cli.yaml",
+      "training": {
+        "max_steps": 5000,
+        "global_batch_size": 128,
+        "micro_batch_size": 16,
+        "enable_fp32": false,
+        "enable_mixed_precision": true,
+        "seed": 42,
+        "chunk_size": 50,
+        "optimizer": "muon",
+        "lr": 0.0001,
+        "lr_min": 5e-05,
+        "lr_decay_style": "cosine",
+        "lr_schedule_steps": null,
+        "enable_resume": false,
+        "load_checkpoint_path": null,
+        "joint_ee_aux_weight": -1.0,
+        "mask_action_padding": true,
+        "spline_control_points": 0,
+        "spline_degree": 3,
+        "flow_gibbs_epsilon": null,
+        "flow_gibbs_log_normalizer": null,
+        "use_compile": true
+      },
+      "prefetch_factor": 4,
+      "rows": [
+        {
+          "task": "blocks_ranking_rgb",
+          "setting": "clean",
+          "success": 16,
+          "total": 25,
+          "rate": 0.64
+        },
+        {
+          "task": "hanging_mug",
+          "setting": "clean",
+          "success": 5,
+          "total": 25,
+          "rate": 0.2
+        },
+        {
+          "task": "open_laptop",
+          "setting": "clean",
+          "success": 18,
+          "total": 25,
+          "rate": 0.72
+        },
+        {
+          "task": "pick_diverse_bottles",
+          "setting": "clean",
+          "success": 11,
+          "total": 25,
+          "rate": 0.44
+        },
+        {
+          "task": "place_shoe",
+          "setting": "clean",
+          "success": 19,
+          "total": 25,
+          "rate": 0.76
+        },
+        {
+          "task": "rotate_qrcode",
+          "setting": "clean",
+          "success": 18,
+          "total": 25,
+          "rate": 0.72
+        },
+        {
+          "task": "stack_blocks_three",
+          "setting": "clean",
+          "success": 4,
+          "total": 25,
+          "rate": 0.16
+        },
+        {
+          "task": "blocks_ranking_rgb",
+          "setting": "random",
+          "success": 4,
+          "total": 25,
+          "rate": 0.16
+        },
+        {
+          "task": "hanging_mug",
+          "setting": "random",
+          "success": 2,
+          "total": 25,
+          "rate": 0.08
+        },
+        {
+          "task": "open_laptop",
+          "setting": "random",
+          "success": 7,
+          "total": 25,
+          "rate": 0.28
+        },
+        {
+          "task": "pick_diverse_bottles",
+          "setting": "random",
+          "success": 5,
+          "total": 25,
+          "rate": 0.2
+        },
+        {
+          "task": "place_shoe",
+          "setting": "random",
+          "success": 12,
+          "total": 25,
+          "rate": 0.48
+        },
+        {
+          "task": "rotate_qrcode",
+          "setting": "random",
+          "success": 3,
+          "total": 25,
+          "rate": 0.12
+        },
+        {
+          "task": "stack_blocks_three",
+          "setting": "random",
+          "success": 0,
+          "total": 25,
+          "rate": 0.0
+        }
+      ],
+      "totals": {
+        "clean": {
+          "success": 91,
+          "total": 175,
+          "rate": 0.52
+        },
+        "random": {
+          "success": 33,
+          "total": 175,
+          "rate": 0.18857142857142858
+        },
+        "overall": {
+          "success": 124,
+          "total": 350,
+          "rate": 0.35428571428571426
+        }
+      },
+      "evaluation_report": {
+        "mode": "full",
+        "checkpoint": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle/JDelta/train/checkpoints/global_step_5000/hf_ckpt",
+        "seed": 0,
+        "tasks": [
+          "blocks_ranking_rgb",
+          "hanging_mug",
+          "open_laptop",
+          "pick_diverse_bottles",
+          "rotate_qrcode",
+          "stack_blocks_three",
+          "place_shoe"
+        ],
+        "configs": [
+          "demo_clean",
+          "demo_randomized"
+        ],
+        "episodes": 25,
+        "total_episodes": 350,
+        "inference_precision": "fp32",
+        "use_length": 50,
+        "gpus": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7"
+        ],
+        "command": [
+          "bash",
+          "/2025233210/ysj/lingbot_ws/linbot-vla-v2/xsy_utils/eval_baseline.sh",
+          "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle/JDelta/train/checkpoints/global_step_5000/hf_ckpt"
+        ],
+        "contract": {
+          "robot_config_root": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle/JDelta/robot_configs",
+          "robot_config": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle/JDelta/robot_configs/robotwin.yaml",
+          "norm_stats": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle/JDelta/norm_stats.json",
+          "mode": "joint_delta",
+          "config": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle/JDelta/train/lingbotvla_cli.yaml"
+        },
+        "process_exit_code": 0,
+        "run_dir": "/2025233210/ysj/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/ysj_full_d2dcee0b623b/run_20261017_134443",
+        "code_commit": "74c9bdc5bc10aec62dce86e04d7ae416e5d02ac3",
+        "norm_sha256": "98571430a9607b50e8664f1c6bca6b5dac342c2dd9bbc4859f60ed2934c99f5c",
+        "robot_sha256": "ffe525d746875fee91ce353916a6b6ba0d2096fffc30aa3600d6607e8c8bf269",
+        "training_config_sha256": "672db6ab5a94669fc25c40f57b503699898398c265f40d15c276baf1c5975e49",
+        "state_features_sha256": "914cb65a1527da04feeae94da84170d7c3d1050953db49214f39cbefd939e654",
+        "label_manifests": {
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_adjust_bottle/manifest.json": "3d647a7302fc1ffa3fef2119b851db32ece8e7c680214fbd8f436c14993d4dd8",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_object_stand/manifest.json": "659c7abb34b666c1fad9c29dc5046cb18df27866096a7f82c3404439623c68f6",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_beat_block_hammer/manifest.json": "36c12d7609e7620653ae1fd47f13ff4ef990aeeb9c072d3430295bbe4914b690",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_open_laptop/manifest.json": "3d45475e6d423f1eefdddc9b4ff86eaee9550010214a3672a49a568d693ced0a",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_phone_stand/manifest.json": "5da524b3fcf35f882cdd369f6ce217a27b7b1c63952cc0ec63a5675eb17e1e5d",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_blocks_ranking_rgb/manifest.json": "b4aeed1470da057790843c3bb0572c2eef556053756976a161136115b31caa25",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_open_microwave/manifest.json": "657b750ed5d9990d1703ab1e131f79b2b0987eec8d596305362c295394dc3644",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_shoe/manifest.json": "39c5e33f6414eb8f097efa877ca32a40b492b282375937a6985d13466471fbe1",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_blocks_ranking_size/manifest.json": "50814e5c322bb7484133a760f5a41aa0afb591f3a14ea12b96c2b58c4528b4a4",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_pick_diverse_bottles/manifest.json": "1aab4d940858c599c367549cdf9201f84d9d620ba4782a4b64fc92b5f1776dbe",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_press_stapler/manifest.json": "bd93b73164b45c4aece7a2546cb9d2fa888a58b2b02347414dbc34a358672bac",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_pick_dual_bottles/manifest.json": "25ef938f435401964871c3eab0c9c8349acc82ef93c60ab2c6e88dafd52c2a4d",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_put_bottles_dustbin/manifest.json": "537ff21b247264b68222451a291fe92ba3bffd6de021eab4659c7ae0188eea09",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_a2b_left/manifest.json": "2c3cdf4b55b21818b35b9e3dcc289bb5306c2508561c3e8d94e08750ed4ea016",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_put_object_cabinet/manifest.json": "86021a988a88d51cd259f64038165894d7561ee6adf4a0da263423989d1e2390",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_a2b_right/manifest.json": "3a6b9810dd5154a5d72df7d821793ad263f4a70b826482517b7133b22078a389",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_rotate_qrcode/manifest.json": "1511be3496b0721a25ee44776ac763a62526bffef3fdd2f75efd87b6260b25d1",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_bread_basket/manifest.json": "363be9c4a1612d9a688911b2f2503fda3ea16588eed24b1086f09c911b3b346b",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_scan_object/manifest.json": "cb5628081d0e40120682989f3ce7d414ea9fa49a6bccf5282be6ae9e5fd52a45",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_bread_skillet/manifest.json": "5450aca5d63cc701a8515521aca0795054b9b4e6b08d01d2254d5eb4f06fe2d9",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_burger_fries/manifest.json": "cd6fb262aeb4ac9a04c81c50eedbf09c6588a365908acb241a8f7dbe213d3f5c",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_shake_bottle/manifest.json": "c17484c4675b2e3ee774b9199b9923b38e14308c82da726cdb05a93630484413",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_shake_bottle_horizontally/manifest.json": "84c4b072b62e08b206753c56ac82c3ee1657c28a9a1a44305095474b7024e276",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_cans_plasticbox/manifest.json": "a44509f14f5d94b98b8d8cdbf09b8f47a94a71954e9d6fa8e8d62860ea12cece",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_stack_blocks_three/manifest.json": "51ff4460c6548af3c9f8360a51807a8560278e5534b0ff958ca05fa8f6428cb5",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_container_plate/manifest.json": "31e708e0884f58ffd882f264b5009b26ff9b2d12cc4d8aaa03c7b2fb8c84cc37",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_stack_blocks_two/manifest.json": "674502255fb0e880e0b4628fd9fa3de2c7c1e0aa6c0ab3ac7c35507f42e268c7",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_dual_shoes/manifest.json": "d22616600a5d6f7117e90eb736e5484aa81273b348d6036de791095bd99fada5",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_stack_bowls_three/manifest.json": "594defcb1d4bb1e8fd0a33c045f32a6b21b32398131b0c6433638f320d998fa2",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_empty_cup/manifest.json": "60e4d7c564981c25c2f39f9d3735b4d487d70f054c91d1bc93fa0b65ff6034d5",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_fan/manifest.json": "f2b1c9bbd1dc2eebf8a1ed5df03f2e83590cf01149e13896484a5b96720296e0",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_stack_bowls_two/manifest.json": "2d0fb41cdf576f8e03cf4867d9fe6c3bf0c98551ff403dda7acd63c47a1fd678",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_mouse_pad/manifest.json": "c3cf96bcff8846dd2092b0dd1bf3ae87e45eb1fe76730fca7b4ffed560d798ad",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_stamp_seal/manifest.json": "2dd6c178cb01e40d92f9cfc266a6c1cf930bee304065a608744f4876a1c935b5",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_object_basket/manifest.json": "95cf10cca0179f7208d5f818e1782b40749b55db3481e6c93a3ea3aa1674cc12",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_turn_switch/manifest.json": "0ac8e7fde9bff2d589251fe3370efadecb92a1654e34938e4322d96b11dc92d6",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_object_scale/manifest.json": "38403e27774b13ccfdd566c16e6379dce8b2d178df61914850b5d7b69baaabca",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_dump_bin_bigbin/manifest.json": "e48b76053b7b8439d0eac62a63fe4de09e9fe734ad81db0ac0d2177d8cc3bc3c",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_grab_roller/manifest.json": "25f09e40f9c90f4537cf4a314afe576cd60ecd4ededd3e3f58457054bafd9d71",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_handover_block/manifest.json": "b618436e1892dadd78aea02d34931305bd0498f06574916d0bd4cc147533ed28",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_handover_mic/manifest.json": "19a0b2b7eb3b9f63055a2795527ac180c30273e30e765bdbf0807db6fcef7e27",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_hanging_mug/manifest.json": "9368681d19a92702589572f78cfc945fd3db0cdebd515a46f02fef00485ba21d",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_lift_pot/manifest.json": "a0c2f1f2b736290a4da7ed46a9cae539c91242d015288f043fab835f3425e8c3",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_move_can_pot/manifest.json": "9ca8dc51e2376bbc1bc6ec065209a9e91c4609e5d1c4facd179f53ca87923d79",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_move_pillbottle_pad/manifest.json": "285c01bf644eb00550d7d14548a0c5814ab93e170c8ef6ac2ab61d1ef0c5d5f8",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_move_playingcard_away/manifest.json": "a53c851b4c93cee04b7b73b2b1679170b7522ef20b28dd4b3abdc7a06e9c3b96",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_move_stapler_pad/manifest.json": "205038c1c004d7fcdb10554073f50866c5d6d3056c88abd3217e20040e26603a",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_click_alarmclock/manifest.json": "4175d4a5086369847e47b3e3d0faad5d9d3333a66312eae7cad14ef8c1af2d9f",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_click_bell/manifest.json": "87fb6369a8604aeb843451618ab75b785dbf9c2a40ded9a7de52a965298f4eae",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_can_basket/manifest.json": "4ad1b707fe0c14bc54a6639f6ac1dc6a4c11f2a09adaab52b8fab38d999a435e"
+        },
+        "action_loss": {
+          "joint_ee_aux_weight": -1.0,
+          "mask_action_padding": true
+        },
+        "action_supervision": {
+          "flow_dimension_weights": null,
+          "flow_horizon_weights": null,
+          "spline_control_points": 0,
+          "spline_degree": 3
+        },
+        "training_summary": {
+          "global_batch_size": 128,
+          "max_steps": 5000,
+          "enable_fp32": false,
+          "enable_mixed_precision": true,
+          "seed": 42,
+          "chunk_size": 50,
+          "lr": 0.0001,
+          "lr_min": 5e-05,
+          "lr_decay_style": "cosine",
+          "optimizer": "muon",
+          "training_time_rtc": false,
+          "loss_type": "L1_fm",
+          "align_params": {
+            "depth": {
+              "block_future_depth_to_action": false,
+              "detach_future_image_feats": true,
+              "dim_head": 32,
+              "dim_out": 1024,
+              "ff_mult": 1,
+              "input_size": 224,
+              "model_type": "MoRGBD",
+              "moge_path": "/2025233210/xiesy/lingbot_ws/checkpoints/moge-2-vitb-normal/model.pt",
+              "morgbd_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/depth/model.pt",
+              "num_backbone_tokens": 256,
+              "num_heads": 4,
+              "num_layers": 1,
+              "token_size": 16,
+              "use_future_depth": true
+            },
+            "depth_loss_weight": 0.004,
+            "future_depth_loss_weight": 0.004,
+            "llm": {
+              "dim_out": 2560,
+              "image_input_size": 224,
+              "image_token_size": 8
+            },
+            "mode": "query",
+            "num_task_tokens": 8,
+            "use_future_video": true,
+            "video": {
+              "attention_mode": "flex_block_causal",
+              "block_suffix_to_future_video": false,
+              "ckpt_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/dino_video/teacher_step_10000.pth",
+              "cls_loss_type": "mse",
+              "cls_loss_weight": 0.2,
+              "cls_pool": "last",
+              "config_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/dino_video/config.yaml",
+              "cosine_loss_weight": 0.2,
+              "detach_image_feats": true,
+              "dim_head": 32,
+              "dim_out": 1024,
+              "effective_fps": 1.0,
+              "ff_mult": 1,
+              "future_video_loss_weight": 0.004,
+              "input_size": 256,
+              "log_max_samples": 32,
+              "log_scale": 16,
+              "mse_loss_weight": 1.0,
+              "n_blocks": 1,
+              "num_backbone_tokens": 256,
+              "num_future_frames": 1,
+              "num_heads": 4,
+              "num_layers": 1,
+              "share_future_depth_query": true,
+              "use_cls_loss": false,
+              "use_cosine_loss": true,
+              "use_current_patch_loss": true,
+              "use_current_shared_task_proj": true,
+              "use_mse_loss": true,
+              "use_patch_loss": true,
+              "use_shared_future_task_proj": true,
+              "use_smooth_l1_loss": false,
+              "use_warmup_frame": true
+            },
+            "visual_steps": 5000
+          },
+          "use_compile": true
+        },
+        "initial_model": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b",
+        "train_list_sha256": "8ff079a9d23511b7b47c774243422c9e11ae69752fc6b2268e239b74d26e9f44",
+        "status": "COMPLETE",
+        "rates": {
+          "clean": 0.52,
+          "random": 0.18857142857142858
+        }
+      }
+    },
+    "joint_ee10k": {
+      "source_raw": "/2025233210/ysj/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/ysj_full_1fbcf8fab857/run_20261017_124931/_result.txt",
+      "raw_results": "blocks_ranking_rgb\tclean\t18/25\t0.72\nhanging_mug\tclean\t4/25\t0.16\nopen_laptop\tclean\t21/25\t0.84\npick_diverse_bottles\tclean\t13/25\t0.52\nplace_shoe\tclean\t18/25\t0.72\nrotate_qrcode\tclean\t14/25\t0.56\nstack_blocks_three\tclean\t10/25\t0.4\nblocks_ranking_rgb\trandom\t11/25\t0.44\nhanging_mug\trandom\t3/25\t0.12\nopen_laptop\trandom\t7/25\t0.28\npick_diverse_bottles\trandom\t5/25\t0.2\nplace_shoe\trandom\t11/25\t0.44\nrotate_qrcode\trandom\t2/25\t0.08\nstack_blocks_three\trandom\t4/25\t0.16\n# ---- summary: mean of per-unit success rates ----\n# all_clean_avg\t0.5600\t(7 units, 98/175 episodes)\n# all_random_avg\t0.2457\t(7 units, 43/175 episodes)\n# all_avg\t0.4029\t(14 units, 141/350 episodes)\n",
+      "config_path": "/2025233210/ysj/lingbot_ws/runs/actions_30375_20261017_0400/bundle10k/JointEE/train/lingbotvla_cli.yaml",
+      "training": {
+        "max_steps": 10000,
+        "global_batch_size": 128,
+        "micro_batch_size": 16,
+        "enable_fp32": false,
+        "enable_mixed_precision": true,
+        "seed": 42,
+        "chunk_size": 50,
+        "optimizer": "muon",
+        "lr": 0.0001,
+        "lr_min": 5e-05,
+        "lr_decay_style": "cosine",
+        "lr_schedule_steps": null,
+        "enable_resume": false,
+        "load_checkpoint_path": null,
+        "joint_ee_aux_weight": 0.1,
+        "mask_action_padding": true,
+        "spline_control_points": 0,
+        "spline_degree": 3,
+        "flow_gibbs_epsilon": null,
+        "flow_gibbs_log_normalizer": null,
+        "use_compile": true
+      },
+      "prefetch_factor": 4,
+      "rows": [
+        {
+          "task": "blocks_ranking_rgb",
+          "setting": "clean",
+          "success": 18,
+          "total": 25,
+          "rate": 0.72
+        },
+        {
+          "task": "hanging_mug",
+          "setting": "clean",
+          "success": 4,
+          "total": 25,
+          "rate": 0.16
+        },
+        {
+          "task": "open_laptop",
+          "setting": "clean",
+          "success": 21,
+          "total": 25,
+          "rate": 0.84
+        },
+        {
+          "task": "pick_diverse_bottles",
+          "setting": "clean",
+          "success": 13,
+          "total": 25,
+          "rate": 0.52
+        },
+        {
+          "task": "place_shoe",
+          "setting": "clean",
+          "success": 18,
+          "total": 25,
+          "rate": 0.72
+        },
+        {
+          "task": "rotate_qrcode",
+          "setting": "clean",
+          "success": 14,
+          "total": 25,
+          "rate": 0.56
+        },
+        {
+          "task": "stack_blocks_three",
+          "setting": "clean",
+          "success": 10,
+          "total": 25,
+          "rate": 0.4
+        },
+        {
+          "task": "blocks_ranking_rgb",
+          "setting": "random",
+          "success": 11,
+          "total": 25,
+          "rate": 0.44
+        },
+        {
+          "task": "hanging_mug",
+          "setting": "random",
+          "success": 3,
+          "total": 25,
+          "rate": 0.12
+        },
+        {
+          "task": "open_laptop",
+          "setting": "random",
+          "success": 7,
+          "total": 25,
+          "rate": 0.28
+        },
+        {
+          "task": "pick_diverse_bottles",
+          "setting": "random",
+          "success": 5,
+          "total": 25,
+          "rate": 0.2
+        },
+        {
+          "task": "place_shoe",
+          "setting": "random",
+          "success": 11,
+          "total": 25,
+          "rate": 0.44
+        },
+        {
+          "task": "rotate_qrcode",
+          "setting": "random",
+          "success": 2,
+          "total": 25,
+          "rate": 0.08
+        },
+        {
+          "task": "stack_blocks_three",
+          "setting": "random",
+          "success": 4,
+          "total": 25,
+          "rate": 0.16
+        }
+      ],
+      "totals": {
+        "clean": {
+          "success": 98,
+          "total": 175,
+          "rate": 0.56
+        },
+        "random": {
+          "success": 43,
+          "total": 175,
+          "rate": 0.24571428571428572
+        },
+        "overall": {
+          "success": 141,
+          "total": 350,
+          "rate": 0.40285714285714286
+        }
+      },
+      "evaluation_report": {
+        "mode": "full",
+        "checkpoint": "/2025233210/ysj/lingbot_ws/runs/actions_30375_20261017_0400/bundle10k/JointEE/train/checkpoints/global_step_10000/hf_ckpt",
+        "seed": 0,
+        "tasks": [
+          "blocks_ranking_rgb",
+          "hanging_mug",
+          "open_laptop",
+          "pick_diverse_bottles",
+          "rotate_qrcode",
+          "stack_blocks_three",
+          "place_shoe"
+        ],
+        "configs": [
+          "demo_clean",
+          "demo_randomized"
+        ],
+        "episodes": 25,
+        "total_episodes": 350,
+        "inference_precision": "fp32",
+        "use_length": 50,
+        "gpus": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7"
+        ],
+        "command": [
+          "bash",
+          "/2025233210/ysj/lingbot_ws/linbot-vla-v2/xsy_utils/eval_baseline.sh",
+          "/2025233210/ysj/lingbot_ws/runs/actions_30375_20261017_0400/bundle10k/JointEE/train/checkpoints/global_step_10000/hf_ckpt"
+        ],
+        "contract": {
+          "robot_config_root": "/2025233210/ysj/lingbot_ws/runs/actions_30375_20261017_0400/bundle10k/JointEE/robot_configs",
+          "robot_config": "/2025233210/ysj/lingbot_ws/runs/actions_30375_20261017_0400/bundle10k/JointEE/robot_configs/robotwin.yaml",
+          "norm_stats": "/2025233210/ysj/lingbot_ws/runs/actions_30375_20261017_0400/bundle10k/JointEE/norm_stats.json",
+          "mode": "joint_ee_delta",
+          "config": "/2025233210/ysj/lingbot_ws/runs/actions_30375_20261017_0400/bundle10k/JointEE/train/lingbotvla_cli.yaml"
+        },
+        "process_exit_code": 0,
+        "run_dir": "/2025233210/ysj/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/ysj_full_1fbcf8fab857/run_20261017_124931",
+        "code_commit": "74c9bdc5bc10aec62dce86e04d7ae416e5d02ac3",
+        "norm_sha256": "43aae542f6e60a8c28d14de5abe65fc95983a3853159cee9dc32c7e443979365",
+        "robot_sha256": "4ad88f7b0a165a6789ee6c37a6a73a6b339feb7123b3317e6f5f18c137c1d288",
+        "training_config_sha256": "01666416b0a9c3bddd33debf53da9ffaedb3195af4a20ac1f81ac759a72d01a4",
+        "state_features_sha256": "914cb65a1527da04feeae94da84170d7c3d1050953db49214f39cbefd939e654",
+        "label_manifests": {
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_adjust_bottle/manifest.json": "3d647a7302fc1ffa3fef2119b851db32ece8e7c680214fbd8f436c14993d4dd8",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_object_stand/manifest.json": "659c7abb34b666c1fad9c29dc5046cb18df27866096a7f82c3404439623c68f6",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_beat_block_hammer/manifest.json": "36c12d7609e7620653ae1fd47f13ff4ef990aeeb9c072d3430295bbe4914b690",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_open_laptop/manifest.json": "3d45475e6d423f1eefdddc9b4ff86eaee9550010214a3672a49a568d693ced0a",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_phone_stand/manifest.json": "5da524b3fcf35f882cdd369f6ce217a27b7b1c63952cc0ec63a5675eb17e1e5d",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_blocks_ranking_rgb/manifest.json": "b4aeed1470da057790843c3bb0572c2eef556053756976a161136115b31caa25",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_open_microwave/manifest.json": "657b750ed5d9990d1703ab1e131f79b2b0987eec8d596305362c295394dc3644",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_shoe/manifest.json": "39c5e33f6414eb8f097efa877ca32a40b492b282375937a6985d13466471fbe1",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_blocks_ranking_size/manifest.json": "50814e5c322bb7484133a760f5a41aa0afb591f3a14ea12b96c2b58c4528b4a4",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_pick_diverse_bottles/manifest.json": "1aab4d940858c599c367549cdf9201f84d9d620ba4782a4b64fc92b5f1776dbe",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_press_stapler/manifest.json": "bd93b73164b45c4aece7a2546cb9d2fa888a58b2b02347414dbc34a358672bac",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_pick_dual_bottles/manifest.json": "25ef938f435401964871c3eab0c9c8349acc82ef93c60ab2c6e88dafd52c2a4d",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_put_bottles_dustbin/manifest.json": "537ff21b247264b68222451a291fe92ba3bffd6de021eab4659c7ae0188eea09",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_a2b_left/manifest.json": "2c3cdf4b55b21818b35b9e3dcc289bb5306c2508561c3e8d94e08750ed4ea016",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_put_object_cabinet/manifest.json": "86021a988a88d51cd259f64038165894d7561ee6adf4a0da263423989d1e2390",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_a2b_right/manifest.json": "3a6b9810dd5154a5d72df7d821793ad263f4a70b826482517b7133b22078a389",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_rotate_qrcode/manifest.json": "1511be3496b0721a25ee44776ac763a62526bffef3fdd2f75efd87b6260b25d1",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_bread_basket/manifest.json": "363be9c4a1612d9a688911b2f2503fda3ea16588eed24b1086f09c911b3b346b",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_scan_object/manifest.json": "cb5628081d0e40120682989f3ce7d414ea9fa49a6bccf5282be6ae9e5fd52a45",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_bread_skillet/manifest.json": "5450aca5d63cc701a8515521aca0795054b9b4e6b08d01d2254d5eb4f06fe2d9",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_burger_fries/manifest.json": "cd6fb262aeb4ac9a04c81c50eedbf09c6588a365908acb241a8f7dbe213d3f5c",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_shake_bottle/manifest.json": "c17484c4675b2e3ee774b9199b9923b38e14308c82da726cdb05a93630484413",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_shake_bottle_horizontally/manifest.json": "84c4b072b62e08b206753c56ac82c3ee1657c28a9a1a44305095474b7024e276",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_cans_plasticbox/manifest.json": "a44509f14f5d94b98b8d8cdbf09b8f47a94a71954e9d6fa8e8d62860ea12cece",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_stack_blocks_three/manifest.json": "51ff4460c6548af3c9f8360a51807a8560278e5534b0ff958ca05fa8f6428cb5",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_container_plate/manifest.json": "31e708e0884f58ffd882f264b5009b26ff9b2d12cc4d8aaa03c7b2fb8c84cc37",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_stack_blocks_two/manifest.json": "674502255fb0e880e0b4628fd9fa3de2c7c1e0aa6c0ab3ac7c35507f42e268c7",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_dual_shoes/manifest.json": "d22616600a5d6f7117e90eb736e5484aa81273b348d6036de791095bd99fada5",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_stack_bowls_three/manifest.json": "594defcb1d4bb1e8fd0a33c045f32a6b21b32398131b0c6433638f320d998fa2",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_empty_cup/manifest.json": "60e4d7c564981c25c2f39f9d3735b4d487d70f054c91d1bc93fa0b65ff6034d5",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_fan/manifest.json": "f2b1c9bbd1dc2eebf8a1ed5df03f2e83590cf01149e13896484a5b96720296e0",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_stack_bowls_two/manifest.json": "2d0fb41cdf576f8e03cf4867d9fe6c3bf0c98551ff403dda7acd63c47a1fd678",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_mouse_pad/manifest.json": "c3cf96bcff8846dd2092b0dd1bf3ae87e45eb1fe76730fca7b4ffed560d798ad",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_stamp_seal/manifest.json": "2dd6c178cb01e40d92f9cfc266a6c1cf930bee304065a608744f4876a1c935b5",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_object_basket/manifest.json": "95cf10cca0179f7208d5f818e1782b40749b55db3481e6c93a3ea3aa1674cc12",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_turn_switch/manifest.json": "0ac8e7fde9bff2d589251fe3370efadecb92a1654e34938e4322d96b11dc92d6",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_object_scale/manifest.json": "38403e27774b13ccfdd566c16e6379dce8b2d178df61914850b5d7b69baaabca",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_dump_bin_bigbin/manifest.json": "e48b76053b7b8439d0eac62a63fe4de09e9fe734ad81db0ac0d2177d8cc3bc3c",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_grab_roller/manifest.json": "25f09e40f9c90f4537cf4a314afe576cd60ecd4ededd3e3f58457054bafd9d71",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_handover_block/manifest.json": "b618436e1892dadd78aea02d34931305bd0498f06574916d0bd4cc147533ed28",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_handover_mic/manifest.json": "19a0b2b7eb3b9f63055a2795527ac180c30273e30e765bdbf0807db6fcef7e27",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_hanging_mug/manifest.json": "9368681d19a92702589572f78cfc945fd3db0cdebd515a46f02fef00485ba21d",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_lift_pot/manifest.json": "a0c2f1f2b736290a4da7ed46a9cae539c91242d015288f043fab835f3425e8c3",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_move_can_pot/manifest.json": "9ca8dc51e2376bbc1bc6ec065209a9e91c4609e5d1c4facd179f53ca87923d79",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_move_pillbottle_pad/manifest.json": "285c01bf644eb00550d7d14548a0c5814ab93e170c8ef6ac2ab61d1ef0c5d5f8",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_move_playingcard_away/manifest.json": "a53c851b4c93cee04b7b73b2b1679170b7522ef20b28dd4b3abdc7a06e9c3b96",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_move_stapler_pad/manifest.json": "205038c1c004d7fcdb10554073f50866c5d6d3056c88abd3217e20040e26603a",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_click_alarmclock/manifest.json": "4175d4a5086369847e47b3e3d0faad5d9d3333a66312eae7cad14ef8c1af2d9f",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_click_bell/manifest.json": "87fb6369a8604aeb843451618ab75b785dbf9c2a40ded9a7de52a965298f4eae",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_can_basket/manifest.json": "4ad1b707fe0c14bc54a6639f6ac1dc6a4c11f2a09adaab52b8fab38d999a435e"
+        },
+        "action_loss": {
+          "joint_ee_aux_weight": 0.1,
+          "mask_action_padding": true
+        },
+        "action_supervision": {
+          "flow_dimension_weights": null,
+          "flow_horizon_weights": null,
+          "spline_control_points": 0,
+          "spline_degree": 3
+        },
+        "training_summary": {
+          "global_batch_size": 128,
+          "max_steps": 10000,
+          "enable_fp32": false,
+          "enable_mixed_precision": true,
+          "seed": 42,
+          "chunk_size": 50,
+          "lr": 0.0001,
+          "lr_min": 5e-05,
+          "lr_decay_style": "cosine",
+          "optimizer": "muon",
+          "training_time_rtc": false,
+          "loss_type": "L1_fm",
+          "align_params": {
+            "depth": {
+              "block_future_depth_to_action": false,
+              "detach_future_image_feats": true,
+              "dim_head": 32,
+              "dim_out": 1024,
+              "ff_mult": 1,
+              "input_size": 224,
+              "model_type": "MoRGBD",
+              "moge_path": "/2025233210/xiesy/lingbot_ws/checkpoints/moge-2-vitb-normal/model.pt",
+              "morgbd_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/depth/model.pt",
+              "num_backbone_tokens": 256,
+              "num_heads": 4,
+              "num_layers": 1,
+              "token_size": 16,
+              "use_future_depth": true
+            },
+            "depth_loss_weight": 0.004,
+            "future_depth_loss_weight": 0.004,
+            "llm": {
+              "dim_out": 2560,
+              "image_input_size": 224,
+              "image_token_size": 8
+            },
+            "mode": "query",
+            "num_task_tokens": 8,
+            "use_future_video": true,
+            "video": {
+              "attention_mode": "flex_block_causal",
+              "block_suffix_to_future_video": false,
+              "ckpt_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/dino_video/teacher_step_10000.pth",
+              "cls_loss_type": "mse",
+              "cls_loss_weight": 0.2,
+              "cls_pool": "last",
+              "config_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/dino_video/config.yaml",
+              "cosine_loss_weight": 0.2,
+              "detach_image_feats": true,
+              "dim_head": 32,
+              "dim_out": 1024,
+              "effective_fps": 1.0,
+              "ff_mult": 1,
+              "future_video_loss_weight": 0.004,
+              "input_size": 256,
+              "log_max_samples": 32,
+              "log_scale": 16,
+              "mse_loss_weight": 1.0,
+              "n_blocks": 1,
+              "num_backbone_tokens": 256,
+              "num_future_frames": 1,
+              "num_heads": 4,
+              "num_layers": 1,
+              "share_future_depth_query": true,
+              "use_cls_loss": false,
+              "use_cosine_loss": true,
+              "use_current_patch_loss": true,
+              "use_current_shared_task_proj": true,
+              "use_mse_loss": true,
+              "use_patch_loss": true,
+              "use_shared_future_task_proj": true,
+              "use_smooth_l1_loss": false,
+              "use_warmup_frame": true
+            },
+            "visual_steps": 5000
+          },
+          "use_compile": true
+        },
+        "initial_model": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b",
+        "train_list_sha256": "8ff079a9d23511b7b47c774243422c9e11ae69752fc6b2268e239b74d26e9f44",
+        "status": "COMPLETE",
+        "rates": {
+          "clean": 0.5599999999999999,
+          "random": 0.24571428571428572
+        }
+      }
+    },
+    "joint_delta10k_compile_true": {
+      "source_raw": "/2025233210/ysj/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/ysj_full_109ec0c69a0c/run_20261017_214654/_result.txt",
+      "raw_results": "blocks_ranking_rgb\tclean\t14/25\t0.56\nhanging_mug\tclean\t4/25\t0.16\nopen_laptop\tclean\t19/25\t0.76\npick_diverse_bottles\tclean\t11/25\t0.44\nplace_shoe\tclean\t16/25\t0.64\nrotate_qrcode\tclean\t18/25\t0.72\nstack_blocks_three\tclean\t4/25\t0.16\nblocks_ranking_rgb\trandom\t10/25\t0.4\nhanging_mug\trandom\t1/25\t0.04\nopen_laptop\trandom\t5/25\t0.2\npick_diverse_bottles\trandom\t5/25\t0.2\nplace_shoe\trandom\t13/25\t0.52\nrotate_qrcode\trandom\t4/25\t0.16\nstack_blocks_three\trandom\t3/25\t0.12\n# ---- summary: mean of per-unit success rates ----\n# all_clean_avg\t0.4914\t(7 units, 86/175 episodes)\n# all_random_avg\t0.2343\t(7 units, 41/175 episodes)\n# all_avg\t0.3629\t(14 units, 127/350 episodes)\n",
+      "config_path": "/2025233210/ysj/lingbot_ws/outputs/joint_delta_5k_to_10k/lingbotvla_cli.yaml",
+      "training": {
+        "max_steps": 10000,
+        "global_batch_size": 128,
+        "micro_batch_size": 16,
+        "enable_fp32": false,
+        "enable_mixed_precision": true,
+        "seed": 42,
+        "chunk_size": 50,
+        "optimizer": "muon",
+        "lr": 0.0001,
+        "lr_min": 5e-05,
+        "lr_decay_style": "cosine",
+        "lr_schedule_steps": 5000,
+        "enable_resume": true,
+        "load_checkpoint_path": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle/JDelta/train/checkpoints/global_step_5000",
+        "joint_ee_aux_weight": -1.0,
+        "mask_action_padding": true,
+        "spline_control_points": 0,
+        "spline_degree": 3,
+        "flow_gibbs_epsilon": null,
+        "flow_gibbs_log_normalizer": null,
+        "use_compile": true
+      },
+      "prefetch_factor": 1,
+      "rows": [
+        {
+          "task": "blocks_ranking_rgb",
+          "setting": "clean",
+          "success": 14,
+          "total": 25,
+          "rate": 0.56
+        },
+        {
+          "task": "hanging_mug",
+          "setting": "clean",
+          "success": 4,
+          "total": 25,
+          "rate": 0.16
+        },
+        {
+          "task": "open_laptop",
+          "setting": "clean",
+          "success": 19,
+          "total": 25,
+          "rate": 0.76
+        },
+        {
+          "task": "pick_diverse_bottles",
+          "setting": "clean",
+          "success": 11,
+          "total": 25,
+          "rate": 0.44
+        },
+        {
+          "task": "place_shoe",
+          "setting": "clean",
+          "success": 16,
+          "total": 25,
+          "rate": 0.64
+        },
+        {
+          "task": "rotate_qrcode",
+          "setting": "clean",
+          "success": 18,
+          "total": 25,
+          "rate": 0.72
+        },
+        {
+          "task": "stack_blocks_three",
+          "setting": "clean",
+          "success": 4,
+          "total": 25,
+          "rate": 0.16
+        },
+        {
+          "task": "blocks_ranking_rgb",
+          "setting": "random",
+          "success": 10,
+          "total": 25,
+          "rate": 0.4
+        },
+        {
+          "task": "hanging_mug",
+          "setting": "random",
+          "success": 1,
+          "total": 25,
+          "rate": 0.04
+        },
+        {
+          "task": "open_laptop",
+          "setting": "random",
+          "success": 5,
+          "total": 25,
+          "rate": 0.2
+        },
+        {
+          "task": "pick_diverse_bottles",
+          "setting": "random",
+          "success": 5,
+          "total": 25,
+          "rate": 0.2
+        },
+        {
+          "task": "place_shoe",
+          "setting": "random",
+          "success": 13,
+          "total": 25,
+          "rate": 0.52
+        },
+        {
+          "task": "rotate_qrcode",
+          "setting": "random",
+          "success": 4,
+          "total": 25,
+          "rate": 0.16
+        },
+        {
+          "task": "stack_blocks_three",
+          "setting": "random",
+          "success": 3,
+          "total": 25,
+          "rate": 0.12
+        }
+      ],
+      "totals": {
+        "clean": {
+          "success": 86,
+          "total": 175,
+          "rate": 0.49142857142857144
+        },
+        "random": {
+          "success": 41,
+          "total": 175,
+          "rate": 0.2342857142857143
+        },
+        "overall": {
+          "success": 127,
+          "total": 350,
+          "rate": 0.3628571428571429
+        }
+      },
+      "evaluation_report": {
+        "mode": "full",
+        "checkpoint": "/2025233210/ysj/lingbot_ws/outputs/joint_delta_5k_to_10k/checkpoints/global_step_10000/hf_ckpt",
+        "seed": 0,
+        "tasks": [
+          "blocks_ranking_rgb",
+          "hanging_mug",
+          "open_laptop",
+          "pick_diverse_bottles",
+          "rotate_qrcode",
+          "stack_blocks_three",
+          "place_shoe"
+        ],
+        "configs": [
+          "demo_clean",
+          "demo_randomized"
+        ],
+        "episodes": 25,
+        "total_episodes": 350,
+        "inference_precision": "fp32",
+        "use_compile": true,
+        "use_length": 50,
+        "gpus": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7"
+        ],
+        "command": [
+          "bash",
+          "/2025233210/ysj/lingbot_ws/linbot-vla-v2/xsy_utils/eval_baseline.sh",
+          "/2025233210/ysj/lingbot_ws/outputs/joint_delta_5k_to_10k/checkpoints/global_step_10000/hf_ckpt"
+        ],
+        "contract": {
+          "robot_config_root": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle/JDelta/robot_configs",
+          "robot_config": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle/JDelta/robot_configs/robotwin.yaml",
+          "norm_stats": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle/JDelta/norm_stats.json",
+          "mode": "joint_delta",
+          "config": "/2025233210/ysj/lingbot_ws/outputs/joint_delta_5k_to_10k/lingbotvla_cli.yaml"
+        },
+        "process_exit_code": 0,
+        "run_dir": "/2025233210/ysj/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/ysj_full_109ec0c69a0c/run_20261017_214654",
+        "code_commit": "674db6d7a90a04a5fffdb2502257ec93c0604e37",
+        "norm_sha256": "98571430a9607b50e8664f1c6bca6b5dac342c2dd9bbc4859f60ed2934c99f5c",
+        "robot_sha256": "ffe525d746875fee91ce353916a6b6ba0d2096fffc30aa3600d6607e8c8bf269",
+        "training_config_sha256": "70245dedcb3a8d31717d1e91bca3044f1089d559c162a6902038761ef9b70edd",
+        "state_features_sha256": "914cb65a1527da04feeae94da84170d7c3d1050953db49214f39cbefd939e654",
+        "label_manifests": {
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_adjust_bottle/manifest.json": "3d647a7302fc1ffa3fef2119b851db32ece8e7c680214fbd8f436c14993d4dd8",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_object_stand/manifest.json": "659c7abb34b666c1fad9c29dc5046cb18df27866096a7f82c3404439623c68f6",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_beat_block_hammer/manifest.json": "36c12d7609e7620653ae1fd47f13ff4ef990aeeb9c072d3430295bbe4914b690",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_open_laptop/manifest.json": "3d45475e6d423f1eefdddc9b4ff86eaee9550010214a3672a49a568d693ced0a",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_phone_stand/manifest.json": "5da524b3fcf35f882cdd369f6ce217a27b7b1c63952cc0ec63a5675eb17e1e5d",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_blocks_ranking_rgb/manifest.json": "b4aeed1470da057790843c3bb0572c2eef556053756976a161136115b31caa25",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_open_microwave/manifest.json": "657b750ed5d9990d1703ab1e131f79b2b0987eec8d596305362c295394dc3644",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_shoe/manifest.json": "39c5e33f6414eb8f097efa877ca32a40b492b282375937a6985d13466471fbe1",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_blocks_ranking_size/manifest.json": "50814e5c322bb7484133a760f5a41aa0afb591f3a14ea12b96c2b58c4528b4a4",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_pick_diverse_bottles/manifest.json": "1aab4d940858c599c367549cdf9201f84d9d620ba4782a4b64fc92b5f1776dbe",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_press_stapler/manifest.json": "bd93b73164b45c4aece7a2546cb9d2fa888a58b2b02347414dbc34a358672bac",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_pick_dual_bottles/manifest.json": "25ef938f435401964871c3eab0c9c8349acc82ef93c60ab2c6e88dafd52c2a4d",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_put_bottles_dustbin/manifest.json": "537ff21b247264b68222451a291fe92ba3bffd6de021eab4659c7ae0188eea09",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_a2b_left/manifest.json": "2c3cdf4b55b21818b35b9e3dcc289bb5306c2508561c3e8d94e08750ed4ea016",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_put_object_cabinet/manifest.json": "86021a988a88d51cd259f64038165894d7561ee6adf4a0da263423989d1e2390",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_a2b_right/manifest.json": "3a6b9810dd5154a5d72df7d821793ad263f4a70b826482517b7133b22078a389",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_rotate_qrcode/manifest.json": "1511be3496b0721a25ee44776ac763a62526bffef3fdd2f75efd87b6260b25d1",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_bread_basket/manifest.json": "363be9c4a1612d9a688911b2f2503fda3ea16588eed24b1086f09c911b3b346b",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_scan_object/manifest.json": "cb5628081d0e40120682989f3ce7d414ea9fa49a6bccf5282be6ae9e5fd52a45",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_bread_skillet/manifest.json": "5450aca5d63cc701a8515521aca0795054b9b4e6b08d01d2254d5eb4f06fe2d9",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_burger_fries/manifest.json": "cd6fb262aeb4ac9a04c81c50eedbf09c6588a365908acb241a8f7dbe213d3f5c",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_shake_bottle/manifest.json": "c17484c4675b2e3ee774b9199b9923b38e14308c82da726cdb05a93630484413",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_shake_bottle_horizontally/manifest.json": "84c4b072b62e08b206753c56ac82c3ee1657c28a9a1a44305095474b7024e276",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_cans_plasticbox/manifest.json": "a44509f14f5d94b98b8d8cdbf09b8f47a94a71954e9d6fa8e8d62860ea12cece",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_stack_blocks_three/manifest.json": "51ff4460c6548af3c9f8360a51807a8560278e5534b0ff958ca05fa8f6428cb5",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_container_plate/manifest.json": "31e708e0884f58ffd882f264b5009b26ff9b2d12cc4d8aaa03c7b2fb8c84cc37",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_stack_blocks_two/manifest.json": "674502255fb0e880e0b4628fd9fa3de2c7c1e0aa6c0ab3ac7c35507f42e268c7",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_dual_shoes/manifest.json": "d22616600a5d6f7117e90eb736e5484aa81273b348d6036de791095bd99fada5",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_stack_bowls_three/manifest.json": "594defcb1d4bb1e8fd0a33c045f32a6b21b32398131b0c6433638f320d998fa2",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_empty_cup/manifest.json": "60e4d7c564981c25c2f39f9d3735b4d487d70f054c91d1bc93fa0b65ff6034d5",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_fan/manifest.json": "f2b1c9bbd1dc2eebf8a1ed5df03f2e83590cf01149e13896484a5b96720296e0",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_stack_bowls_two/manifest.json": "2d0fb41cdf576f8e03cf4867d9fe6c3bf0c98551ff403dda7acd63c47a1fd678",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_mouse_pad/manifest.json": "c3cf96bcff8846dd2092b0dd1bf3ae87e45eb1fe76730fca7b4ffed560d798ad",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_stamp_seal/manifest.json": "2dd6c178cb01e40d92f9cfc266a6c1cf930bee304065a608744f4876a1c935b5",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_object_basket/manifest.json": "95cf10cca0179f7208d5f818e1782b40749b55db3481e6c93a3ea3aa1674cc12",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_turn_switch/manifest.json": "0ac8e7fde9bff2d589251fe3370efadecb92a1654e34938e4322d96b11dc92d6",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_object_scale/manifest.json": "38403e27774b13ccfdd566c16e6379dce8b2d178df61914850b5d7b69baaabca",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_dump_bin_bigbin/manifest.json": "e48b76053b7b8439d0eac62a63fe4de09e9fe734ad81db0ac0d2177d8cc3bc3c",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_grab_roller/manifest.json": "25f09e40f9c90f4537cf4a314afe576cd60ecd4ededd3e3f58457054bafd9d71",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_handover_block/manifest.json": "b618436e1892dadd78aea02d34931305bd0498f06574916d0bd4cc147533ed28",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_handover_mic/manifest.json": "19a0b2b7eb3b9f63055a2795527ac180c30273e30e765bdbf0807db6fcef7e27",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_hanging_mug/manifest.json": "9368681d19a92702589572f78cfc945fd3db0cdebd515a46f02fef00485ba21d",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_lift_pot/manifest.json": "a0c2f1f2b736290a4da7ed46a9cae539c91242d015288f043fab835f3425e8c3",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_move_can_pot/manifest.json": "9ca8dc51e2376bbc1bc6ec065209a9e91c4609e5d1c4facd179f53ca87923d79",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_move_pillbottle_pad/manifest.json": "285c01bf644eb00550d7d14548a0c5814ab93e170c8ef6ac2ab61d1ef0c5d5f8",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_move_playingcard_away/manifest.json": "a53c851b4c93cee04b7b73b2b1679170b7522ef20b28dd4b3abdc7a06e9c3b96",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_move_stapler_pad/manifest.json": "205038c1c004d7fcdb10554073f50866c5d6d3056c88abd3217e20040e26603a",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_click_alarmclock/manifest.json": "4175d4a5086369847e47b3e3d0faad5d9d3333a66312eae7cad14ef8c1af2d9f",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_click_bell/manifest.json": "87fb6369a8604aeb843451618ab75b785dbf9c2a40ded9a7de52a965298f4eae",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_can_basket/manifest.json": "4ad1b707fe0c14bc54a6639f6ac1dc6a4c11f2a09adaab52b8fab38d999a435e"
+        },
+        "action_loss": {
+          "joint_ee_aux_weight": -1.0,
+          "mask_action_padding": true
+        },
+        "action_supervision": {
+          "flow_dimension_weights": null,
+          "flow_horizon_weights": null,
+          "spline_control_points": 0,
+          "spline_degree": 3
+        },
+        "training_summary": {
+          "global_batch_size": 128,
+          "max_steps": 10000,
+          "enable_fp32": false,
+          "enable_mixed_precision": true,
+          "seed": 42,
+          "chunk_size": 50,
+          "lr": 0.0001,
+          "lr_min": 5e-05,
+          "lr_decay_style": "cosine",
+          "optimizer": "muon",
+          "training_time_rtc": false,
+          "loss_type": "L1_fm",
+          "align_params": {
+            "depth": {
+              "block_future_depth_to_action": false,
+              "detach_future_image_feats": true,
+              "dim_head": 32,
+              "dim_out": 1024,
+              "ff_mult": 1,
+              "input_size": 224,
+              "model_type": "MoRGBD",
+              "moge_path": "/2025233210/xiesy/lingbot_ws/checkpoints/moge-2-vitb-normal/model.pt",
+              "morgbd_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/depth/model.pt",
+              "num_backbone_tokens": 256,
+              "num_heads": 4,
+              "num_layers": 1,
+              "token_size": 16,
+              "use_future_depth": true
+            },
+            "depth_loss_weight": 0.004,
+            "future_depth_loss_weight": 0.004,
+            "llm": {
+              "dim_out": 2560,
+              "image_input_size": 224,
+              "image_token_size": 8
+            },
+            "mode": "query",
+            "num_task_tokens": 8,
+            "use_future_video": true,
+            "video": {
+              "attention_mode": "flex_block_causal",
+              "block_suffix_to_future_video": false,
+              "ckpt_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/dino_video/teacher_step_10000.pth",
+              "cls_loss_type": "mse",
+              "cls_loss_weight": 0.2,
+              "cls_pool": "last",
+              "config_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/dino_video/config.yaml",
+              "cosine_loss_weight": 0.2,
+              "detach_image_feats": true,
+              "dim_head": 32,
+              "dim_out": 1024,
+              "effective_fps": 1.0,
+              "ff_mult": 1,
+              "future_video_loss_weight": 0.004,
+              "input_size": 256,
+              "log_max_samples": 32,
+              "log_scale": 16,
+              "mse_loss_weight": 1.0,
+              "n_blocks": 1,
+              "num_backbone_tokens": 256,
+              "num_future_frames": 1,
+              "num_heads": 4,
+              "num_layers": 1,
+              "share_future_depth_query": true,
+              "use_cls_loss": false,
+              "use_cosine_loss": true,
+              "use_current_patch_loss": true,
+              "use_current_shared_task_proj": true,
+              "use_mse_loss": true,
+              "use_patch_loss": true,
+              "use_shared_future_task_proj": true,
+              "use_smooth_l1_loss": false,
+              "use_warmup_frame": true
+            },
+            "visual_steps": 5000
+          },
+          "use_compile": true,
+          "lr_schedule_steps": 5000
+        },
+        "initial_model": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b",
+        "train_list_sha256": "8ff079a9d23511b7b47c774243422c9e11ae69752fc6b2268e239b74d26e9f44",
+        "status": "COMPLETE",
+        "rates": {
+          "clean": 0.49142857142857144,
+          "random": 0.2342857142857143
+        }
+      }
+    },
+    "joint_delta10k_compile_false": {
+      "source_raw": "/2025233210/ysj/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/ysj_full_096a751302df/run_20261018_100941/_result.txt",
+      "raw_results": "blocks_ranking_rgb\tclean\t16/25\t0.64\nhanging_mug\tclean\t6/25\t0.24\nopen_laptop\tclean\t19/25\t0.76\npick_diverse_bottles\tclean\t11/25\t0.44\nplace_shoe\tclean\t18/25\t0.72\nrotate_qrcode\tclean\t21/25\t0.84\nstack_blocks_three\tclean\t6/25\t0.24\nblocks_ranking_rgb\trandom\t12/25\t0.48\nhanging_mug\trandom\t1/25\t0.04\nopen_laptop\trandom\t5/25\t0.2\npick_diverse_bottles\trandom\t2/25\t0.08\nplace_shoe\trandom\t13/25\t0.52\nrotate_qrcode\trandom\t3/25\t0.12\nstack_blocks_three\trandom\t3/25\t0.12\n# ---- summary: mean of per-unit success rates ----\n# all_clean_avg\t0.5543\t(7 units, 97/175 episodes)\n# all_random_avg\t0.2229\t(7 units, 39/175 episodes)\n# all_avg\t0.3886\t(14 units, 136/350 episodes)\n",
+      "config_path": "/2025233210/ysj/lingbot_ws/outputs/joint_delta_5k_to_10k/lingbotvla_cli.yaml",
+      "training": {
+        "max_steps": 10000,
+        "global_batch_size": 128,
+        "micro_batch_size": 16,
+        "enable_fp32": false,
+        "enable_mixed_precision": true,
+        "seed": 42,
+        "chunk_size": 50,
+        "optimizer": "muon",
+        "lr": 0.0001,
+        "lr_min": 5e-05,
+        "lr_decay_style": "cosine",
+        "lr_schedule_steps": 5000,
+        "enable_resume": true,
+        "load_checkpoint_path": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle/JDelta/train/checkpoints/global_step_5000",
+        "joint_ee_aux_weight": -1.0,
+        "mask_action_padding": true,
+        "spline_control_points": 0,
+        "spline_degree": 3,
+        "flow_gibbs_epsilon": null,
+        "flow_gibbs_log_normalizer": null,
+        "use_compile": true
+      },
+      "prefetch_factor": 1,
+      "rows": [
+        {
+          "task": "blocks_ranking_rgb",
+          "setting": "clean",
+          "success": 16,
+          "total": 25,
+          "rate": 0.64
+        },
+        {
+          "task": "hanging_mug",
+          "setting": "clean",
+          "success": 6,
+          "total": 25,
+          "rate": 0.24
+        },
+        {
+          "task": "open_laptop",
+          "setting": "clean",
+          "success": 19,
+          "total": 25,
+          "rate": 0.76
+        },
+        {
+          "task": "pick_diverse_bottles",
+          "setting": "clean",
+          "success": 11,
+          "total": 25,
+          "rate": 0.44
+        },
+        {
+          "task": "place_shoe",
+          "setting": "clean",
+          "success": 18,
+          "total": 25,
+          "rate": 0.72
+        },
+        {
+          "task": "rotate_qrcode",
+          "setting": "clean",
+          "success": 21,
+          "total": 25,
+          "rate": 0.84
+        },
+        {
+          "task": "stack_blocks_three",
+          "setting": "clean",
+          "success": 6,
+          "total": 25,
+          "rate": 0.24
+        },
+        {
+          "task": "blocks_ranking_rgb",
+          "setting": "random",
+          "success": 12,
+          "total": 25,
+          "rate": 0.48
+        },
+        {
+          "task": "hanging_mug",
+          "setting": "random",
+          "success": 1,
+          "total": 25,
+          "rate": 0.04
+        },
+        {
+          "task": "open_laptop",
+          "setting": "random",
+          "success": 5,
+          "total": 25,
+          "rate": 0.2
+        },
+        {
+          "task": "pick_diverse_bottles",
+          "setting": "random",
+          "success": 2,
+          "total": 25,
+          "rate": 0.08
+        },
+        {
+          "task": "place_shoe",
+          "setting": "random",
+          "success": 13,
+          "total": 25,
+          "rate": 0.52
+        },
+        {
+          "task": "rotate_qrcode",
+          "setting": "random",
+          "success": 3,
+          "total": 25,
+          "rate": 0.12
+        },
+        {
+          "task": "stack_blocks_three",
+          "setting": "random",
+          "success": 3,
+          "total": 25,
+          "rate": 0.12
+        }
+      ],
+      "totals": {
+        "clean": {
+          "success": 97,
+          "total": 175,
+          "rate": 0.5542857142857143
+        },
+        "random": {
+          "success": 39,
+          "total": 175,
+          "rate": 0.22285714285714286
+        },
+        "overall": {
+          "success": 136,
+          "total": 350,
+          "rate": 0.38857142857142857
+        }
+      },
+      "evaluation_report": {
+        "mode": "full",
+        "checkpoint": "/2025233210/ysj/lingbot_ws/outputs/joint_delta_5k_to_10k/checkpoints/global_step_10000/hf_ckpt",
+        "seed": 0,
+        "tasks": [
+          "blocks_ranking_rgb",
+          "hanging_mug",
+          "open_laptop",
+          "pick_diverse_bottles",
+          "rotate_qrcode",
+          "stack_blocks_three",
+          "place_shoe"
+        ],
+        "configs": [
+          "demo_clean",
+          "demo_randomized"
+        ],
+        "episodes": 25,
+        "total_episodes": 350,
+        "inference_precision": "fp32",
+        "use_compile": false,
+        "use_length": 50,
+        "gpus": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7"
+        ],
+        "command": [
+          "bash",
+          "/2025233210/ysj/lingbot_ws/linbot-vla-v2/xsy_utils/eval_baseline.sh",
+          "/2025233210/ysj/lingbot_ws/outputs/joint_delta_5k_to_10k/checkpoints/global_step_10000/hf_ckpt"
+        ],
+        "contract": {
+          "robot_config_root": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle/JDelta/robot_configs",
+          "robot_config": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle/JDelta/robot_configs/robotwin.yaml",
+          "norm_stats": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle/JDelta/norm_stats.json",
+          "mode": "joint_delta",
+          "config": "/2025233210/ysj/lingbot_ws/outputs/joint_delta_5k_to_10k/lingbotvla_cli.yaml"
+        },
+        "process_exit_code": 0,
+        "run_dir": "/2025233210/ysj/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/ysj_full_096a751302df/run_20261018_100941",
+        "code_commit": "674db6d7a90a04a5fffdb2502257ec93c0604e37",
+        "norm_sha256": "98571430a9607b50e8664f1c6bca6b5dac342c2dd9bbc4859f60ed2934c99f5c",
+        "robot_sha256": "ffe525d746875fee91ce353916a6b6ba0d2096fffc30aa3600d6607e8c8bf269",
+        "training_config_sha256": "70245dedcb3a8d31717d1e91bca3044f1089d559c162a6902038761ef9b70edd",
+        "state_features_sha256": "914cb65a1527da04feeae94da84170d7c3d1050953db49214f39cbefd939e654",
+        "label_manifests": {
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_adjust_bottle/manifest.json": "3d647a7302fc1ffa3fef2119b851db32ece8e7c680214fbd8f436c14993d4dd8",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_object_stand/manifest.json": "659c7abb34b666c1fad9c29dc5046cb18df27866096a7f82c3404439623c68f6",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_beat_block_hammer/manifest.json": "36c12d7609e7620653ae1fd47f13ff4ef990aeeb9c072d3430295bbe4914b690",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_open_laptop/manifest.json": "3d45475e6d423f1eefdddc9b4ff86eaee9550010214a3672a49a568d693ced0a",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_phone_stand/manifest.json": "5da524b3fcf35f882cdd369f6ce217a27b7b1c63952cc0ec63a5675eb17e1e5d",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_blocks_ranking_rgb/manifest.json": "b4aeed1470da057790843c3bb0572c2eef556053756976a161136115b31caa25",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_open_microwave/manifest.json": "657b750ed5d9990d1703ab1e131f79b2b0987eec8d596305362c295394dc3644",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_shoe/manifest.json": "39c5e33f6414eb8f097efa877ca32a40b492b282375937a6985d13466471fbe1",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_blocks_ranking_size/manifest.json": "50814e5c322bb7484133a760f5a41aa0afb591f3a14ea12b96c2b58c4528b4a4",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_pick_diverse_bottles/manifest.json": "1aab4d940858c599c367549cdf9201f84d9d620ba4782a4b64fc92b5f1776dbe",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_press_stapler/manifest.json": "bd93b73164b45c4aece7a2546cb9d2fa888a58b2b02347414dbc34a358672bac",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_pick_dual_bottles/manifest.json": "25ef938f435401964871c3eab0c9c8349acc82ef93c60ab2c6e88dafd52c2a4d",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_put_bottles_dustbin/manifest.json": "537ff21b247264b68222451a291fe92ba3bffd6de021eab4659c7ae0188eea09",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_a2b_left/manifest.json": "2c3cdf4b55b21818b35b9e3dcc289bb5306c2508561c3e8d94e08750ed4ea016",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_put_object_cabinet/manifest.json": "86021a988a88d51cd259f64038165894d7561ee6adf4a0da263423989d1e2390",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_a2b_right/manifest.json": "3a6b9810dd5154a5d72df7d821793ad263f4a70b826482517b7133b22078a389",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_rotate_qrcode/manifest.json": "1511be3496b0721a25ee44776ac763a62526bffef3fdd2f75efd87b6260b25d1",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_bread_basket/manifest.json": "363be9c4a1612d9a688911b2f2503fda3ea16588eed24b1086f09c911b3b346b",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_scan_object/manifest.json": "cb5628081d0e40120682989f3ce7d414ea9fa49a6bccf5282be6ae9e5fd52a45",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_bread_skillet/manifest.json": "5450aca5d63cc701a8515521aca0795054b9b4e6b08d01d2254d5eb4f06fe2d9",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_burger_fries/manifest.json": "cd6fb262aeb4ac9a04c81c50eedbf09c6588a365908acb241a8f7dbe213d3f5c",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_shake_bottle/manifest.json": "c17484c4675b2e3ee774b9199b9923b38e14308c82da726cdb05a93630484413",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_shake_bottle_horizontally/manifest.json": "84c4b072b62e08b206753c56ac82c3ee1657c28a9a1a44305095474b7024e276",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_cans_plasticbox/manifest.json": "a44509f14f5d94b98b8d8cdbf09b8f47a94a71954e9d6fa8e8d62860ea12cece",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_stack_blocks_three/manifest.json": "51ff4460c6548af3c9f8360a51807a8560278e5534b0ff958ca05fa8f6428cb5",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_container_plate/manifest.json": "31e708e0884f58ffd882f264b5009b26ff9b2d12cc4d8aaa03c7b2fb8c84cc37",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_stack_blocks_two/manifest.json": "674502255fb0e880e0b4628fd9fa3de2c7c1e0aa6c0ab3ac7c35507f42e268c7",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_dual_shoes/manifest.json": "d22616600a5d6f7117e90eb736e5484aa81273b348d6036de791095bd99fada5",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_stack_bowls_three/manifest.json": "594defcb1d4bb1e8fd0a33c045f32a6b21b32398131b0c6433638f320d998fa2",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_empty_cup/manifest.json": "60e4d7c564981c25c2f39f9d3735b4d487d70f054c91d1bc93fa0b65ff6034d5",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_fan/manifest.json": "f2b1c9bbd1dc2eebf8a1ed5df03f2e83590cf01149e13896484a5b96720296e0",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_stack_bowls_two/manifest.json": "2d0fb41cdf576f8e03cf4867d9fe6c3bf0c98551ff403dda7acd63c47a1fd678",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_mouse_pad/manifest.json": "c3cf96bcff8846dd2092b0dd1bf3ae87e45eb1fe76730fca7b4ffed560d798ad",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_stamp_seal/manifest.json": "2dd6c178cb01e40d92f9cfc266a6c1cf930bee304065a608744f4876a1c935b5",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_object_basket/manifest.json": "95cf10cca0179f7208d5f818e1782b40749b55db3481e6c93a3ea3aa1674cc12",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_turn_switch/manifest.json": "0ac8e7fde9bff2d589251fe3370efadecb92a1654e34938e4322d96b11dc92d6",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_object_scale/manifest.json": "38403e27774b13ccfdd566c16e6379dce8b2d178df61914850b5d7b69baaabca",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_dump_bin_bigbin/manifest.json": "e48b76053b7b8439d0eac62a63fe4de09e9fe734ad81db0ac0d2177d8cc3bc3c",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_grab_roller/manifest.json": "25f09e40f9c90f4537cf4a314afe576cd60ecd4ededd3e3f58457054bafd9d71",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_handover_block/manifest.json": "b618436e1892dadd78aea02d34931305bd0498f06574916d0bd4cc147533ed28",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_handover_mic/manifest.json": "19a0b2b7eb3b9f63055a2795527ac180c30273e30e765bdbf0807db6fcef7e27",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_hanging_mug/manifest.json": "9368681d19a92702589572f78cfc945fd3db0cdebd515a46f02fef00485ba21d",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_lift_pot/manifest.json": "a0c2f1f2b736290a4da7ed46a9cae539c91242d015288f043fab835f3425e8c3",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_move_can_pot/manifest.json": "9ca8dc51e2376bbc1bc6ec065209a9e91c4609e5d1c4facd179f53ca87923d79",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_move_pillbottle_pad/manifest.json": "285c01bf644eb00550d7d14548a0c5814ab93e170c8ef6ac2ab61d1ef0c5d5f8",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_move_playingcard_away/manifest.json": "a53c851b4c93cee04b7b73b2b1679170b7522ef20b28dd4b3abdc7a06e9c3b96",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_move_stapler_pad/manifest.json": "205038c1c004d7fcdb10554073f50866c5d6d3056c88abd3217e20040e26603a",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_click_alarmclock/manifest.json": "4175d4a5086369847e47b3e3d0faad5d9d3333a66312eae7cad14ef8c1af2d9f",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_click_bell/manifest.json": "87fb6369a8604aeb843451618ab75b785dbf9c2a40ded9a7de52a965298f4eae",
+          "/2025233210/ysj/lingbot_ws/ee_labels_clean50/robotwin_clean_place_can_basket/manifest.json": "4ad1b707fe0c14bc54a6639f6ac1dc6a4c11f2a09adaab52b8fab38d999a435e"
+        },
+        "action_loss": {
+          "joint_ee_aux_weight": -1.0,
+          "mask_action_padding": true
+        },
+        "action_supervision": {
+          "flow_dimension_weights": null,
+          "flow_horizon_weights": null,
+          "spline_control_points": 0,
+          "spline_degree": 3
+        },
+        "training_summary": {
+          "global_batch_size": 128,
+          "max_steps": 10000,
+          "enable_fp32": false,
+          "enable_mixed_precision": true,
+          "seed": 42,
+          "chunk_size": 50,
+          "lr": 0.0001,
+          "lr_min": 5e-05,
+          "lr_decay_style": "cosine",
+          "optimizer": "muon",
+          "training_time_rtc": false,
+          "loss_type": "L1_fm",
+          "align_params": {
+            "depth": {
+              "block_future_depth_to_action": false,
+              "detach_future_image_feats": true,
+              "dim_head": 32,
+              "dim_out": 1024,
+              "ff_mult": 1,
+              "input_size": 224,
+              "model_type": "MoRGBD",
+              "moge_path": "/2025233210/xiesy/lingbot_ws/checkpoints/moge-2-vitb-normal/model.pt",
+              "morgbd_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/depth/model.pt",
+              "num_backbone_tokens": 256,
+              "num_heads": 4,
+              "num_layers": 1,
+              "token_size": 16,
+              "use_future_depth": true
+            },
+            "depth_loss_weight": 0.004,
+            "future_depth_loss_weight": 0.004,
+            "llm": {
+              "dim_out": 2560,
+              "image_input_size": 224,
+              "image_token_size": 8
+            },
+            "mode": "query",
+            "num_task_tokens": 8,
+            "use_future_video": true,
+            "video": {
+              "attention_mode": "flex_block_causal",
+              "block_suffix_to_future_video": false,
+              "ckpt_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/dino_video/teacher_step_10000.pth",
+              "cls_loss_type": "mse",
+              "cls_loss_weight": 0.2,
+              "cls_pool": "last",
+              "config_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/dino_video/config.yaml",
+              "cosine_loss_weight": 0.2,
+              "detach_image_feats": true,
+              "dim_head": 32,
+              "dim_out": 1024,
+              "effective_fps": 1.0,
+              "ff_mult": 1,
+              "future_video_loss_weight": 0.004,
+              "input_size": 256,
+              "log_max_samples": 32,
+              "log_scale": 16,
+              "mse_loss_weight": 1.0,
+              "n_blocks": 1,
+              "num_backbone_tokens": 256,
+              "num_future_frames": 1,
+              "num_heads": 4,
+              "num_layers": 1,
+              "share_future_depth_query": true,
+              "use_cls_loss": false,
+              "use_cosine_loss": true,
+              "use_current_patch_loss": true,
+              "use_current_shared_task_proj": true,
+              "use_mse_loss": true,
+              "use_patch_loss": true,
+              "use_shared_future_task_proj": true,
+              "use_smooth_l1_loss": false,
+              "use_warmup_frame": true
+            },
+            "visual_steps": 5000
+          },
+          "use_compile": true,
+          "lr_schedule_steps": 5000
+        },
+        "initial_model": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b",
+        "train_list_sha256": "8ff079a9d23511b7b47c774243422c9e11ae69752fc6b2268e239b74d26e9f44",
+        "status": "COMPLETE",
+        "rates": {
+          "clean": 0.5542857142857143,
+          "random": 0.22285714285714286
+        }
+      }
+    },
+    "weighted5k": {
+      "source_raw": "/2025233210/ysj/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/ysj_full_28c55035d34c/run_20261018_195745/_result.txt",
+      "raw_results": "blocks_ranking_rgb\tclean\t12/25\t0.48\nhanging_mug\tclean\t4/25\t0.16\nopen_laptop\tclean\t21/25\t0.84\npick_diverse_bottles\tclean\t2/25\t0.08\nplace_shoe\tclean\t15/25\t0.6\nrotate_qrcode\tclean\t11/25\t0.44\nstack_blocks_three\tclean\t1/25\t0.04\nblocks_ranking_rgb\trandom\t4/25\t0.16\nhanging_mug\trandom\t0/25\t0.0\nopen_laptop\trandom\t8/25\t0.32\npick_diverse_bottles\trandom\t2/25\t0.08\nplace_shoe\trandom\t8/25\t0.32\nrotate_qrcode\trandom\t5/25\t0.2\nstack_blocks_three\trandom\t1/25\t0.04\n# ---- summary: mean of per-unit success rates ----\n# all_clean_avg\t0.3771\t(7 units, 66/175 episodes)\n# all_random_avg\t0.1600\t(7 units, 28/175 episodes)\n# all_avg\t0.2686\t(14 units, 94/350 episodes)\n",
+      "config_path": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Weighted/train/lingbotvla_cli.yaml",
+      "training": {
+        "max_steps": 5000,
+        "global_batch_size": 128,
+        "micro_batch_size": 16,
+        "enable_fp32": true,
+        "enable_mixed_precision": true,
+        "seed": 42,
+        "chunk_size": 50,
+        "optimizer": "muon",
+        "lr": 0.0001,
+        "lr_min": 5e-05,
+        "lr_decay_style": "cosine",
+        "lr_schedule_steps": null,
+        "enable_resume": false,
+        "load_checkpoint_path": null,
+        "joint_ee_aux_weight": -1.0,
+        "mask_action_padding": false,
+        "spline_control_points": 0,
+        "spline_degree": 3,
+        "flow_gibbs_epsilon": 0.5345226587385904,
+        "flow_gibbs_log_normalizer": -2.2362836561633093,
+        "use_compile": true
+      },
+      "prefetch_factor": 1,
+      "rows": [
+        {
+          "task": "blocks_ranking_rgb",
+          "setting": "clean",
+          "success": 12,
+          "total": 25,
+          "rate": 0.48
+        },
+        {
+          "task": "hanging_mug",
+          "setting": "clean",
+          "success": 4,
+          "total": 25,
+          "rate": 0.16
+        },
+        {
+          "task": "open_laptop",
+          "setting": "clean",
+          "success": 21,
+          "total": 25,
+          "rate": 0.84
+        },
+        {
+          "task": "pick_diverse_bottles",
+          "setting": "clean",
+          "success": 2,
+          "total": 25,
+          "rate": 0.08
+        },
+        {
+          "task": "place_shoe",
+          "setting": "clean",
+          "success": 15,
+          "total": 25,
+          "rate": 0.6
+        },
+        {
+          "task": "rotate_qrcode",
+          "setting": "clean",
+          "success": 11,
+          "total": 25,
+          "rate": 0.44
+        },
+        {
+          "task": "stack_blocks_three",
+          "setting": "clean",
+          "success": 1,
+          "total": 25,
+          "rate": 0.04
+        },
+        {
+          "task": "blocks_ranking_rgb",
+          "setting": "random",
+          "success": 4,
+          "total": 25,
+          "rate": 0.16
+        },
+        {
+          "task": "hanging_mug",
+          "setting": "random",
+          "success": 0,
+          "total": 25,
+          "rate": 0.0
+        },
+        {
+          "task": "open_laptop",
+          "setting": "random",
+          "success": 8,
+          "total": 25,
+          "rate": 0.32
+        },
+        {
+          "task": "pick_diverse_bottles",
+          "setting": "random",
+          "success": 2,
+          "total": 25,
+          "rate": 0.08
+        },
+        {
+          "task": "place_shoe",
+          "setting": "random",
+          "success": 8,
+          "total": 25,
+          "rate": 0.32
+        },
+        {
+          "task": "rotate_qrcode",
+          "setting": "random",
+          "success": 5,
+          "total": 25,
+          "rate": 0.2
+        },
+        {
+          "task": "stack_blocks_three",
+          "setting": "random",
+          "success": 1,
+          "total": 25,
+          "rate": 0.04
+        }
+      ],
+      "totals": {
+        "clean": {
+          "success": 66,
+          "total": 175,
+          "rate": 0.37714285714285717
+        },
+        "random": {
+          "success": 28,
+          "total": 175,
+          "rate": 0.16
+        },
+        "overall": {
+          "success": 94,
+          "total": 350,
+          "rate": 0.26857142857142857
+        }
+      },
+      "evaluation_report": {
+        "mode": "full",
+        "checkpoint": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Weighted/train/checkpoints/global_step_5000/hf_ckpt",
+        "seed": 0,
+        "tasks": [
+          "blocks_ranking_rgb",
+          "hanging_mug",
+          "open_laptop",
+          "pick_diverse_bottles",
+          "rotate_qrcode",
+          "stack_blocks_three",
+          "place_shoe"
+        ],
+        "configs": [
+          "demo_clean",
+          "demo_randomized"
+        ],
+        "episodes": 25,
+        "total_episodes": 350,
+        "inference_precision": "fp32",
+        "use_compile": false,
+        "use_length": 50,
+        "gpus": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7"
+        ],
+        "command": [
+          "bash",
+          "/2025233210/ysj/lingbot_ws/linbot-vla-v2/xsy_utils/eval_baseline.sh",
+          "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Weighted/train/checkpoints/global_step_5000/hf_ckpt"
+        ],
+        "contract": {
+          "robot_config_root": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Weighted/robot_configs",
+          "robot_config": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Weighted/robot_configs/robotwin.yaml",
+          "norm_stats": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Weighted/norm_stats.json",
+          "mode": "joint_absolute",
+          "config": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Weighted/train/lingbotvla_cli.yaml"
+        },
+        "process_exit_code": 0,
+        "run_dir": "/2025233210/ysj/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/ysj_full_28c55035d34c/run_20261018_195745",
+        "code_commit": "c5aa3cbed7c4968483caf474f918021a592d6692",
+        "norm_sha256": "bd1ada4579d9c3cd5106255f4a53385af2cd82999322b395d4204c28d85a29f6",
+        "robot_sha256": "9d7e47c811198167ca03dca2b1938d491e597e14e6414d40810d271362f6cd75",
+        "training_config_sha256": "9d0221cc0501e43d7a780c63d5b331f412a44b1ddbd951acecbe46219f2bea6b",
+        "state_features_sha256": "bee0e7383352e7effaaa21d656225f7851b01819c67beb90f6b879cdfa98357b",
+        "label_manifests": {},
+        "action_loss": {
+          "joint_ee_aux_weight": -1.0,
+          "mask_action_padding": false
+        },
+        "action_supervision": {
+          "flow_dimension_weights": null,
+          "flow_horizon_weights": null,
+          "spline_control_points": 0,
+          "spline_degree": 3,
+          "flow_gibbs_epsilon": 0.5345226587385904,
+          "flow_gibbs_log_normalizer": -2.2362836561633093,
+          "temporal_padding": "supervise_repeated_terminal_actions"
+        },
+        "training_summary": {
+          "global_batch_size": 128,
+          "max_steps": 5000,
+          "enable_fp32": true,
+          "enable_mixed_precision": true,
+          "seed": 42,
+          "chunk_size": 50,
+          "lr": 0.0001,
+          "lr_min": 5e-05,
+          "lr_decay_style": "cosine",
+          "optimizer": "muon",
+          "training_time_rtc": false,
+          "loss_type": "L1_fm",
+          "align_params": {
+            "depth": {
+              "block_future_depth_to_action": false,
+              "detach_future_image_feats": true,
+              "dim_head": 32,
+              "dim_out": 1024,
+              "ff_mult": 1,
+              "input_size": 224,
+              "model_type": "MoRGBD",
+              "moge_path": "/2025233210/xiesy/lingbot_ws/checkpoints/moge-2-vitb-normal/model.pt",
+              "morgbd_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/depth/model.pt",
+              "num_backbone_tokens": 256,
+              "num_heads": 4,
+              "num_layers": 1,
+              "token_size": 16,
+              "use_future_depth": true
+            },
+            "depth_loss_weight": 0.004,
+            "future_depth_loss_weight": 0.004,
+            "llm": {
+              "dim_out": 2560,
+              "image_input_size": 224,
+              "image_token_size": 8
+            },
+            "mode": "query",
+            "num_task_tokens": 8,
+            "use_future_video": true,
+            "video": {
+              "attention_mode": "flex_block_causal",
+              "block_suffix_to_future_video": false,
+              "ckpt_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/dino_video/teacher_step_10000.pth",
+              "cls_loss_type": "mse",
+              "cls_loss_weight": 0.2,
+              "cls_pool": "last",
+              "config_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/dino_video/config.yaml",
+              "cosine_loss_weight": 0.2,
+              "detach_image_feats": true,
+              "dim_head": 32,
+              "dim_out": 1024,
+              "effective_fps": 1.0,
+              "ff_mult": 1,
+              "future_video_loss_weight": 0.004,
+              "input_size": 256,
+              "log_max_samples": 32,
+              "log_scale": 16,
+              "mse_loss_weight": 1.0,
+              "n_blocks": 1,
+              "num_backbone_tokens": 256,
+              "num_future_frames": 1,
+              "num_heads": 4,
+              "num_layers": 1,
+              "share_future_depth_query": true,
+              "use_cls_loss": false,
+              "use_cosine_loss": true,
+              "use_current_patch_loss": true,
+              "use_current_shared_task_proj": true,
+              "use_mse_loss": true,
+              "use_patch_loss": true,
+              "use_shared_future_task_proj": true,
+              "use_smooth_l1_loss": false,
+              "use_warmup_frame": true
+            },
+            "visual_steps": 5000
+          },
+          "use_compile": true,
+          "lr_schedule_steps": null
+        },
+        "initial_model": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b",
+        "train_list_sha256": "8ff079a9d23511b7b47c774243422c9e11ae69752fc6b2268e239b74d26e9f44",
+        "status": "COMPLETE",
+        "rates": {
+          "clean": 0.37714285714285717,
+          "random": 0.16
+        }
+      }
+    },
+    "spline5k": {
+      "source_raw": "/2025233210/ysj/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/ysj_full_9b09c1f32311/run_20261019_033016/_result.txt",
+      "raw_results": "blocks_ranking_rgb\tclean\t18/25\t0.72\nhanging_mug\tclean\t3/25\t0.12\nopen_laptop\tclean\t20/25\t0.8\npick_diverse_bottles\tclean\t0/25\t0.0\nplace_shoe\tclean\t20/25\t0.8\nrotate_qrcode\tclean\t15/25\t0.6\nstack_blocks_three\tclean\t11/25\t0.44\nblocks_ranking_rgb\trandom\t7/25\t0.28\nhanging_mug\trandom\t1/25\t0.04\nopen_laptop\trandom\t7/25\t0.28\npick_diverse_bottles\trandom\t2/25\t0.08\nplace_shoe\trandom\t12/25\t0.48\nrotate_qrcode\trandom\t2/25\t0.08\nstack_blocks_three\trandom\t3/25\t0.12\n# ---- summary: mean of per-unit success rates ----\n# all_clean_avg\t0.4971\t(7 units, 87/175 episodes)\n# all_random_avg\t0.1943\t(7 units, 34/175 episodes)\n# all_avg\t0.3457\t(14 units, 121/350 episodes)\n",
+      "config_path": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/train/lingbotvla_cli.yaml",
+      "training": {
+        "max_steps": 5000,
+        "global_batch_size": 128,
+        "micro_batch_size": 16,
+        "enable_fp32": true,
+        "enable_mixed_precision": true,
+        "seed": 42,
+        "chunk_size": 50,
+        "optimizer": "muon",
+        "lr": 0.0001,
+        "lr_min": 5e-05,
+        "lr_decay_style": "cosine",
+        "lr_schedule_steps": null,
+        "enable_resume": false,
+        "load_checkpoint_path": null,
+        "joint_ee_aux_weight": -1.0,
+        "mask_action_padding": false,
+        "spline_control_points": 16,
+        "spline_degree": 3,
+        "flow_gibbs_epsilon": 0.0,
+        "flow_gibbs_log_normalizer": 0.0,
+        "use_compile": true
+      },
+      "prefetch_factor": 1,
+      "rows": [
+        {
+          "task": "blocks_ranking_rgb",
+          "setting": "clean",
+          "success": 18,
+          "total": 25,
+          "rate": 0.72
+        },
+        {
+          "task": "hanging_mug",
+          "setting": "clean",
+          "success": 3,
+          "total": 25,
+          "rate": 0.12
+        },
+        {
+          "task": "open_laptop",
+          "setting": "clean",
+          "success": 20,
+          "total": 25,
+          "rate": 0.8
+        },
+        {
+          "task": "pick_diverse_bottles",
+          "setting": "clean",
+          "success": 0,
+          "total": 25,
+          "rate": 0.0
+        },
+        {
+          "task": "place_shoe",
+          "setting": "clean",
+          "success": 20,
+          "total": 25,
+          "rate": 0.8
+        },
+        {
+          "task": "rotate_qrcode",
+          "setting": "clean",
+          "success": 15,
+          "total": 25,
+          "rate": 0.6
+        },
+        {
+          "task": "stack_blocks_three",
+          "setting": "clean",
+          "success": 11,
+          "total": 25,
+          "rate": 0.44
+        },
+        {
+          "task": "blocks_ranking_rgb",
+          "setting": "random",
+          "success": 7,
+          "total": 25,
+          "rate": 0.28
+        },
+        {
+          "task": "hanging_mug",
+          "setting": "random",
+          "success": 1,
+          "total": 25,
+          "rate": 0.04
+        },
+        {
+          "task": "open_laptop",
+          "setting": "random",
+          "success": 7,
+          "total": 25,
+          "rate": 0.28
+        },
+        {
+          "task": "pick_diverse_bottles",
+          "setting": "random",
+          "success": 2,
+          "total": 25,
+          "rate": 0.08
+        },
+        {
+          "task": "place_shoe",
+          "setting": "random",
+          "success": 12,
+          "total": 25,
+          "rate": 0.48
+        },
+        {
+          "task": "rotate_qrcode",
+          "setting": "random",
+          "success": 2,
+          "total": 25,
+          "rate": 0.08
+        },
+        {
+          "task": "stack_blocks_three",
+          "setting": "random",
+          "success": 3,
+          "total": 25,
+          "rate": 0.12
+        }
+      ],
+      "totals": {
+        "clean": {
+          "success": 87,
+          "total": 175,
+          "rate": 0.49714285714285716
+        },
+        "random": {
+          "success": 34,
+          "total": 175,
+          "rate": 0.19428571428571428
+        },
+        "overall": {
+          "success": 121,
+          "total": 350,
+          "rate": 0.3457142857142857
+        }
+      },
+      "evaluation_report": {
+        "mode": "full",
+        "checkpoint": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/train/checkpoints/global_step_5000/hf_ckpt",
+        "seed": 0,
+        "tasks": [
+          "blocks_ranking_rgb",
+          "hanging_mug",
+          "open_laptop",
+          "pick_diverse_bottles",
+          "rotate_qrcode",
+          "stack_blocks_three",
+          "place_shoe"
+        ],
+        "configs": [
+          "demo_clean",
+          "demo_randomized"
+        ],
+        "episodes": 25,
+        "total_episodes": 350,
+        "inference_precision": "fp32",
+        "use_compile": false,
+        "use_length": 50,
+        "gpus": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7"
+        ],
+        "command": [
+          "bash",
+          "/2025233210/ysj/lingbot_ws/linbot-vla-v2/xsy_utils/eval_baseline.sh",
+          "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/train/checkpoints/global_step_5000/hf_ckpt"
+        ],
+        "contract": {
+          "robot_config_root": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/robot_configs",
+          "robot_config": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/robot_configs/robotwin.yaml",
+          "norm_stats": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/norm_stats.json",
+          "mode": "joint_absolute",
+          "config": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/train/lingbotvla_cli.yaml"
+        },
+        "process_exit_code": 0,
+        "run_dir": "/2025233210/ysj/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/ysj_full_9b09c1f32311/run_20261019_033016",
+        "code_commit": "c5aa3cbed7c4968483caf474f918021a592d6692",
+        "norm_sha256": "bd1ada4579d9c3cd5106255f4a53385af2cd82999322b395d4204c28d85a29f6",
+        "robot_sha256": "e5f333c5ec76f3f11a5f0344eb70f3a4c6dbe099c0213ede09854fe5adb43931",
+        "training_config_sha256": "b842688ed2349e855571225c0d55a9ed94922eee9b4b65636f0cc25659b99398",
+        "state_features_sha256": "bee0e7383352e7effaaa21d656225f7851b01819c67beb90f6b879cdfa98357b",
+        "label_manifests": {},
+        "action_loss": {
+          "joint_ee_aux_weight": -1.0,
+          "mask_action_padding": false
+        },
+        "action_supervision": {
+          "flow_dimension_weights": null,
+          "flow_horizon_weights": null,
+          "spline_control_points": 16,
+          "spline_degree": 3,
+          "temporal_padding": "supervise_repeated_terminal_actions"
+        },
+        "training_summary": {
+          "global_batch_size": 128,
+          "max_steps": 5000,
+          "enable_fp32": true,
+          "enable_mixed_precision": true,
+          "seed": 42,
+          "chunk_size": 50,
+          "lr": 0.0001,
+          "lr_min": 5e-05,
+          "lr_decay_style": "cosine",
+          "optimizer": "muon",
+          "training_time_rtc": false,
+          "loss_type": "L1_fm",
+          "align_params": {
+            "depth": {
+              "block_future_depth_to_action": false,
+              "detach_future_image_feats": true,
+              "dim_head": 32,
+              "dim_out": 1024,
+              "ff_mult": 1,
+              "input_size": 224,
+              "model_type": "MoRGBD",
+              "moge_path": "/2025233210/xiesy/lingbot_ws/checkpoints/moge-2-vitb-normal/model.pt",
+              "morgbd_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/depth/model.pt",
+              "num_backbone_tokens": 256,
+              "num_heads": 4,
+              "num_layers": 1,
+              "token_size": 16,
+              "use_future_depth": true
+            },
+            "depth_loss_weight": 0.004,
+            "future_depth_loss_weight": 0.004,
+            "llm": {
+              "dim_out": 2560,
+              "image_input_size": 224,
+              "image_token_size": 8
+            },
+            "mode": "query",
+            "num_task_tokens": 8,
+            "use_future_video": true,
+            "video": {
+              "attention_mode": "flex_block_causal",
+              "block_suffix_to_future_video": false,
+              "ckpt_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/dino_video/teacher_step_10000.pth",
+              "cls_loss_type": "mse",
+              "cls_loss_weight": 0.2,
+              "cls_pool": "last",
+              "config_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/dino_video/config.yaml",
+              "cosine_loss_weight": 0.2,
+              "detach_image_feats": true,
+              "dim_head": 32,
+              "dim_out": 1024,
+              "effective_fps": 1.0,
+              "ff_mult": 1,
+              "future_video_loss_weight": 0.004,
+              "input_size": 256,
+              "log_max_samples": 32,
+              "log_scale": 16,
+              "mse_loss_weight": 1.0,
+              "n_blocks": 1,
+              "num_backbone_tokens": 256,
+              "num_future_frames": 1,
+              "num_heads": 4,
+              "num_layers": 1,
+              "share_future_depth_query": true,
+              "use_cls_loss": false,
+              "use_cosine_loss": true,
+              "use_current_patch_loss": true,
+              "use_current_shared_task_proj": true,
+              "use_mse_loss": true,
+              "use_patch_loss": true,
+              "use_shared_future_task_proj": true,
+              "use_smooth_l1_loss": false,
+              "use_warmup_frame": true
+            },
+            "visual_steps": 5000
+          },
+          "use_compile": true,
+          "lr_schedule_steps": null
+        },
+        "initial_model": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b",
+        "train_list_sha256": "8ff079a9d23511b7b47c774243422c9e11ae69752fc6b2268e239b74d26e9f44",
+        "status": "COMPLETE",
+        "rates": {
+          "clean": 0.49714285714285716,
+          "random": 0.1942857142857143
+        }
+      }
+    },
+    "spline10k": {
+      "source_raw": "/2025233210/ysj/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/ysj_full_ef784f873a0a/run_20261019_115559/_result.txt",
+      "raw_results": "blocks_ranking_rgb\tclean\t9/25\t0.36\nhanging_mug\tclean\t5/25\t0.2\nopen_laptop\tclean\t21/25\t0.84\npick_diverse_bottles\tclean\t4/25\t0.16\nplace_shoe\tclean\t17/25\t0.68\nrotate_qrcode\tclean\t21/25\t0.84\nstack_blocks_three\tclean\t15/25\t0.6\nblocks_ranking_rgb\trandom\t11/25\t0.44\nhanging_mug\trandom\t1/25\t0.04\nopen_laptop\trandom\t2/25\t0.08\npick_diverse_bottles\trandom\t2/25\t0.08\nplace_shoe\trandom\t11/25\t0.44\nrotate_qrcode\trandom\t2/25\t0.08\nstack_blocks_three\trandom\t6/25\t0.24\n# ---- summary: mean of per-unit success rates ----\n# all_clean_avg\t0.5257\t(7 units, 92/175 episodes)\n# all_random_avg\t0.2000\t(7 units, 35/175 episodes)\n# all_avg\t0.3629\t(14 units, 127/350 episodes)\n",
+      "config_path": "/2025233210/ysj/lingbot_ws/outputs/spline_5k_to_10k_20261019/lingbotvla_cli.yaml",
+      "training": {
+        "max_steps": 10000,
+        "global_batch_size": 128,
+        "micro_batch_size": 16,
+        "enable_fp32": true,
+        "enable_mixed_precision": true,
+        "seed": 42,
+        "chunk_size": 50,
+        "optimizer": "muon",
+        "lr": 0.0001,
+        "lr_min": 5e-05,
+        "lr_decay_style": "cosine",
+        "lr_schedule_steps": 5000,
+        "enable_resume": true,
+        "load_checkpoint_path": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/train/checkpoints/global_step_5000",
+        "joint_ee_aux_weight": -1.0,
+        "mask_action_padding": false,
+        "spline_control_points": 16,
+        "spline_degree": 3,
+        "flow_gibbs_epsilon": 0.0,
+        "flow_gibbs_log_normalizer": 0.0,
+        "use_compile": true
+      },
+      "prefetch_factor": 1,
+      "rows": [
+        {
+          "task": "blocks_ranking_rgb",
+          "setting": "clean",
+          "success": 9,
+          "total": 25,
+          "rate": 0.36
+        },
+        {
+          "task": "hanging_mug",
+          "setting": "clean",
+          "success": 5,
+          "total": 25,
+          "rate": 0.2
+        },
+        {
+          "task": "open_laptop",
+          "setting": "clean",
+          "success": 21,
+          "total": 25,
+          "rate": 0.84
+        },
+        {
+          "task": "pick_diverse_bottles",
+          "setting": "clean",
+          "success": 4,
+          "total": 25,
+          "rate": 0.16
+        },
+        {
+          "task": "place_shoe",
+          "setting": "clean",
+          "success": 17,
+          "total": 25,
+          "rate": 0.68
+        },
+        {
+          "task": "rotate_qrcode",
+          "setting": "clean",
+          "success": 21,
+          "total": 25,
+          "rate": 0.84
+        },
+        {
+          "task": "stack_blocks_three",
+          "setting": "clean",
+          "success": 15,
+          "total": 25,
+          "rate": 0.6
+        },
+        {
+          "task": "blocks_ranking_rgb",
+          "setting": "random",
+          "success": 11,
+          "total": 25,
+          "rate": 0.44
+        },
+        {
+          "task": "hanging_mug",
+          "setting": "random",
+          "success": 1,
+          "total": 25,
+          "rate": 0.04
+        },
+        {
+          "task": "open_laptop",
+          "setting": "random",
+          "success": 2,
+          "total": 25,
+          "rate": 0.08
+        },
+        {
+          "task": "pick_diverse_bottles",
+          "setting": "random",
+          "success": 2,
+          "total": 25,
+          "rate": 0.08
+        },
+        {
+          "task": "place_shoe",
+          "setting": "random",
+          "success": 11,
+          "total": 25,
+          "rate": 0.44
+        },
+        {
+          "task": "rotate_qrcode",
+          "setting": "random",
+          "success": 2,
+          "total": 25,
+          "rate": 0.08
+        },
+        {
+          "task": "stack_blocks_three",
+          "setting": "random",
+          "success": 6,
+          "total": 25,
+          "rate": 0.24
+        }
+      ],
+      "totals": {
+        "clean": {
+          "success": 92,
+          "total": 175,
+          "rate": 0.5257142857142857
+        },
+        "random": {
+          "success": 35,
+          "total": 175,
+          "rate": 0.2
+        },
+        "overall": {
+          "success": 127,
+          "total": 350,
+          "rate": 0.3628571428571429
+        }
+      },
+      "evaluation_report": {
+        "mode": "full",
+        "checkpoint": "/2025233210/ysj/lingbot_ws/outputs/spline_5k_to_10k_20261019/checkpoints/global_step_10000/hf_ckpt",
+        "seed": 0,
+        "tasks": [
+          "blocks_ranking_rgb",
+          "hanging_mug",
+          "open_laptop",
+          "pick_diverse_bottles",
+          "rotate_qrcode",
+          "stack_blocks_three",
+          "place_shoe"
+        ],
+        "configs": [
+          "demo_clean",
+          "demo_randomized"
+        ],
+        "episodes": 25,
+        "total_episodes": 350,
+        "inference_precision": "fp32",
+        "use_compile": false,
+        "use_length": 50,
+        "gpus": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7"
+        ],
+        "command": [
+          "bash",
+          "/2025233210/ysj/lingbot_ws/linbot-vla-v2/xsy_utils/eval_baseline.sh",
+          "/2025233210/ysj/lingbot_ws/outputs/spline_5k_to_10k_20261019/checkpoints/global_step_10000/hf_ckpt"
+        ],
+        "contract": {
+          "robot_config_root": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/robot_configs",
+          "robot_config": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/robot_configs/robotwin.yaml",
+          "norm_stats": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/norm_stats.json",
+          "mode": "joint_absolute",
+          "config": "/2025233210/ysj/lingbot_ws/outputs/spline_5k_to_10k_20261019/lingbotvla_cli.yaml"
+        },
+        "process_exit_code": 0,
+        "run_dir": "/2025233210/ysj/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/ysj_full_ef784f873a0a/run_20261019_115559",
+        "code_commit": "065ac4e1e1b36066154f09d98dcc314f6acfc95f",
+        "norm_sha256": "bd1ada4579d9c3cd5106255f4a53385af2cd82999322b395d4204c28d85a29f6",
+        "robot_sha256": "e5f333c5ec76f3f11a5f0344eb70f3a4c6dbe099c0213ede09854fe5adb43931",
+        "training_config_sha256": "9095e0e956177f5e48d111908531e5e8dcb1e52e40dca599e37bfe8b0dbdb281",
+        "state_features_sha256": "bee0e7383352e7effaaa21d656225f7851b01819c67beb90f6b879cdfa98357b",
+        "label_manifests": {},
+        "action_loss": {
+          "joint_ee_aux_weight": -1.0,
+          "mask_action_padding": false
+        },
+        "action_supervision": {
+          "flow_dimension_weights": null,
+          "flow_horizon_weights": null,
+          "spline_control_points": 16,
+          "spline_degree": 3,
+          "temporal_padding": "supervise_repeated_terminal_actions"
+        },
+        "training_summary": {
+          "global_batch_size": 128,
+          "max_steps": 10000,
+          "enable_fp32": true,
+          "enable_mixed_precision": true,
+          "seed": 42,
+          "chunk_size": 50,
+          "lr": 0.0001,
+          "lr_min": 5e-05,
+          "lr_decay_style": "cosine",
+          "optimizer": "muon",
+          "training_time_rtc": false,
+          "loss_type": "L1_fm",
+          "align_params": {
+            "depth": {
+              "block_future_depth_to_action": false,
+              "detach_future_image_feats": true,
+              "dim_head": 32,
+              "dim_out": 1024,
+              "ff_mult": 1,
+              "input_size": 224,
+              "model_type": "MoRGBD",
+              "moge_path": "/2025233210/xiesy/lingbot_ws/checkpoints/moge-2-vitb-normal/model.pt",
+              "morgbd_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/depth/model.pt",
+              "num_backbone_tokens": 256,
+              "num_heads": 4,
+              "num_layers": 1,
+              "token_size": 16,
+              "use_future_depth": true
+            },
+            "depth_loss_weight": 0.004,
+            "future_depth_loss_weight": 0.004,
+            "llm": {
+              "dim_out": 2560,
+              "image_input_size": 224,
+              "image_token_size": 8
+            },
+            "mode": "query",
+            "num_task_tokens": 8,
+            "use_future_video": true,
+            "video": {
+              "attention_mode": "flex_block_causal",
+              "block_suffix_to_future_video": false,
+              "ckpt_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/dino_video/teacher_step_10000.pth",
+              "cls_loss_type": "mse",
+              "cls_loss_weight": 0.2,
+              "cls_pool": "last",
+              "config_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/dino_video/config.yaml",
+              "cosine_loss_weight": 0.2,
+              "detach_image_feats": true,
+              "dim_head": 32,
+              "dim_out": 1024,
+              "effective_fps": 1.0,
+              "ff_mult": 1,
+              "future_video_loss_weight": 0.004,
+              "input_size": 256,
+              "log_max_samples": 32,
+              "log_scale": 16,
+              "mse_loss_weight": 1.0,
+              "n_blocks": 1,
+              "num_backbone_tokens": 256,
+              "num_future_frames": 1,
+              "num_heads": 4,
+              "num_layers": 1,
+              "share_future_depth_query": true,
+              "use_cls_loss": false,
+              "use_cosine_loss": true,
+              "use_current_patch_loss": true,
+              "use_current_shared_task_proj": true,
+              "use_mse_loss": true,
+              "use_patch_loss": true,
+              "use_shared_future_task_proj": true,
+              "use_smooth_l1_loss": false,
+              "use_warmup_frame": true
+            },
+            "visual_steps": 5000
+          },
+          "use_compile": true,
+          "lr_schedule_steps": 5000
+        },
+        "initial_model": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b",
+        "train_list_sha256": "8ff079a9d23511b7b47c774243422c9e11ae69752fc6b2268e239b74d26e9f44",
+        "status": "COMPLETE",
+        "rates": {
+          "clean": 0.5257142857142857,
+          "random": 0.19999999999999998
+        }
+      }
+    }
+  },
+  "run_status_inventory": [
+    {
+      "path": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_20261018/status.json",
+      "status": {
+        "state": "SUPERSEDED",
+        "updated_at": "2026-10-18T13:48:09.128216+00:00",
+        "group": "Weighted",
+        "step": 0,
+        "reason": "User requested restart matching baseline temporal padding supervision"
+      }
+    },
+    {
+      "path": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/status.json",
+      "status": {
+        "state": "COMPLETE",
+        "updated_at": "2026-10-19T04:28:15.595995+00:00",
+        "group": "Spline",
+        "step": 5000,
+        "last_step_log": "Train: 5000/5000 [5:59:17<00:00,  5.13s/step], loss=0.0351, lr=5.00e-0510/19/2026 03:27:21 - INFO - __main__ - Step 5000/4295, Epoch 2, Loss 0.0351, VLA_Loss 0.0310, Depth_Loss 0.3052, Future_Depth_Loss 0.4065, FutureVideo_Loss 0.0305, SeqWise_Loss 0.0011, RouterZ_Loss 0.0000, MaxVio 1.1094, AvgSigmoid 0.0732, GradNorm 0.4699, LR 5.00e-05, Expert_LR 1.41e-04, StepTime 4.214s, Depth_Forward_Time  0.373s, Ignore_Batch_Num 0",
+        "checkpoint": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/train/checkpoints/global_step_5000/hf_ckpt",
+        "result": null
+      }
+    },
+    {
+      "path": "/2025233210/ysj/lingbot_ws/outputs/spline_5k_to_10k_20261019/status.json",
+      "status": {
+        "state": "COMPLETE",
+        "at": "2026-10-19T12:49:33.913167+00:00",
+        "source_checkpoint": {
+          "path": "/2025233210/ysj/lingbot_ws/outputs/baseline_supervision_5k_aligned_20261018/Spline/train/checkpoints/global_step_5000",
+          "step": 5000,
+          "saved_lrs": [
+            5e-05,
+            0.0001414213562373095,
+            5e-05
+          ]
+        },
+        "target_steps": 10000,
+        "rates": {
+          "clean": 0.5257142857142857,
+          "random": 0.19999999999999998
+        }
+      }
+    },
+    {
+      "path": "/2025233210/ysj/lingbot_ws/runs/actions_30375_20261017_0400/status.json",
+      "status": {
+        "status": "COMPLETE",
+        "current_stage": "eval_full_JDelta",
+        "started_at": "2026-10-16T18:48:06.066960+00:00",
+        "stages": {
+          "full_JointEE": {
+            "status": "COMPLETE",
+            "started_at": "2026-10-16T18:48:06.068360+00:00",
+            "command": [
+              "/2025233210/xiesy/lingbot_ws/conda_envs/lingbotvla/bin/python",
+              "/2025233210/ysj/lingbot_ws/linbot-vla-v2/ysj_utils/action_experiment.py",
+              "train",
+              "--bundle",
+              "/2025233210/ysj/lingbot_ws/runs/actions_30375_20261017_0400/bundle10k",
+              "--group",
+              "JointEE",
+              "--stage",
+              "full"
+            ],
+            "log": "/2025233210/ysj/lingbot_ws/runs/actions_30375_20261017_0400/full_JointEE.log",
+            "gpu_before": {
+              "gpus": [
+                {
+                  "index": "0",
+                  "uuid": "GPU-94ef0f21-1cb2-71e4-2571-b283ad1dd9ad",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "1",
+                  "uuid": "GPU-1f10b39d-f375-60ed-5f6b-038d644c5da4",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "2",
+                  "uuid": "GPU-5d14df23-4883-a4ca-601b-a9ac79af2ab0",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "3",
+                  "uuid": "GPU-df33c955-3b69-210d-a763-75c98b81f968",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "4",
+                  "uuid": "GPU-cadcc924-f5a0-dcda-2c3b-b04086103a1e",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "5",
+                  "uuid": "GPU-8b47562a-7e0f-dcc0-195b-7c7148f09214",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "6",
+                  "uuid": "GPU-faa3255b-df57-352a-7899-1d43a2d5aa4f",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "7",
+                  "uuid": "GPU-b8152c2f-d6c8-7cf1-7cbe-af0cfaa5f332",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                }
+              ],
+              "compute_processes": "",
+              "timestamp": "2026-10-16T18:48:06.611521+00:00"
+            },
+            "pid": 725119,
+            "heartbeat_at": "2026-10-17T06:46:57.530732+00:00",
+            "exit_code": 0,
+            "finished_at": "2026-10-17T06:47:07.545250+00:00"
+          },
+          "full_JDelta": {
+            "status": "COMPLETE",
+            "started_at": "2026-10-17T06:47:07.546999+00:00",
+            "command": [
+              "/2025233210/xiesy/lingbot_ws/conda_envs/lingbotvla/bin/python",
+              "/2025233210/ysj/lingbot_ws/linbot-vla-v2/ysj_utils/action_experiment.py",
+              "train",
+              "--bundle",
+              "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle",
+              "--group",
+              "JDelta",
+              "--stage",
+              "full"
+            ],
+            "log": "/2025233210/ysj/lingbot_ws/runs/actions_30375_20261017_0400/full_JDelta.log",
+            "gpu_before": {
+              "gpus": [
+                {
+                  "index": "0",
+                  "uuid": "GPU-94ef0f21-1cb2-71e4-2571-b283ad1dd9ad",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "1",
+                  "uuid": "GPU-1f10b39d-f375-60ed-5f6b-038d644c5da4",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "2",
+                  "uuid": "GPU-5d14df23-4883-a4ca-601b-a9ac79af2ab0",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "3",
+                  "uuid": "GPU-df33c955-3b69-210d-a763-75c98b81f968",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "4",
+                  "uuid": "GPU-cadcc924-f5a0-dcda-2c3b-b04086103a1e",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "5",
+                  "uuid": "GPU-8b47562a-7e0f-dcc0-195b-7c7148f09214",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "6",
+                  "uuid": "GPU-faa3255b-df57-352a-7899-1d43a2d5aa4f",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "7",
+                  "uuid": "GPU-b8152c2f-d6c8-7cf1-7cbe-af0cfaa5f332",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                }
+              ],
+              "compute_processes": "",
+              "timestamp": "2026-10-17T06:47:08.075537+00:00"
+            },
+            "pid": 766787,
+            "heartbeat_at": "2026-10-17T12:49:20.876281+00:00",
+            "exit_code": 0,
+            "finished_at": "2026-10-17T12:49:30.891932+00:00"
+          },
+          "eval_full_JointEE": {
+            "status": "COMPLETE",
+            "started_at": "2026-10-17T12:49:30.895465+00:00",
+            "command": [
+              "/2025233210/xiesy/lingbot_ws/conda_envs/lingbotvla/bin/python",
+              "/2025233210/ysj/lingbot_ws/linbot-vla-v2/ysj_utils/evaluate.py",
+              "--mode",
+              "full",
+              "--checkpoint",
+              "/2025233210/ysj/lingbot_ws/runs/actions_30375_20261017_0400/bundle10k/JointEE/train/checkpoints/global_step_10000/hf_ckpt",
+              "--gpus",
+              "0,1,2,3,4,5,6,7",
+              "--seed",
+              "0",
+              "--port-base",
+              "19330",
+              "--summary-output",
+              "/2025233210/ysj/lingbot_ws/runs/actions_30375_20261017_0400/eval_full_JointEE.json"
+            ],
+            "log": "/2025233210/ysj/lingbot_ws/runs/actions_30375_20261017_0400/eval_full_JointEE.log",
+            "gpu_before": {
+              "gpus": [
+                {
+                  "index": "0",
+                  "uuid": "GPU-94ef0f21-1cb2-71e4-2571-b283ad1dd9ad",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "1",
+                  "uuid": "GPU-1f10b39d-f375-60ed-5f6b-038d644c5da4",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "2",
+                  "uuid": "GPU-5d14df23-4883-a4ca-601b-a9ac79af2ab0",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "3",
+                  "uuid": "GPU-df33c955-3b69-210d-a763-75c98b81f968",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "4",
+                  "uuid": "GPU-cadcc924-f5a0-dcda-2c3b-b04086103a1e",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "5",
+                  "uuid": "GPU-8b47562a-7e0f-dcc0-195b-7c7148f09214",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "6",
+                  "uuid": "GPU-faa3255b-df57-352a-7899-1d43a2d5aa4f",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "7",
+                  "uuid": "GPU-b8152c2f-d6c8-7cf1-7cbe-af0cfaa5f332",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                }
+              ],
+              "compute_processes": "",
+              "timestamp": "2026-10-17T12:49:31.635241+00:00"
+            },
+            "pid": 788572,
+            "heartbeat_at": "2026-10-17T13:44:33.240007+00:00",
+            "exit_code": 0,
+            "finished_at": "2026-10-17T13:44:43.247808+00:00"
+          },
+          "eval_full_JDelta": {
+            "status": "COMPLETE",
+            "started_at": "2026-10-17T13:44:43.250527+00:00",
+            "command": [
+              "/2025233210/xiesy/lingbot_ws/conda_envs/lingbotvla/bin/python",
+              "/2025233210/ysj/lingbot_ws/linbot-vla-v2/ysj_utils/evaluate.py",
+              "--mode",
+              "full",
+              "--checkpoint",
+              "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle/JDelta/train/checkpoints/global_step_5000/hf_ckpt",
+              "--gpus",
+              "0,1,2,3,4,5,6,7",
+              "--seed",
+              "0",
+              "--port-base",
+              "19330",
+              "--summary-output",
+              "/2025233210/ysj/lingbot_ws/runs/actions_30375_20261017_0400/eval_full_JDelta.json"
+            ],
+            "log": "/2025233210/ysj/lingbot_ws/runs/actions_30375_20261017_0400/eval_full_JDelta.log",
+            "gpu_before": {
+              "gpus": [
+                {
+                  "index": "0",
+                  "uuid": "GPU-94ef0f21-1cb2-71e4-2571-b283ad1dd9ad",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "1",
+                  "uuid": "GPU-1f10b39d-f375-60ed-5f6b-038d644c5da4",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "2",
+                  "uuid": "GPU-5d14df23-4883-a4ca-601b-a9ac79af2ab0",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "3",
+                  "uuid": "GPU-df33c955-3b69-210d-a763-75c98b81f968",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "4",
+                  "uuid": "GPU-cadcc924-f5a0-dcda-2c3b-b04086103a1e",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "5",
+                  "uuid": "GPU-8b47562a-7e0f-dcc0-195b-7c7148f09214",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "6",
+                  "uuid": "GPU-faa3255b-df57-352a-7899-1d43a2d5aa4f",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                },
+                {
+                  "index": "7",
+                  "uuid": "GPU-b8152c2f-d6c8-7cf1-7cbe-af0cfaa5f332",
+                  "name": "NVIDIA H20",
+                  "total_mib": 97871,
+                  "used_mib": 1,
+                  "utilization": 0
+                }
+              ],
+              "compute_processes": "",
+              "timestamp": "2026-10-17T13:44:43.727468+00:00"
+            },
+            "pid": 843019,
+            "heartbeat_at": "2026-10-17T14:50:15.716084+00:00",
+            "exit_code": 0,
+            "finished_at": "2026-10-17T14:50:25.728907+00:00"
+          }
+        },
+        "finished_at": "2026-10-17T14:50:25.732858+00:00"
+      }
+    },
+    {
+      "path": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017/queue/status.json",
+      "status": {
+        "status": "FAILED",
+        "started_at": "2026-10-16T16:51:57.307305+00:00",
+        "plan_sha256": "1e6a2b388ab2999aea534436b798d742db4e05f0334cb8464df067459bb4a5e0",
+        "stages": {
+          "labels": {
+            "status": "COMPLETE",
+            "started_at": "2026-10-16T16:51:57.855731+00:00",
+            "command": [
+              "/2025233210/xiesy/lingbot_ws/conda_envs/lingbotvla/bin/python",
+              "/2025233210/ysj/lingbot_ws/linbot-vla-v2/ysj_utils/prepare_ee_labels.py",
+              "--train-list",
+              "/2025233210/xiesy/lingbot_ws/linbot-vla-v2/xsy_utils/configs/robotwin_clean.txt",
+              "--raw-root",
+              "/2025233210/lmx/RoboTwin/data",
+              "--raw-setting",
+              "aloha-agilex_clean_50",
+              "--output",
+              "/2025233210/ysj/lingbot_ws/ee_labels_clean50",
+              "--resume-complete"
+            ],
+            "log": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017/queue/labels.log",
+            "pid": 103281,
+            "heartbeat_at": "2026-10-16T16:55:57.905486+00:00",
+            "exit_code": 0,
+            "finished_at": "2026-10-16T16:56:07.908152+00:00"
+          },
+          "prepare": {
+            "status": "COMPLETE",
+            "started_at": "2026-10-16T16:56:07.910115+00:00",
+            "command": [
+              "/2025233210/xiesy/lingbot_ws/conda_envs/lingbotvla/bin/python",
+              "/2025233210/ysj/lingbot_ws/linbot-vla-v2/ysj_utils/action_experiment.py",
+              "prepare",
+              "--base-config",
+              "/2025233210/xiesy/lingbot_ws/linbot-vla-v2/xsy_utils/configs/robotwin_clean_baseline.yaml",
+              "--robot-config",
+              "/2025233210/lmx/training-data/robot_config_clean/robotwin.yaml",
+              "--train-list",
+              "/2025233210/xiesy/lingbot_ws/linbot-vla-v2/xsy_utils/configs/robotwin_clean.txt",
+              "--ee-sidecar-root",
+              "/2025233210/ysj/lingbot_ws/ee_labels_clean50",
+              "--output",
+              "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017/bundle",
+              "--world-size",
+              "8",
+              "--micro-batch",
+              "16",
+              "--steps",
+              "5000"
+            ],
+            "log": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017/queue/prepare.log",
+            "pid": 104295,
+            "heartbeat_at": "2026-10-16T16:56:07.919180+00:00",
+            "exit_code": 0,
+            "finished_at": "2026-10-16T16:56:17.924706+00:00"
+          },
+          "norm_JDelta": {
+            "status": "FAILED",
+            "started_at": "2026-10-16T16:56:17.926377+00:00",
+            "command": [
+              "/2025233210/xiesy/lingbot_ws/conda_envs/lingbotvla/bin/python",
+              "/2025233210/ysj/lingbot_ws/linbot-vla-v2/ysj_utils/action_experiment.py",
+              "norm",
+              "--bundle",
+              "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017/bundle",
+              "--group",
+              "JDelta"
+            ],
+            "log": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017/queue/norm_JDelta.log",
+            "pid": 104297,
+            "heartbeat_at": "2026-10-16T16:56:27.931088+00:00",
+            "exit_code": 1,
+            "finished_at": "2026-10-16T16:56:37.935051+00:00",
+            "error": "RuntimeError: norm_JDelta exited 1; inspect /2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017/queue/norm_JDelta.log"
+          }
+        },
+        "current_stage": "norm_JDelta",
+        "finished_at": "2026-10-16T16:56:37.936701+00:00",
+        "error": "RuntimeError: norm_JDelta exited 1; inspect /2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017/queue/norm_JDelta.log"
+      }
+    },
+    {
+      "path": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_direct/queue/status.json",
+      "status": {
+        "status": "FAILED",
+        "started_at": "2026-10-16T17:43:46.539302+00:00",
+        "plan_sha256": "cb92486be467823611d981b4907baa9980090049b9c84a8a22721ca5df3de12c",
+        "stages": {},
+        "current_stage": "WAIT_GPU",
+        "finished_at": "2026-10-16T18:01:01.819974+00:00",
+        "error": "KeyboardInterrupt: "
+      }
+    },
+    {
+      "path": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v2/queue/status.json",
+      "status": {
+        "status": "FAILED",
+        "started_at": "2026-10-16T16:58:41.859324+00:00",
+        "plan_sha256": "942d7fa45290c92b90493be43e0768dc35702a5dae804bcbde11e1ba584d0c50",
+        "stages": {
+          "labels": {
+            "status": "COMPLETE",
+            "started_at": "2026-10-16T16:58:42.435855+00:00",
+            "command": [
+              "/2025233210/xiesy/lingbot_ws/conda_envs/lingbotvla/bin/python",
+              "/2025233210/ysj/lingbot_ws/linbot-vla-v2/ysj_utils/prepare_ee_labels.py",
+              "--train-list",
+              "/2025233210/xiesy/lingbot_ws/linbot-vla-v2/xsy_utils/configs/robotwin_clean.txt",
+              "--raw-root",
+              "/2025233210/lmx/RoboTwin/data",
+              "--raw-setting",
+              "aloha-agilex_clean_50",
+              "--output",
+              "/2025233210/ysj/lingbot_ws/ee_labels_clean50",
+              "--resume-complete"
+            ],
+            "log": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v2/queue/labels.log",
+            "pid": 104860,
+            "heartbeat_at": "2026-10-16T17:01:02.471947+00:00",
+            "exit_code": 0,
+            "finished_at": "2026-10-16T17:01:12.474784+00:00"
+          },
+          "prepare": {
+            "status": "COMPLETE",
+            "started_at": "2026-10-16T17:01:12.477159+00:00",
+            "command": [
+              "/2025233210/xiesy/lingbot_ws/conda_envs/lingbotvla/bin/python",
+              "/2025233210/ysj/lingbot_ws/linbot-vla-v2/ysj_utils/action_experiment.py",
+              "prepare",
+              "--base-config",
+              "/2025233210/xiesy/lingbot_ws/linbot-vla-v2/xsy_utils/configs/robotwin_clean_baseline.yaml",
+              "--robot-config",
+              "/2025233210/lmx/training-data/robot_config_clean/robotwin.yaml",
+              "--train-list",
+              "/2025233210/xiesy/lingbot_ws/linbot-vla-v2/xsy_utils/configs/robotwin_clean.txt",
+              "--ee-sidecar-root",
+              "/2025233210/ysj/lingbot_ws/ee_labels_clean50",
+              "--output",
+              "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v2/bundle",
+              "--world-size",
+              "8",
+              "--micro-batch",
+              "16",
+              "--steps",
+              "5000"
+            ],
+            "log": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v2/queue/prepare.log",
+            "pid": 105432,
+            "heartbeat_at": "2026-10-16T17:01:12.480975+00:00",
+            "exit_code": 0,
+            "finished_at": "2026-10-16T17:01:22.486704+00:00"
+          },
+          "norm_JDelta": {
+            "status": "FAILED",
+            "started_at": "2026-10-16T17:11:08.819718+00:00",
+            "command": [
+              "/2025233210/xiesy/lingbot_ws/conda_envs/lingbotvla/bin/python",
+              "/2025233210/ysj/lingbot_ws/linbot-vla-v2/ysj_utils/action_experiment.py",
+              "norm",
+              "--bundle",
+              "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v2/bundle",
+              "--group",
+              "JDelta"
+            ],
+            "log": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v2/queue/norm_JDelta.log",
+            "pid": 108338,
+            "heartbeat_at": "2026-10-16T17:14:38.902958+00:00",
+            "finished_at": "2026-10-16T17:14:44.377277+00:00",
+            "error": "KeyboardInterrupt: "
+          }
+        },
+        "current_stage": "norm_JDelta",
+        "finished_at": "2026-10-16T17:14:44.378730+00:00",
+        "error": "KeyboardInterrupt: "
+      }
+    },
+    {
+      "path": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/queue/status.json",
+      "status": {
+        "status": "FAILED",
+        "started_at": "2026-10-16T17:18:32.407540+00:00",
+        "plan_sha256": "231326a048082c7f88f12f75b699f10a5070e66121fde2ada018d595c7f68512",
+        "stages": {
+          "labels": {
+            "status": "COMPLETE",
+            "started_at": "2026-10-16T17:18:32.999301+00:00",
+            "command": [
+              "/2025233210/xiesy/lingbot_ws/conda_envs/lingbotvla/bin/python",
+              "/2025233210/ysj/lingbot_ws/linbot-vla-v2/ysj_utils/prepare_ee_labels.py",
+              "--train-list",
+              "/2025233210/xiesy/lingbot_ws/linbot-vla-v2/xsy_utils/configs/robotwin_clean.txt",
+              "--raw-root",
+              "/2025233210/lmx/RoboTwin/data",
+              "--raw-setting",
+              "aloha-agilex_clean_50",
+              "--output",
+              "/2025233210/ysj/lingbot_ws/ee_labels_clean50",
+              "--resume-complete"
+            ],
+            "log": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/queue/labels.log",
+            "pid": 110917,
+            "heartbeat_at": "2026-10-16T17:20:53.034026+00:00",
+            "exit_code": 0,
+            "finished_at": "2026-10-16T17:21:03.036749+00:00"
+          },
+          "prepare": {
+            "status": "COMPLETE",
+            "started_at": "2026-10-16T17:21:03.038749+00:00",
+            "command": [
+              "/2025233210/xiesy/lingbot_ws/conda_envs/lingbotvla/bin/python",
+              "/2025233210/ysj/lingbot_ws/linbot-vla-v2/ysj_utils/action_experiment.py",
+              "prepare",
+              "--base-config",
+              "/2025233210/xiesy/lingbot_ws/linbot-vla-v2/xsy_utils/configs/robotwin_clean_baseline.yaml",
+              "--robot-config",
+              "/2025233210/lmx/training-data/robot_config_clean/robotwin.yaml",
+              "--train-list",
+              "/2025233210/xiesy/lingbot_ws/linbot-vla-v2/xsy_utils/configs/robotwin_clean.txt",
+              "--ee-sidecar-root",
+              "/2025233210/ysj/lingbot_ws/ee_labels_clean50",
+              "--output",
+              "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle",
+              "--world-size",
+              "8",
+              "--micro-batch",
+              "16",
+              "--steps",
+              "5000"
+            ],
+            "log": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/queue/prepare.log",
+            "pid": 111047,
+            "heartbeat_at": "2026-10-16T17:21:03.047738+00:00",
+            "exit_code": 0,
+            "finished_at": "2026-10-16T17:21:13.053323+00:00"
+          },
+          "norm_JDelta": {
+            "status": "COMPLETE",
+            "started_at": "2026-10-16T17:23:09.061884+00:00",
+            "command": [
+              "/2025233210/xiesy/lingbot_ws/conda_envs/lingbotvla/bin/python",
+              "/2025233210/ysj/lingbot_ws/linbot-vla-v2/ysj_utils/action_experiment.py",
+              "norm",
+              "--bundle",
+              "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle",
+              "--group",
+              "JDelta"
+            ],
+            "log": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/queue/norm_JDelta.log",
+            "pid": 112205,
+            "heartbeat_at": "2026-10-16T17:32:09.266854+00:00",
+            "exit_code": 0,
+            "finished_at": "2026-10-16T17:32:19.273199+00:00"
+          },
+          "norm_JointEE0": {
+            "status": "COMPLETE",
+            "started_at": "2026-10-16T17:32:19.275166+00:00",
+            "command": [
+              "/2025233210/xiesy/lingbot_ws/conda_envs/lingbotvla/bin/python",
+              "/2025233210/ysj/lingbot_ws/linbot-vla-v2/ysj_utils/action_experiment.py",
+              "norm",
+              "--bundle",
+              "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle",
+              "--group",
+              "JointEE0"
+            ],
+            "log": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/queue/norm_JointEE0.log",
+            "pid": 117156,
+            "heartbeat_at": "2026-10-16T17:43:19.514243+00:00",
+            "exit_code": 0,
+            "finished_at": "2026-10-16T17:43:29.518143+00:00"
+          },
+          "norm_JointEE": {
+            "status": "COMPLETE",
+            "started_at": "2026-10-16T17:43:29.519711+00:00",
+            "command": [
+              "/2025233210/xiesy/lingbot_ws/conda_envs/lingbotvla/bin/python",
+              "/2025233210/ysj/lingbot_ws/linbot-vla-v2/ysj_utils/action_experiment.py",
+              "norm",
+              "--bundle",
+              "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle",
+              "--group",
+              "JointEE"
+            ],
+            "log": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/queue/norm_JointEE.log",
+            "pid": 252601,
+            "heartbeat_at": "2026-10-16T17:43:29.528706+00:00",
+            "exit_code": 0,
+            "finished_at": "2026-10-16T17:43:39.530315+00:00"
+          },
+          "smoke_JDelta": {
+            "status": "FAILED",
+            "started_at": "2026-10-16T17:43:39.532513+00:00",
+            "command": [
+              "/2025233210/xiesy/lingbot_ws/conda_envs/lingbotvla/bin/python",
+              "/2025233210/ysj/lingbot_ws/linbot-vla-v2/ysj_utils/action_experiment.py",
+              "train",
+              "--bundle",
+              "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/bundle",
+              "--group",
+              "JDelta",
+              "--stage",
+              "smoke"
+            ],
+            "log": "/2025233210/ysj/lingbot_ws/runs/joint_pair_5k_20261017_v3/queue/smoke_JDelta.log",
+            "error": "KeyboardInterrupt: "
+          }
+        },
+        "current_stage": "smoke_JDelta",
+        "finished_at": "2026-10-16T17:43:45.418209+00:00",
+        "error": "KeyboardInterrupt: "
+      }
+    }
+  ]
+}
