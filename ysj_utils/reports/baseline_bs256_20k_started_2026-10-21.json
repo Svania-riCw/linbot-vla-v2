@@ -1,0 +1,227 @@
+{
+  "verified_at": "2026-10-20T17:06:42.031207+00:00",
+  "hostname": "3h7it55mj7l9v-0",
+  "ssh_port": 30010,
+  "status": {
+    "state": "TRAINING",
+    "at": "2026-10-20T15:37:19.771689+00:00",
+    "target": 5000,
+    "restored_step": 50,
+    "log": "/2025233210/ysj/lingbot_ws/outputs/baseline_bs256_20k_20261020/step_05000/training_20261020_153719.log"
+  },
+  "plan": {
+    "source_run": "/2025233210/xiesy/lingbot_ws/outputs/baseline_gbs128_10k",
+    "source_config_sha256": "eafa62b35000d673743db45764c48ab0060c00cd79bf8aaed1fd331c2af727d8",
+    "initial_model": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b",
+    "initial_model_index_sha256": "5a753ec331c51925d064e1e76e921a7eb3dca9770d2a6a91dac5e0e4162d676a",
+    "model": {
+      "adanorm_time": true,
+      "attn_implementation": "flash_attention_2",
+      "basic_modules": [],
+      "config_key": "LingbotVLAV2Config",
+      "config_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b",
+      "decoders": {},
+      "encode_target": false,
+      "encoders": {},
+      "final_norm_adanorm": false,
+      "force_use_huggingface": false,
+      "incremental_training": false,
+      "input_encoder": "encoder",
+      "model_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b",
+      "moe_implementation": "fused",
+      "output_encoder": "decoder",
+      "post_training": true,
+      "tokenizer_path": "/2025233210/lmx/checkpoints/Qwen3-VL-4B-Instruct",
+      "use_lm_head": false,
+      "vit_attn_implementation": "flash_attention_2",
+      "vlm_repo_id": null,
+      "vocab_size": 0
+    },
+    "global_batch_size": 256,
+    "micro_batch_size": 16,
+    "accumulation_steps": 2,
+    "world_size": 8,
+    "total_updates": 20000,
+    "schedule_steps": 20000,
+    "eval_targets": [
+      5000,
+      10000,
+      20000
+    ],
+    "probe_steps": 50,
+    "gpus": [
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7"
+    ],
+    "protected_files": {
+      "/2025233210/ysj/lingbot_ws/outputs/baseline_bs256_20k_20261020/source_baseline.yaml": "eafa62b35000d673743db45764c48ab0060c00cd79bf8aaed1fd331c2af727d8",
+      "/2025233210/ysj/lingbot_ws/outputs/baseline_bs256_20k_20261020/train.txt": "8ff079a9d23511b7b47c774243422c9e11ae69752fc6b2268e239b74d26e9f44",
+      "/2025233210/ysj/lingbot_ws/outputs/baseline_bs256_20k_20261020/norm_stats.json": "bd1ada4579d9c3cd5106255f4a53385af2cd82999322b395d4204c28d85a29f6",
+      "/2025233210/ysj/lingbot_ws/outputs/baseline_bs256_20k_20261020/norm_stats.json.contract.json": "a6ce79fb062609a50dc81f07755a3688f919e6d8a492d9841fb7c1422991a87d",
+      "/2025233210/ysj/lingbot_ws/outputs/baseline_bs256_20k_20261020/robot_configs/robotwin.yaml": "290319b49181e725122ddf7d6c99953bb75ad858654ffc4c4739789459596b15"
+    },
+    "created_at": "2026-10-20T15:26:42.342310+00:00",
+    "code_commit": "89a5541d958b1ed5b9799b936ab19d44a323ac94",
+    "protocol": "7 tasks x clean/random x25=350; seed0, fp32, compile=False, action length50",
+    "matching_samples": {
+      "5000": 1280000,
+      "10000": 2560000,
+      "20000": 5120000
+    },
+    "resource_changes": {
+      "num_workers": 2,
+      "prefetch_factor": 1
+    },
+    "note": "Probe updates1-50 belong to this 20k run. Every milestone strictly restores full training state; cosine never restarts."
+  },
+  "probe": {
+    "first_step": 1,
+    "last_step": 50,
+    "updates": 50,
+    "last_loss": 0.1348,
+    "last_grad_norm": 0.4236,
+    "last_lr": 0.0001,
+    "tail_step_seconds_mean": 6.36775
+  },
+  "restored_checkpoint": {
+    "path": "/2025233210/ysj/lingbot_ws/outputs/baseline_bs256_20k_20261020/step_00050/train/checkpoints/global_step_50",
+    "step": 50,
+    "saved_lrs": [
+      9.999922894111975e-05,
+      0.0002828405315907673,
+      9.999922894111975e-05
+    ]
+  },
+  "first_three_updates": [
+    [
+      "51",
+      "0.1242",
+      "0.4541",
+      "1.00e-04",
+      "39.200"
+    ],
+    [
+      "52",
+      "0.1226",
+      "0.3393",
+      "1.00e-04",
+      "14.849"
+    ],
+    [
+      "53",
+      "0.1313",
+      "0.3843",
+      "1.00e-04",
+      "14.447"
+    ]
+  ],
+  "latest_three_updates": [
+    [
+      "864",
+      "0.0425",
+      "0.5582",
+      "9.98e-05",
+      "6.359"
+    ],
+    [
+      "865",
+      "0.0501",
+      "0.5177",
+      "9.98e-05",
+      "6.366"
+    ],
+    [
+      "866",
+      "0.0465",
+      "0.5880",
+      "9.98e-05",
+      "6.358"
+    ]
+  ],
+  "source_config_differences": {
+    "data.num_workers": {
+      "baseline": 8,
+      "bs256": 2
+    },
+    "data.prefetch_factor": {
+      "baseline": 4,
+      "bs256": 1
+    },
+    "data.norm_stats_file": {
+      "baseline": null,
+      "bs256": "/2025233210/ysj/lingbot_ws/outputs/baseline_bs256_20k_20261020/norm_stats.json"
+    },
+    "data.train_path": {
+      "baseline": "/2025233210/xiesy/lingbot_ws/linbot-vla-v2/xsy_utils/configs/robotwin_clean.txt",
+      "bs256": "/2025233210/ysj/lingbot_ws/outputs/baseline_bs256_20k_20261020/train.txt"
+    },
+    "data.robot_config_root": {
+      "baseline": "/2025233210/lmx/training-data/robot_config_clean",
+      "bs256": "/2025233210/ysj/lingbot_ws/outputs/baseline_bs256_20k_20261020/robot_configs"
+    },
+    "train.joint_ee_aux_weight": {
+      "baseline": null,
+      "bs256": -1.0
+    },
+    "train.flow_gibbs_log_normalizer": {
+      "baseline": null,
+      "bs256": 0.0
+    },
+    "train.gradient_accumulation_steps": {
+      "baseline": 1,
+      "bs256": 2
+    },
+    "train.save_steps": {
+      "baseline": 2000,
+      "bs256": 1000
+    },
+    "train.max_steps": {
+      "baseline": 10000,
+      "bs256": 5000
+    },
+    "train.mask_action_padding": {
+      "baseline": null,
+      "bs256": false
+    },
+    "train.load_checkpoint_path": {
+      "baseline": null,
+      "bs256": "/2025233210/ysj/lingbot_ws/outputs/baseline_bs256_20k_20261020/step_00050/train/checkpoints/global_step_50"
+    },
+    "train.spline_control_points": {
+      "baseline": null,
+      "bs256": 0
+    },
+    "train.spline_degree": {
+      "baseline": null,
+      "bs256": 3
+    },
+    "train.require_resume": {
+      "baseline": null,
+      "bs256": true
+    },
+    "train.flow_gibbs_epsilon": {
+      "baseline": null,
+      "bs256": 0.0
+    },
+    "train.lr_schedule_steps": {
+      "baseline": null,
+      "bs256": 20000
+    },
+    "train.global_batch_size": {
+      "baseline": 128,
+      "bs256": 256
+    },
+    "train.output_dir": {
+      "baseline": "/2025233210/xiesy/lingbot_ws/outputs/baseline_gbs128_10k",
+      "bs256": "/2025233210/ysj/lingbot_ws/outputs/baseline_bs256_20k_20261020/step_05000/train"
+    }
+  },
+  "checks": "CPU suite exited0 during prepare; GPU probe1-50 and strict full-DCP restore at51 passed. This is training verification, not task success.",
+  "gpu": "0, NVIDIA H20, 91142 MiB, 100 %\n1, NVIDIA H20, 88840 MiB, 100 %\n2, NVIDIA H20, 88840 MiB, 100 %\n3, NVIDIA H20, 88840 MiB, 100 %\n4, NVIDIA H20, 88840 MiB, 100 %\n5, NVIDIA H20, 88838 MiB, 100 %\n6, NVIDIA H20, 88840 MiB, 100 %\n7, NVIDIA H20, 88840 MiB, 100 %\n"
+}
