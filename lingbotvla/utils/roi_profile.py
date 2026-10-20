@@ -15,7 +15,9 @@ def export_robotwin_profile(robot):
         tip = getattr(robot, f"{side}_ee")
         by_child = {j.get_child_link().get_name(): j for j in entity.get_joints()
                     if j.get_parent_link() is not None}
-        chain, link, visited = [], tip.get_parent_link(), set()
+        # SAPIEN joint.global_pose is the moving child-side joint frame. Include
+        # the tip joint itself, then return from its child link to that frame.
+        chain, link, visited = [], tip.get_child_link(), set()
         while link.get_name() in by_child:
             if link.get_name() in visited:
                 raise ROIGeometryError("Cycle in articulation")
@@ -38,7 +40,7 @@ def export_robotwin_profile(robot):
                   @ np.array([bias, 0, 0]))
         base = getattr(robot, f"{side}_entity_origion_pose")
         profile["arms"][side] = dict(chain=chain[::-1],
-            parent_from_tip=tip.get_pose_in_parent().to_transformation_matrix().tolist(),
+            parent_from_tip=tip.get_pose_in_child().to_transformation_matrix().tolist(),
             tip_offset=offset.tolist(), world_from_base=base.to_transformation_matrix().tolist())
     DualArmFK(profile)  # check all six observed joints, transforms and dimensions
     return profile

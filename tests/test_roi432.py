@@ -59,6 +59,35 @@ def images():
 
 
 class GeometryTest(unittest.TestCase):
+    def test_exporter_keeps_sixth_joint_and_child_tip_frame(self):
+        from lingbotvla.utils.roi_profile import export_robotwin_profile
+        def pose(x=0.):
+            value = np.eye(4)
+            value[0, 3] = x
+            return SimpleNamespace(to_transformation_matrix=lambda: value.copy())
+        robot = SimpleNamespace()
+        for side in ("left", "right"):
+            links = [SimpleNamespace(get_name=lambda i=i: f"{side}_{i}") for i in range(7)]
+            joints = []
+            for i in range(6):
+                joints.append(SimpleNamespace(type="revolute",
+                    get_name=lambda i=i, side=side: f"{side}joint{i}",
+                    get_parent_link=lambda i=i, links=links: links[i],
+                    get_child_link=lambda i=i, links=links: links[i+1],
+                    get_pose_in_parent=lambda: pose(.2),
+                    get_pose_in_child=lambda: pose(.1)))
+            for key, value in dict(entity=SimpleNamespace(get_joints=lambda joints=joints: joints),
+                    arm_joints_name=[j.get_name() for j in joints], ee=joints[-1],
+                    gripper_bias=.12, global_trans_matrix=np.eye(3), delta_matrix=np.eye(3),
+                    entity_origion_pose=pose()).items():
+                setattr(robot, f"{side}_{key}", value)
+        exported = export_robotwin_profile(robot)
+        for side in ("left", "right"):
+            arm = exported["arms"][side]
+            self.assertEqual(len(arm["chain"]), 6)
+            self.assertEqual(arm["chain"][-1]["name"], f"{side}joint5")
+            self.assertAlmostEqual(arm["parent_from_tip"][0][3], .1)
+
     def test_fk_rotates_tool_and_ignores_gripper(self):
         fk = DualArmFK(profile())
         q = np.zeros(14)

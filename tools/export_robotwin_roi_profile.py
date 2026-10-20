@@ -7,7 +7,9 @@ import argparse
 import json
 from pathlib import Path
 import sys
+import tempfile
 from types import SimpleNamespace
+import xml.etree.ElementTree as ET
 
 import numpy as np
 import yaml
@@ -26,11 +28,26 @@ def export(robot_dir):
     poses = cfg["robot_pose"]
     if len(poses) > 1 and not np.allclose(poses[0], poses[1]):
         raise ValueError("This exporter requires one fixed-root dual-arm articulation")
-    engine = sapien.Engine()
-    scene = engine.create_scene()
+    if hasattr(sapien, "physx"):
+        # SAPIEN 3's default Scene also creates a Vulkan renderer.
+        scene = sapien.Scene([sapien.physx.PhysxCpuSystem()])
+    else:
+        engine = sapien.Engine()
+        scene = engine.create_scene()
     loader = scene.create_urdf_loader()
     loader.fix_root_link = True
-    entity = loader.load(str(robot_dir / cfg["urdf_path"]))
+    # Keep all joint origins, axes, limits and inertials from the real URDF.
+    # Mesh visuals/collisions are irrelevant to FK and otherwise initialize a
+    # renderer even when only the CPU physics system is requested.
+    tree = ET.parse(robot_dir / cfg["urdf_path"])
+    for link in tree.getroot().findall("link"):
+        for child in list(link):
+            if child.tag in ("visual", "collision"):
+                link.remove(child)
+    with tempfile.TemporaryDirectory(prefix="roi_fk_") as temporary:
+        kinematic_urdf = Path(temporary) / "robot.urdf"
+        tree.write(kinematic_urdf, encoding="utf-8", xml_declaration=True)
+        entity = loader.load(str(kinematic_urdf))
     if entity is None:
         raise ValueError("SAPIEN could not load the embodiment URDF")
     base = sapien.Pose(poses[0][:3], poses[0][3:])

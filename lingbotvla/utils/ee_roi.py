@@ -69,7 +69,7 @@ def transform(value, name):
 class DualArmFK:
     """Serial SAPIEN joint frames: parent_T_joint Rx(q) inverse(child_T_joint).
 
-    The tip is the joint's parent-side frame, matching RoboTwin's
+    The tip is the joint's moving child-side frame, matching RoboTwin's
     ee.global_pose. Tool offsets include RoboTwin's gripper bias and rotations.
     State is RoboTwin's current drive target, NOT measured joint qpos. The profile
     exporter verifies FK against SAPIEN with qpos set explicitly; raw endpose is
