@@ -86,6 +86,8 @@ def main():
     parser.add_argument("--mode", choices=("smoke", "formal"), required=True)
     args = parser.parse_args()
     plan = read(args.plan)
+    node = plan["node"]
+    assert node in ("node0", "node1", "node2")
     repo, job = Path(plan["repo"]).resolve(), Path(plan["job"]).resolve()
     state_dir = job / "engine_state"
     config_path = Path(plan["config"])
@@ -125,16 +127,16 @@ def main():
     claim = job / "claim"
     if args.mode == "smoke":
         claim.mkdir()  # Never remove or silently reuse a failed claim.
-        owner = dict(node="node1", hostname=plan["hostname"], pid=os.getpid(), claimed_utc=utc())
+        owner = dict(node=node, hostname=plan["hostname"], pid=os.getpid(), claimed_utc=utc())
     else:
         owner = read(claim / "owner.json")
-        assert owner["hostname"] == plan["hostname"] and owner["node"] == "node1"
+        assert owner["hostname"] == plan["hostname"] and owner["node"] == node
         assert owner.get("result") == "smoke_complete" and not alive(owner["pid"])
         review = read(job / "inputs/verified_smoke.json")
         assert review["ready"] is True and review["config_sha256"] == plan["config_sha256"]
         owner.update(previous_pid=owner["pid"], pid=os.getpid(), result=None, formal_started_utc=utc())
     atomic(claim / "owner.json", owner)
-    state = dict(pid=os.getpid(), owner_node="node1", head=head, experiment="roi432_ee",
+    state = dict(pid=os.getpid(), owner_node=node, head=head, experiment="roi432_ee",
                  mode=args.mode, job=str(job), config=str(config_path), started_utc=utc())
     logging = read(state_dir / "wandb_settings.json")
     assert logging["entity"] == "qlei34151-shanghaitech-university"
@@ -179,7 +181,7 @@ def main():
                    WANDB_DISABLE_CODE="true", WANDB_CONSOLE="off", WANDB_INIT_TIMEOUT="60",
                    QL_WANDB_SDK_PATH=logging["sdk_path"], WANDB_DIR=str(state_dir / "wandb"))
         env["QL_WANDB_RUN_METADATA"] = json.dumps(dict(
-            execution_node="node1", code_commit=head, experiment="roi432_ee", phase=phase,
+            execution_node=node, code_commit=head, experiment="roi432_ee", phase=phase,
             input_resolution=[384, 384], num_cameras=3, expected_visual_tokens=432,
             micro_batch_size=4, global_batch_size=128, gradient_accumulation_steps=4,
             num_workers=8, prefetch_factor=4, pin_memory=True, seed=42,
