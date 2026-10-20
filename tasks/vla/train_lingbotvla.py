@@ -333,6 +333,14 @@ class MyDataArguments(DataArguments):
         default=False,
         metadata={"help": "Disable processor resizing and verify the configured image/token grid."},
     )
+    roi_config: dict = field(
+        default_factory=dict,
+        metadata={"help": "Opt-in ROI-432 layout and embedded verified FK profile; empty keeps full views."},
+    )
+    roi_geometry_root: Optional[str] = field(
+        default=None,
+        metadata={"help": "Verified per-dataset/per-episode current camera geometry for ROI training."},
+    )
     norm_stats_file: str = field(
         default=None,
         metadata={"help": "Path to the normalization stats file."},
@@ -408,6 +416,10 @@ def main():
         config_kwargs=config_kwargs,
         moe_implementation=getattr(args.model, 'moe_implementation', None),
     )
+    if args.data.roi_config:
+        from lingbotvla.utils.ee_roi import canonical_hash
+        # Survives HF export; serving must not silently fall back to full views.
+        model.config.roi_config_sha256 = canonical_hash(args.data.roi_config)
     use_depth_align = True if args.train.align_params != {} else False
     use_future_depth = args.train.align_params.get('depth', {}).get('use_future_depth', False)
     use_future_video = use_depth_align and args.train.align_params.get('use_future_video', False)
@@ -692,11 +704,16 @@ def main():
             else:
                 logger.info_rank0(f"No checkpoints in {args.train.output_dir} now!")
     if candidates:
+        from lingbotvla.utils.ee_roi import check_roi_identity, ROIGeometryError
         last_err = None
         loaded = False
         for cp in candidates:
             state = {"model": model, "ema": None, "optimizer": optimizer, "extra_state": {}}  # cannot be None
             try:
+                checkpoint_config = os.path.join(cp, "hf_ckpt", "config.json")
+                if args.data.roi_config or os.path.isfile(checkpoint_config):
+                    with open(checkpoint_config, encoding="utf-8") as stream:
+                        check_roi_identity(json.load(stream), args.data.roi_config)
                 Checkpointer.load(cp, state, allow_partial_load=getattr(args.train, 'allow_partial_checkpoint', False))
                 global_step = state["extra_state"]["global_step"]
                 start_epoch = global_step // args.train.train_steps
@@ -727,12 +744,14 @@ def main():
                 logger.info_rank0(f"Load distributed checkpoint from {cp} successfully!")
                 loaded = True
                 break
+            except ROIGeometryError:
+                raise  # a different input representation is not a recoverable checkpoint failure
             except Exception as e:
                 last_err = e
                 logger.info_rank0(f"Failed to load checkpoint {cp}: {repr(e)}. Trying older one...")
                 continue
         if not loaded:
-            if args.train.load_checkpoint_path:
+            if args.train.load_checkpoint_path or args.data.roi_config:
                 raise RuntimeError(f"Cannot resume explicitly requested checkpoint: {load_checkpoint_path}") from last_err
             logger.info_rank0("Starting training from scratch. No valid checkpoint could be loaded.")
     else:

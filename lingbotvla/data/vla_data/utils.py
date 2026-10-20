@@ -145,6 +145,15 @@ class FeatureTransform:
         self.org_features = org_features
 
         self.normalizer = self.get_normalizer(norm_stats_path, do_nomalize, data_config)
+        self.roi_processor = None
+        if do_nomalize and not disabled_image_features:
+            from ...utils.ee_roi import build_roi_processor
+            self.roi_processor = build_roi_processor(data_config, model_config, processor)
+            if self.roi_processor is not None:
+                from ...utils.ee_roi import IMAGE_KEYS, ROIGeometryError
+                origins = [self.key_mapping[k]["origin_keys"] for k in self.feature_config.images]
+                if origins != list(IMAGE_KEYS):
+                    raise ROIGeometryError("ROI requires the RoboTwin head/left/right source mapping")
 
     def get_normalizer(self, norm_stats_path, do_nomalize, data_config):
 
@@ -387,6 +396,9 @@ class FeatureTransform:
 
 
     def apply(self, item, policy_eval=False):
+        if self.roi_processor is not None:
+            # Raw CHW frames and raw current joints, before normalization/mapping.
+            item, self.last_roi_diagnostics = self.roi_processor.prepare_sample(item)
         w_action = not policy_eval
         if w_action:
             item['action_is_pad'] = item[f"{self.org_features['actions'][0]}_is_pad"] if not len(self.actions_convert_from_state)>0 else item[f"{self.org_features['states'][0]}_is_pad"][1:]
@@ -463,6 +475,11 @@ class FeatureTransform:
             merge_size=merge_size,
             use_vision_boundaries=getattr(self.model_config, "qwen3vl_use_vision_boundaries", True),
         )
+        if self.roi_processor is not None:
+            from ...utils.ee_roi import ROIGeometryError
+            expected = 432 + (6 if getattr(self.model_config, "qwen3vl_use_vision_boundaries", True) else 0)
+            if image_token_count != expected or not bool(img_masks.all()):
+                raise ROIGeometryError("ROI-432 actual processor grid/masks changed the visual budget")
         batch_dict["image_token_count"] = image_token_count
         
         lang_tokens, lang_masks = prepare_language(self.model_config, self.tokenizer, batch_dict) # bs, seq_len

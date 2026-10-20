@@ -28,6 +28,11 @@ def render(checkpoint, qwen, output, norm_stats=None, data_config=None):
         training_yaml if training_yaml.is_file() else ROOT / 'configs/vla/robotwin/robotwin.yaml'
     )
     data = yaml.safe_load(source.read_text())['data']
+    # ROI checkpoints carry an input-representation fingerprint; losing the
+    # training YAML must fail rather than silently evaluate ordinary full views.
+    sys.path.insert(0, str(ROOT))
+    from lingbotvla.utils.ee_roi import check_roi_identity
+    check_roi_identity(model, data.get("roi_config"))
     for key in ('joints', 'norm_type'):
         data[key] = [str(item) if isinstance(item, dict) else item for item in data[key]]
     norm = norm_stats or data.get('norm_stats_file')
