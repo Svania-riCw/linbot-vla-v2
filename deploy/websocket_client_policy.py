@@ -1,7 +1,9 @@
 import logging
+import ipaddress
 import os
 import time
 from typing import Dict, Optional, Tuple
+from urllib.parse import urlsplit
 
 from typing_extensions import override
 import websockets.sync.client
@@ -43,6 +45,7 @@ class WebsocketClientPolicy:
                     additional_headers=headers,
                     ping_interval=ping_interval,
                     ping_timeout=ping_timeout,
+                    **_local_proxy_options(self._uri),
                 )
                 metadata = unpackb(conn.recv(timeout=self._request_timeout))
                 return conn, metadata
@@ -74,6 +77,18 @@ def _optional_float_env(name: str) -> Optional[float]:
     if value is None or value.lower() == "none":
         return None
     return float(value)
+
+
+def _local_proxy_options(uri: str) -> Dict:
+    """Local model RPC must not inherit HTTP/SOCKS proxy settings (websockets15)."""
+    host = urlsplit(uri).hostname
+    if host == 'localhost':
+        return {'proxy': None}
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return {}
+    return {'proxy': None} if address.is_loopback or address.is_unspecified else {}
 
 if __name__ == "__main__":
     policy_on_device = WebsocketClientPolicy(port=8000)
