@@ -6,7 +6,9 @@ import tempfile
 import unittest
 
 from tools.prepare_roi432 import recipes
-from xsy_utils.resolution_exp.roi432_runner import claim_once, validate_recipe, validate_smoke_continuation
+from xsy_utils.resolution_exp.roi432_runner import (
+    claim_once, validate_recipe, validate_smoke_continuation, validate_smoke_transfer,
+)
 
 
 class LaunchContractTest(unittest.TestCase):
@@ -77,6 +79,40 @@ class LaunchContractTest(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(ValueError):
                 validate_smoke_continuation(changed if subject is record else record,
                     changed if subject is owner else owner, changed if subject is state else state, plan)
+
+    def test_cross_host_transfer_requires_source_exit_and_exact_stage(self):
+        hashes = dict(config_sha256="recipe", reference_config_sha256="reference",
+                      roi_config_sha256="roi", clean_norm_sha256="norm")
+        plan = dict(node="node1", hostname="host1", **hashes)
+        owner = dict(node="node0", hostname="host0", pid=17, result=None, claimed_utc="original")
+        state = dict(pid=17, owner_node="node0", phase="waiting_for_smoke_resume_resources",
+                     target_steps=4, resumed_from_step=2, child_pid=None)
+        record = dict(source=dict(node="node0", hostname="host0", pid=17),
+                      target=dict(node="node1", hostname="host1"), claimed_utc="original",
+                      source_exit_verified=True, source_live_children=[], source_process_state="Z",
+                      next_phase="smoke_resume", checkpoint_step=2, checkpoint_complete=True,
+                      wandb_step=2, wandb_state="finished", **hashes)
+        validate_smoke_transfer(record, owner, state, plan)
+        for subject, key, value in (
+            (record, "source_exit_verified", False), (record, "source_live_children", [18]),
+            (record, "source_process_state", "S"), (record, "source", dict(node="node0", hostname="host0", pid=18)),
+            (record, "target", dict(node="node2", hostname="host2")), (record, "claimed_utc", "new"),
+            (record, "checkpoint_step", 5000), (record, "checkpoint_complete", False),
+            (record, "wandb_step", 0), (record, "wandb_state", "running"),
+            (record, "config_sha256", "changed"), (record, "reference_config_sha256", "changed"),
+            (record, "roi_config_sha256", "changed"), (record, "clean_norm_sha256", "changed"),
+            (owner, "result", "failed"), (state, "pid", 18), (state, "owner_node", "node1"),
+            (state, "phase", "smoke_resume"), (state, "target_steps", 5000),
+            (state, "resumed_from_step", 0), (state, "child_pid", 18),
+        ):
+            changed = copy.deepcopy(subject); changed[key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                validate_smoke_transfer(changed if subject is record else record,
+                    changed if subject is owner else owner, changed if subject is state else state, plan)
+        same_host = dict(plan, node="node0", hostname="host0")
+        record["target"] = dict(node="node0", hostname="host0")
+        with self.assertRaises(ValueError):
+            validate_smoke_transfer(record, owner, state, same_host)
 
 
 if __name__ == "__main__":

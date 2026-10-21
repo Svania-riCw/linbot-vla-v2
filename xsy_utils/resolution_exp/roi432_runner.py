@@ -108,15 +108,47 @@ def validate_smoke_continuation(record, owner, state, plan):
         raise ValueError("This record does not describe a stopped smoke-to-resume resource conflict")
 
 
+def validate_smoke_transfer(record, owner, state, plan):
+    """Accept only an explicit handoff after the source host verified its exit.
+
+    A target must never interpret its own /proc using the source host's PID.
+    The source proof and frozen shared-file hashes are checked before acceptance.
+    """
+    source = record.get("source", {})
+    target = record.get("target", {})
+    if (source != {key: owner.get(key) for key in ("node", "hostname", "pid")}
+            or target != {key: plan[key] for key in ("node", "hostname")}
+            or source.get("node") == target.get("node")
+            or source.get("hostname") == target.get("hostname")
+            or record.get("claimed_utc") != owner.get("claimed_utc")):
+        raise ValueError("Transfer source, destination or original claim does not match")
+    if (not record.get("source_exit_verified") or record.get("source_live_children") != []
+            or record.get("source_process_state") not in (None, "Z", "X")
+            or owner.get("result") is not None
+            or state.get("pid") != owner.get("pid")
+            or state.get("owner_node") != owner.get("node")
+            or state.get("phase") != "waiting_for_smoke_resume_resources"
+            or state.get("target_steps") != 4 or state.get("resumed_from_step") != 2
+            or state.get("child_pid") is not None
+            or record.get("next_phase") != "smoke_resume"
+            or record.get("checkpoint_step") != 2 or not record.get("checkpoint_complete")
+            or record.get("wandb_step") != 2 or record.get("wandb_state") != "finished"):
+        raise ValueError("Transfer requires a stopped childless waiter and audited DCP2")
+    for key in ("config_sha256", "reference_config_sha256", "roi_config_sha256", "clean_norm_sha256"):
+        if record.get(key) != plan[key]:
+            raise ValueError(f"Transfer changed comparison input: {key}")
+
+
 def main():
     import fcntl  # Linux-only process lock; recipe validation also runs on Windows.
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", type=Path, required=True)
-    parser.add_argument("--mode", choices=("smoke", "formal", "auto", "continue-smoke"), required=True)
+    parser.add_argument("--mode", choices=("smoke", "formal", "auto", "continue-smoke", "accept-smoke-transfer"), required=True)
     parser.add_argument("--continuation", type=Path)
     args = parser.parse_args()
-    assert (args.mode == "continue-smoke") == (args.continuation is not None)
+    continuing = args.mode in ("continue-smoke", "accept-smoke-transfer")
+    assert continuing == (args.continuation is not None)
     plan = read(args.plan)
     node = plan["node"]
     assert node in ("node0", "node1", "node2")
@@ -220,6 +252,34 @@ def main():
         owner.update(previous_pid=owner["pid"], pid=os.getpid(), result=None,
                      continuation=str(record_path), continued_utc=utc())
         owner.pop("error", None)
+    elif args.mode == "accept-smoke-transfer":
+        record_path = args.continuation.resolve()
+        record_path.relative_to(state_dir / "recoveries")
+        recovery = read(record_path)
+        owner = read(claim / "owner.json")
+        previous_state = read(state_dir / "status.json")
+        validate_smoke_transfer(recovery, owner, previous_state, plan)
+        age = (dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(recovery["utc"])).total_seconds()
+        assert 0 <= age <= 1800, "Transfer proof is stale; verify the source again explicitly"
+        # This PID belongs to the target host, unlike owner['pid'] above.
+        assert not alive(recovery["target_previous_candidate_pid"])
+        assert hashlib.sha256((claim / "owner.json").read_bytes()).hexdigest() == recovery["owner_sha256"]
+        assert hashlib.sha256((state_dir / "status.json").read_bytes()).hexdigest() == recovery["state_sha256"]
+        for filename, expected in recovery["checkpoint_file_hashes"].items():
+            assert hashlib.sha256(Path(filename).read_bytes()).hexdigest() == expected
+        output = job / "outputs" / f'{plan["experiment_id"]}_smoke_b1_384_m4'
+        engine.checkpoint_valid(output, 2)
+        assert not (output / "checkpoints/global_step_4").exists()
+        assert not (job / "outputs" / f'{plan["experiment_id"]}_train_b1_384_m4').exists()
+        assert not (state_dir / f'{output.name}_smoke_resume.log').exists()
+        with record_path.with_suffix(".accepted.json").open("x") as stream:
+            json.dump(dict(pid=os.getpid(), utc=utc(), node=node), stream)
+        owner.update(previous_node=owner["node"], previous_hostname=owner["hostname"],
+                     previous_pid=owner["pid"], node=node, hostname=plan["hostname"],
+                     pid=os.getpid(), result=None, continuation=str(record_path), transferred_utc=utc())
+        atomic(job / "nodes" / f'{recovery["source"]["node"]}.json',
+               dict(node=recovery["source"]["node"], pid=recovery["source"]["pid"],
+                    phase="transferred_after_verified_exit", target=node, utc=utc()))
     else:
         owner = read(claim / "owner.json")
         assert owner["hostname"] == plan["hostname"] and owner["node"] == node
@@ -231,7 +291,7 @@ def main():
     atomic(job / "nodes" / f"{node}.json", dict(node=node, pid=os.getpid(), phase="selected", utc=utc()))
     state = dict(pid=os.getpid(), owner_node=node, head=head, experiment="roi432_ee",
                  mode=args.mode, job=str(job), config=str(config_path), started_utc=utc())
-    if args.mode == "continue-smoke":
+    if continuing:
         state.update(continuation=str(record_path), next_phase="smoke_resume", resumed_from_step=2)
     logging = read(state_dir / "wandb_settings.json")
     assert logging["entity"] == "qlei34151-shanghaitech-university"
@@ -250,7 +310,7 @@ def main():
         output = job / "outputs" / run_name
         if resume:
             engine.checkpoint_valid(output, resume_step)
-            suffix = "_" + record_path.parent.name if args.mode == "continue-smoke" else ""
+            suffix = "_" + record_path.parent.name if continuing else ""
             before = state_dir / (phase + "_before_resume" + suffix)
             before.mkdir()
             for filename in ("lingbotvla_cli.yaml", "run_info.txt", "config.yaml"):
@@ -358,7 +418,7 @@ def main():
         atomic(job / "inputs/verified_smoke.json", evidence)
 
     try:
-        if args.mode == "continue-smoke":
+        if continuing:
             # This explicitly approved continuation holds the same claim while
             # waiting; it never touches another candidate or retries a child.
             while True:
@@ -378,9 +438,9 @@ def main():
             train(True, False)
             train(True, True)
             result = "smoke_complete"
-        if args.mode in ("auto", "continue-smoke"):
+        if args.mode in ("auto", "continue-smoke", "accept-smoke-transfer"):
             verify_smoke()
-        if args.mode in ("formal", "auto", "continue-smoke"):
+        if args.mode in ("formal", "auto", "continue-smoke", "accept-smoke-transfer"):
             train(False, False)
             engine.run_evaluation(state, experiment, 4, 5000, None)
             train(False, True)
