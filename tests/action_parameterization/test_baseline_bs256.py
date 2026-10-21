@@ -2,7 +2,7 @@ import copy
 from pathlib import Path
 import unittest
 
-from ysj_utils.train_baseline_bs256 import TARGETS, EVAL_TARGETS, check_source, stage_config, verify_updates
+from ysj_utils.train_baseline_bs256 import TARGETS, EVAL_TARGETS, check_source, stage_config, verify_updates, requested_stages
 
 
 class BaselineBatchTests(unittest.TestCase):
@@ -53,6 +53,16 @@ class BaselineBatchTests(unittest.TestCase):
         with self.assertRaises(ValueError):verify_updates(text,51,52)
         with self.assertRaises(ValueError):verify_updates(text+'\nLoss nan',51,51)
         with self.assertRaises(ValueError):verify_updates(text+'\nStarting training from scratch',51,51)
+
+    def test_final_only_skips_intermediate_eval_and_restart(self):
+        stages,evaluations=requested_stages(True)
+        self.assertEqual(stages,(50,5000,20000))
+        self.assertEqual(evaluations,(20000,))
+        self.assertEqual(requested_stages(False),(TARGETS,EVAL_TARGETS))
+        cfg=stage_config(self.source,Path('/runs'),20000,Path('/runs/step_05000/train/checkpoints/global_step_5000'))
+        self.assertEqual(cfg['train']['max_steps'],20000)
+        self.assertEqual(cfg['train']['lr_schedule_steps'],20000)
+        self.assertTrue(cfg['train']['require_resume'])
 
 
 if __name__=='__main__':unittest.main()

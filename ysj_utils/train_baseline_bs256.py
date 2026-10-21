@@ -20,6 +20,10 @@ EVAL_TARGETS = (5000, 10000, 20000)
 STEP_RE = re.compile(r'\bStep (\d+)/\d+,.*?Loss ([\d.eE+-]+),.*?GradNorm ([\d.eE+-]+), LR ([\d.eE+-]+),.*?StepTime ([\d.]+)s')
 
 
+def requested_stages(final_only):
+    return ((50, 5000, 20000), (20000,)) if final_only else (TARGETS, EVAL_TARGETS)
+
+
 def atomic_json(path, value):
     path = Path(path)
     temporary = path.with_suffix(path.suffix + '.tmp')
@@ -163,6 +167,8 @@ def main():
     parser.add_argument('--gpus', default='0,1,2,3,4,5,6,7')
     parser.add_argument('--gpu-wait-seconds', type=int, default=604800)
     parser.add_argument('--prepare-only', action='store_true')
+    parser.add_argument('--eval-final-only', action='store_true',
+                        help='Skip intermediate evals and the10k restart; train directly to20k, then evaluate350')
     args = parser.parse_args()
     args.run_dir=args.run_dir.resolve();args.source_run=args.source_run.resolve()
     ids=args.gpus.split(',')
@@ -183,6 +189,14 @@ def main():
             raise ValueError('Run identity changed')
         for path,sha in plan['protected_files'].items():
             if digest(path)!=sha:raise ValueError('Training input changed: '+path)
+        if args.eval_final_only and not plan.get('eval_final_only', False):
+            stamp=datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
+            change=dict(at=datetime.now(timezone.utc).isoformat(),reason='Explicit --eval-final-only request',
+                        previous_eval_targets=plan['eval_targets'],new_eval_targets=[20000])
+            atomic_json(args.run_dir/f'protocol_change_{stamp}.json',change)
+            plan.update(eval_final_only=True,eval_targets=[20000])
+            atomic_json(plan_path,plan)
+        targets,eval_targets=requested_stages(plan.get('eval_final_only',False))
         if args.prepare_only:
             print(json.dumps(plan,indent=2),flush=True);return
         source=yaml.safe_load((args.run_dir/'source_baseline.yaml').read_text())
@@ -194,7 +208,7 @@ def main():
             atomic_json(args.run_dir/'status.json',record);print(json.dumps(record),flush=True)
         previous=None;results={}
         try:
-            for target in TARGETS:
+            for target in targets:
                 directory=args.run_dir/f'step_{target:05d}';train_dir=directory/'train'
                 final=train_dir/f'checkpoints/global_step_{target}'
                 candidates=sorted((train_dir/'checkpoints').glob('global_step_*'),
@@ -232,7 +246,7 @@ def main():
                 contract=resolve_contract(hf)
                 if contract['mode']!='joint_absolute':raise ValueError('Unexpected inference action space')
                 previous=final
-                if target not in EVAL_TARGETS:continue
+                if target not in eval_targets:continue
                 complete=None
                 for report_path in sorted(directory.glob('evaluation_*.json')):
                     report=json.loads(report_path.read_text())
