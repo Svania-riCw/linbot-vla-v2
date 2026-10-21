@@ -1,0 +1,22 @@
+{
+  "at": "2026-10-21T04:51:53.750582+00:00",
+  "old_status": {
+    "state": "FAILED",
+    "at": "2026-10-21T00:45:20.695126+00:00",
+    "error": "CalledProcessError(1, ['/2025233210/xiesy/lingbot_ws/conda_envs/lingbotvla/bin/python', '/2025233210/ysj/lingbot_ws/linbot-vla-v2/ysj_utils/evaluate.py', '--mode', 'full', '--checkpoint', '/2025233210/ysj/lingbot_ws/outputs/baseline_bs256_20k_20261020/step_05000/train/checkpoints/global_step_5000/hf_ckpt', '--gpus', '0,1,2,3,4,5,6,7', '--seed', '0', '--port-base', '19330', '--use-compile', 'false', '--summary-output', '/2025233210/ysj/lingbot_ws/outputs/baseline_bs256_20k_20261020/step_05000/evaluation_20261021_003513.json'])"
+  },
+  "reason": "Simulator websocket client inherited HTTP proxy for ws://127.0.0.1; local RPC now explicitly disables proxy.",
+  "resumed_on_ssh_port": 30375,
+  "network_tests": {
+    "model": {
+      "exit_code": 0,
+      "output": "test_local_addresses_bypass_proxy (test_websocket_proxy.LocalProxyTests.test_local_addresses_bypass_proxy) ... ok\ntest_real_local_rpc_works_with_unavailable_proxy (test_websocket_proxy.LocalProxyTests.test_real_local_rpc_works_with_unavailable_proxy) ... ok\ntest_remote_address_retains_proxy_default (test_websocket_proxy.LocalProxyTests.test_remote_address_retains_proxy_default) ... ok\n\n----------------------------------------------------------------------\nRan 3 tests in 0.010s\n\nOK\n"
+    },
+    "sim": {
+      "exit_code": 0,
+      "output": "test_local_addresses_bypass_proxy (test_websocket_proxy.LocalProxyTests) ... ok\ntest_real_local_rpc_works_with_unavailable_proxy (test_websocket_proxy.LocalProxyTests) ... ok\ntest_remote_address_retains_proxy_default (test_websocket_proxy.LocalProxyTests) ... ok\n\n----------------------------------------------------------------------\nRan 3 tests in 0.007s\n\nOK\n"
+    }
+  },
+  "head": "3a53d7502922429619229d8c618f8910b86f613c",
+  "note": "Reuse unchanged BS256 global_step5000. Retry full350 evaluation before continuing10000/20000. No teammates stopped."
+}
