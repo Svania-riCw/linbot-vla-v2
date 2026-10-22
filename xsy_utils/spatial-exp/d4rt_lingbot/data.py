@@ -23,12 +23,19 @@ What differs from pi05, and why:
   pooled, per-frame p99-scaled) are computed on the fly instead of being stored.
 * Reliability. A query whose anchor (camera, frame) has ``depth_meta.reliable == False`` (the
   plane fit failed and the scale was interpolated) is masked out.
+* Input resolution / observation augmentation (``hooks.dataset_fields``). The model's view is
+  ``data.img_size`` (256 / 384), not 224; it is resized to the 224 canvas here, so the d4rt task
+  is the same at every input resolution. The full432 augmentation's 2-D scale/translation is one
+  axis-aligned affine shared by the three views; queries are sampled where the model's (augmented)
+  image shows the scene, ``d4rt_coords`` / ``d4rt_patches`` are taken from the augmented canvas,
+  and each target cell is the scene point under the corresponding augmented pixel.
 """
 
 from __future__ import annotations
 
 import json
 import pathlib
+import re
 from collections import OrderedDict
 
 import numpy as np
@@ -63,6 +70,39 @@ def canvas_to_native(rows: np.ndarray, cols: np.ndarray) -> tuple[np.ndarray, np
 def native_to_canvas(v: np.ndarray, u: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Native continuous (v, u) -> canvas continuous (row, col) pixel-index coordinates."""
     return v / SY - 0.5, u / SX - 0.5
+
+
+class CanvasAffine:
+    """The observation augmentation's 2-D scale/translation in canvas continuous coordinates.
+
+    ``lingbotvla/utils/observation_augmentation.py`` warps pixel indices with
+    ``x' = s x + (1 - s)(W - 1) / 2 + t W``; with continuous ``X = x + 0.5`` that is
+    ``X' = s X + (1 - s) W / 2 + t W`` -- resolution independent once normalized by W, so the
+    same (s, tx, ty) applies to the 224 canvas. ``None`` / no affine -> identity.
+    """
+
+    def __init__(self, scale: float = 1.0, tx: float = 0.0, ty: float = 0.0):
+        self.s = float(scale)
+        self.off_c = (1.0 - self.s) * CANVAS / 2 + float(tx) * CANVAS
+        self.off_r = (1.0 - self.s) * CANVAS / 2 + float(ty) * CANVAS
+        self.identity = self.s == 1.0 and self.off_c == 0.0 and self.off_r == 0.0
+
+    def fwd_idx(self, rows, cols):
+        """Source canvas pixel indices -> augmented canvas pixel indices (nearest)."""
+        if self.identity:
+            return np.asarray(rows, np.int64), np.asarray(cols, np.int64)
+        r = np.floor(self.s * (np.asarray(rows, np.float64) + 0.5) + self.off_r).astype(np.int64)
+        c = np.floor(self.s * (np.asarray(cols, np.float64) + 0.5) + self.off_c).astype(np.int64)
+        return r, c
+
+    def inv_cont(self, rows_c, cols_c):
+        """Augmented continuous (row, col) -> source canvas continuous (row, col)."""
+        if self.identity:
+            return rows_c, cols_c
+        return (rows_c - self.off_r) / self.s, (cols_c - self.off_c) / self.s
+
+
+IDENTITY = CanvasAffine()
 
 
 def quat_wxyz_to_mat(q: np.ndarray) -> np.ndarray:
@@ -275,7 +315,7 @@ class D4rtSampler:
         r, c = int(np.floor(r + 0.5)), int(np.floor(c + 0.5))
         return (r, c) if in_patch_bounds(np.int64(r), np.int64(c), self.p) else None
 
-    def _track_slots(self, e, frame, rng, cam, slots, coords, anchor, dt, mask, weights) -> None:
+    def _track_slots(self, e, frame, rng, cam, slots, coords, anchor, dt, mask, weights, aff=IDENTITY) -> None:
         """pi05 ``_track_slots``: tracked (source, anchor) pairs inside camera ``cam``."""
         tracks, tvis, starts = e["tracks"][cam], e["tvis"][cam], e["starts"][cam]
         length = tracks.shape[1]
@@ -295,7 +335,8 @@ class D4rtSampler:
         cols = np.floor(cols + 0.5).astype(np.int64)
         usable = np.asarray(tvis[w]) & in_patch_bounds(rows, cols, self.p)
         horizon = usable[i + 1 : i + dt_max + 1]
-        pts = np.flatnonzero(usable[i] & horizon.any(axis=0))
+        q_ok = in_patch_bounds(*aff.fwd_idx(rows[i], cols[i]), self.p)  # query visible after augmentation
+        pts = np.flatnonzero(usable[i] & q_ok & horizon.any(axis=0))
         if len(pts) == 0:
             return
         q_r, q_c = rows[i, pts], cols[i, pts]
@@ -315,11 +356,14 @@ class D4rtSampler:
             dt[j] = d
             mask[j] = True
 
-    def _gripper_time_slot(self, e, frame, rng, arm, coords, anchor, dt, mask, weights) -> None:
+    def _aug_ok(self, rc, aff) -> bool:
+        return rc is not None and bool(in_patch_bounds(*aff.fwd_idx(rc[0], rc[1]), self.p))
+
+    def _gripper_time_slot(self, e, frame, rng, arm, coords, anchor, dt, mask, weights, aff=IDENTITY) -> None:
         """Gripper slot's trajectory from the exact endpose projection; tracker fallback when out of view."""
         n_frames = e["depth"][CAM_HIGH].shape[0]
         src = self._grip_canvas(e, frame, arm)
-        if src is not None:
+        if self._aug_ok(src, aff):
             hi = min(self.max_dt, len(e["grip"]) - 1 - frame, n_frames - 1 - frame)
             choices = [d for d in range(1, hi + 1) if self._grip_canvas(e, frame + d, arm) is not None]
             if choices:
@@ -330,25 +374,39 @@ class D4rtSampler:
                 mask[arm] = True
                 return
         if self.gripper_fallback:
-            self._track_slots(e, frame, rng, CAM_HIGH, np.array([arm]), coords, anchor, dt, mask, weights)
+            self._track_slots(e, frame, rng, CAM_HIGH, np.array([arm]), coords, anchor, dt, mask, weights, aff)
 
     def patch_xyz(self, e: dict, cam: int, frame: int, row: int, col: int) -> np.ndarray | None:
         """p x p canvas patch centred at (row, col) -> [p, p, 3] metres in that camera's frame, or None if any cell is invalid."""
         half = self.p // 2
-        rr = np.arange(row - half, row - half + self.p)
-        cc = np.arange(col - half, col - half + self.p)
-        z = e["depth"][cam][frame][_ROW2V[rr][:, None], _COL2U[cc][None, :]].astype(np.float64) / 1000.0
+        rr = np.arange(row - half, row - half + self.p) + 0.5
+        cc = np.arange(col - half, col - half + self.p) + 0.5
+        return self.grid_xyz(e, cam, frame, rr, cc)
+
+    def grid_xyz(self, e: dict, cam: int, frame: int, rows_c: np.ndarray, cols_c: np.ndarray) -> np.ndarray | None:
+        """Separable grid of canvas continuous coordinates ([p] rows x [p] cols) -> [p, p, 3] metres in
+        that camera's frame (depth of the native pixel containing each point), or None if any cell is
+        off the image or has no depth."""
+        v1, u1 = rows_c * SY, cols_c * SX  # native continuous
+        if v1.min() < 0 or v1.max() >= NATIVE_H or u1.min() < 0 or u1.max() >= NATIVE_W:
+            return None
+        iv = np.minimum(np.floor(v1).astype(np.int64), NATIVE_H - 1)
+        iu = np.minimum(np.floor(u1).astype(np.int64), NATIVE_W - 1)
+        z = e["depth"][cam][frame][iv[:, None], iu[None, :]].astype(np.float64) / 1000.0
         if (z <= 0).any():
             return None
-        v, u = canvas_to_native(rr[:, None].astype(np.float64), cc[None, :].astype(np.float64))
+        v, u = v1[:, None], u1[None, :]
         k = e["intr"][cam, frame]
         x = (u - k[0, 2]) / k[0, 0] * z
         y = (v - k[1, 2]) / k[1, 1] * z
         return np.stack([x, y, z], axis=-1)
 
-    def __call__(self, task: str, episode: int, frame: int, images: np.ndarray | None) -> dict:
-        """``images``: the model's 224x224 views after colour augmentation, [3 cams, 3, 224, 224],
-        float in [0, 1] (or uint8). Returns numpy fields; all-masked if the episode has no data."""
+    def __call__(self, task: str, episode: int, frame: int, images: np.ndarray | None,
+                 affine: CanvasAffine | None = None) -> dict:
+        """``images``: the model's views after augmentation, resized to the canvas, [3 cams, 3, 224, 224],
+        float in [0, 1] (or uint8). ``affine``: the augmentation's 2-D scale/translation (None = none).
+        Returns numpy fields; all-masked if the episode has no data."""
+        aff = affine or IDENTITY
         e = self._store.get(task, episode)
         if e is None or images is None:
             return self.empty()
@@ -366,14 +424,23 @@ class D4rtSampler:
         n_grip = min(2, k) if self.force_gripper else 0
         src[:n_grip] = CAM_HIGH
 
+        cell_ok = self.cell_ok
+        if not aff.identity:  # every pixel of the cell's 4x4 jitter span must land inside the patch bounds
+            ar, ac = aff.fwd_idx(np.arange(CANVAS), np.arange(CANVAS))
+            half = p // 2
+            r_ok = ((ar >= half) & (ar < CANVAS - (p - half))).reshape(WRES, POOL).all(axis=1)
+            c_ok = ((ac >= half) & (ac < CANVAS - (p - half))).reshape(WRES, POOL).all(axis=1)
+            cell_ok = cell_ok & r_ok[:, None] & c_ok[None, :]
+            if not cell_ok.any():
+                return self.empty()
         coords = np.zeros((k, 2), np.int64)
         for c in range(N_CAMS):
             idx = np.flatnonzero(src == c)
             if len(idx):
-                coords[idx] = sample_cells(weights[c], rng, len(idx), self.alpha, self.gamma, self.cell_ok)
+                coords[idx] = sample_cells(weights[c], rng, len(idx), self.alpha, self.gamma, cell_ok)
         for arm in range(n_grip):
             g = self._grip_canvas(e, frame, arm)
-            if g is not None:
+            if self._aug_ok(g, aff):
                 coords[arm] = g
 
         anchor = coords.copy()
@@ -386,9 +453,9 @@ class D4rtSampler:
             for c in range(N_CAMS):
                 idx = tracked[src[tracked] == c]
                 if len(idx):
-                    self._track_slots(e, frame, rng, c, idx, coords, anchor, dt, mask, weights)
+                    self._track_slots(e, frame, rng, c, idx, coords, anchor, dt, mask, weights, aff)
             for j in time_slots[time_slots < n_grip]:
-                self._gripper_time_slot(e, frame, rng, int(j), coords, anchor, dt, mask, weights)
+                self._gripper_time_slot(e, frame, rng, int(j), coords, anchor, dt, mask, weights, aff)
 
         tgt = src.copy()
         he = task_vec == T_HANDEYE
@@ -399,6 +466,11 @@ class D4rtSampler:
             tgt[rg] = (src[rg] + rng.integers(1, N_CAMS, size=int(rg.sum()))) % N_CAMS
 
         ee_row = min(frame, len(e["ee"]) - 1)
+        # where the model sees each query (augmented canvas indices); the target cells are the scene
+        # points under the augmented p x p patch, i.e. source-canvas offsets (aug grid - centre) / s
+        # around the anchor (= the query itself unless dt > 0)
+        aug_r, aug_c = aff.fwd_idx(coords[:, 0], coords[:, 1])
+        offs = np.arange(-(p // 2), p - p // 2, dtype=np.float64)
         xyz = np.zeros((k, p, p, 3), np.float32)
         for j in range(k):
             if not mask[j]:
@@ -407,7 +479,10 @@ class D4rtSampler:
             if not (e["reliable"][cs][f] and (tgt[j] >= N_CAMS or e["reliable"][int(tgt[j])][frame])):
                 mask[j] = False
                 continue
-            pc = self.patch_xyz(e, cs, f, int(anchor[j, 0]), int(anchor[j, 1]))
+            gr, gc = aff.inv_cont(aug_r[j] + 0.5 + offs, aug_c[j] + 0.5 + offs)
+            gr = gr - (coords[j, 0] + 0.5) + (anchor[j, 0] + 0.5)
+            gc = gc - (coords[j, 1] + 0.5) + (anchor[j, 1] + 0.5)
+            pc = self.grid_xyz(e, cs, f, gr, gc)
             if pc is None:
                 mask[j] = False
                 continue
@@ -431,12 +506,12 @@ class D4rtSampler:
         half = p // 2
         patches = np.zeros((k, 3, p, p), np.float32)
         for j in range(k):
-            r, c = int(coords[j, 0]), int(coords[j, 1])
+            r, c = int(aug_r[j]), int(aug_c[j])
             patches[j] = imgs[int(src[j]), :, r - half : r - half + p, c - half : c - half + p]
         patches = patches * 2.0 - 1.0
 
         return {
-            "d4rt_coords": coords,
+            "d4rt_coords": np.stack([aug_r, aug_c], axis=-1).astype(np.int64),
             "d4rt_cam": src,
             "d4rt_tgt": tgt,
             "d4rt_dt": dt,
@@ -448,9 +523,10 @@ class D4rtSampler:
 
 
 def task_from_repo(repo_id: str) -> str:
-    """'/.../lerobot/robotwin_clean_<task>' -> '<task>'."""
+    """'/.../lerobot/robotwin_clean_<task>' (H20) or '/.../<task>-aloha-agilex_clean_50-50'
+    (PPU-side conversion, legacy_lingbot/data/robotwin_clean50_lerobot) -> '<task>'."""
     name = pathlib.Path(str(repo_id).rstrip("/")).name
-    return name.removeprefix("robotwin_clean_")
+    return re.sub(r"-aloha-agilex_clean_50-\d+$", "", name.removeprefix("robotwin_clean_"))
 
 
 def load_info(root: str | pathlib.Path = D4RT_ROOT) -> dict:

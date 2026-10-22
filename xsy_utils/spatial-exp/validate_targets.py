@@ -37,9 +37,10 @@ def main() -> None:
     ap.add_argument("--tasks", default="place_shoe,stack_blocks_three,put_bottles_dustbin,open_laptop")
     ap.add_argument("--episodes", default="0,7")
     ap.add_argument("--frames", type=int, default=40, help="frames per episode, evenly spaced")
+    ap.add_argument("--root", default=str(D.D4RT_ROOT))
     args = ap.parse_args()
 
-    s = D.D4rtSampler()
+    s = D.D4rtSampler(root=args.root)
     p, half = s.p, s.p // 2
     err = collections.defaultdict(list)
     n_task = collections.Counter()

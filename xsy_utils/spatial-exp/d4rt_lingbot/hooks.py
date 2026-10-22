@@ -29,7 +29,7 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from .data import D4rtSampler, task_from_repo
+from .data import CANVAS, CanvasAffine, D4rtSampler, task_from_repo
 from .probe import D4rtProbe
 
 D4RT_KEYS = ("d4rt_coords", "d4rt_cam", "d4rt_tgt", "d4rt_dt", "d4rt_task", "d4rt_target", "d4rt_mask", "d4rt_patches")
@@ -154,16 +154,42 @@ def _sampler(config) -> D4rtSampler:
     return _SAMPLER
 
 
-def dataset_fields(config, repo_id: str, raw_item: dict, item: dict) -> dict:
+def to_canvas(imgs: np.ndarray) -> np.ndarray:
+    """The model's views [n, 3, H, W] (``data.img_size``: 256 / 384, uint8 or float [0, 1]) ->
+    [n, 3, 224, 224] float32 in [0, 1], area-resized (half-pixel centres, as the sampler assumes)."""
+    x = np.asarray(imgs).astype(np.float32)
+    if np.asarray(imgs).dtype == np.uint8 or x.max() > 1.5:
+        x = x / 255.0
+    if x.shape[-2:] == (CANVAS, CANVAS):
+        return x
+    import cv2
+
+    out = np.empty(x.shape[:-2] + (CANVAS, CANVAS), np.float32)
+    for i in range(x.shape[0]):
+        out[i] = cv2.resize(x[i].transpose(1, 2, 0), (CANVAS, CANVAS), interpolation=cv2.INTER_AREA).transpose(2, 0, 1)
+    return out
+
+
+def canvas_affine(aug_plan: dict | None) -> CanvasAffine | None:
+    """Plan of ``lingbotvla/utils/observation_augmentation.ObservationAugmenter.sample`` -> its 2-D
+    scale/translation (shared by all views and frames), or None if this sample was not warped."""
+    if not aug_plan or aug_plan.get("keep_original") or not aug_plan.get("affine"):
+        return None
+    tx, ty = aug_plan["translation"]
+    return CanvasAffine(aug_plan["scale"], tx, ty)
+
+
+def dataset_fields(config, repo_id: str, raw_item: dict, item: dict, aug_plan: dict | None = None) -> dict:
     """Called per sample after the feature transform. ``item['pil_images']`` are the model's
-    3 views after colour augmentation, [3, 3, 224, 224]."""
+    3 views after augmentation, [3, 3, img_size, img_size]; ``aug_plan`` the observation
+    augmentation's plan for this sample (None when that augmentation is off)."""
     ep = int(np.asarray(raw_item["episode_index"]).reshape(-1)[0])
     frame = int(np.asarray(raw_item["frame_index"]).reshape(-1)[0])
     imgs = item.get("pil_images")
     if imgs is None or (hasattr(imgs, "__len__") and len(imgs) == 0):
-        raise RuntimeError("d4rt needs the augmented 224x224 views (pil_images): enable align_params / use_depth_align.")
-    imgs = imgs.cpu().numpy() if torch.is_tensor(imgs) else np.asarray(imgs)
-    fields = _sampler(config)(task_from_repo(repo_id), ep, frame, imgs)
+        raise RuntimeError("d4rt needs the model's augmented views (pil_images): enable align_params / use_depth_align.")
+    imgs = to_canvas(imgs.cpu().numpy() if torch.is_tensor(imgs) else np.asarray(imgs))
+    fields = _sampler(config)(task_from_repo(repo_id), ep, frame, imgs, canvas_affine(aug_plan))
     return {k: torch.from_numpy(v) for k, v in fields.items()}
 
 

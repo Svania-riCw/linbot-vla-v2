@@ -301,7 +301,10 @@ class VLADataset(Dataset):
         if self.transform is not None:
             item = self.transform(item, raw_item, self.feature_transform.feature_config.images, self.feature_transform.key_mapping)
         if use_d4rt:
-            item.update(d4rt().dataset_fields(self.config, self.repo_id, index_item, item))
+            aug_plan = None
+            if self.feature_transform.observation_augmenter is not None:
+                aug_plan = (getattr(self.feature_transform, "last_augmentation_report", None) or {}).get("plan")
+            item.update(d4rt().dataset_fields(self.config, self.repo_id, index_item, item, aug_plan))
         return item
 
     def __getitem__(self, idx):
