@@ -13,6 +13,15 @@ Every hook is a no-op unless the model config carries ``d4rt_params: {enable: tr
     xyz_scale         float  1.2
     max_dt            int    49
     width / depth / num_heads / head_dim / mlp_dim      1024 / 3 / 8 / 128 / 4096
+    context           str    prefix         prefix: every prefix token (image, text, alignment
+                                            queries); visual_state: image patch tokens only, plus
+                                            the raw robot state as one token (probe's own Linear)
+    cotrain_every     int    0              >0: after every N-th action step run one d4rt-only
+                                            step (prefix forward, d4rt loss only, action expert
+                                            untouched, LR schedule not advanced) on a separate,
+                                            perturbed data stream
+    perturb           str    ""             JSON from calibrate_perturb.py: the random-domain
+                                            photometric perturbation used on d4rt-only steps
 """
 
 from __future__ import annotations
@@ -43,7 +52,11 @@ _DEFAULTS = {
     "alpha": 0.1,
     "gamma": 2.0,
     "seed": 0,
+    "context": "prefix",
+    "cotrain_every": 0,
+    "perturb": "",
 }
+CONTEXTS = ("prefix", "visual_state")
 
 
 def params(config) -> dict:
@@ -53,7 +66,10 @@ def params(config) -> dict:
     unknown = set(raw) - set(_DEFAULTS)
     if unknown:
         raise ValueError(f"unknown d4rt_params keys: {sorted(unknown)}")
-    return {**_DEFAULTS, **raw}
+    p = {**_DEFAULTS, **raw}
+    if p["context"] not in CONTEXTS:
+        raise ValueError(f"d4rt_params.context must be one of {CONTEXTS}, got {p['context']!r}")
+    return p
 
 
 def enabled(config) -> bool:
@@ -63,6 +79,7 @@ def enabled(config) -> bool:
 # ---- model -----------------------------------------------------------------------------
 def build_probe(config, context_width: int) -> D4rtProbe:
     p = params(config)
+    state_dim = int(config.max_state_dim) if p["context"] == "visual_state" else 0
     probe = D4rtProbe(
         context_width=context_width,
         width=p["width"],
@@ -73,6 +90,7 @@ def build_probe(config, context_width: int) -> D4rtProbe:
         patch_size=p["patch_size"],
         max_dt=p["max_dt"],
         xyz_scale=p["xyz_scale"],
+        state_dim=state_dim,
     )
     probe.reset_parameters()
     return probe
@@ -85,12 +103,18 @@ def pop_batch(kwargs: dict) -> dict | None:
 
 
 def model_loss(config, probe: D4rtProbe, prefix_hidden: torch.Tensor, prefix_pad_masks: torch.Tensor,
-               batch: dict | None) -> tuple[torch.Tensor | float, dict]:
-    """-> (weighted loss to add to the total, metrics incl. ``d4rt/loss`` unweighted)."""
+               batch: dict | None, visual_pos_masks: torch.Tensor | None = None,
+               state: torch.Tensor | None = None) -> tuple[torch.Tensor | float, dict]:
+    """-> (weighted loss to add to the total, metrics incl. ``d4rt/loss`` unweighted).
+    ``visual_pos_masks`` [b, prefix_len] marks the image patch tokens (from ``embed_prefix``)."""
     if batch is None:
         return 0.0, {}
-    loss, metrics = probe.loss(prefix_hidden, prefix_pad_masks, batch)
-    w = params(config)["loss_weight"]
+    p = params(config)
+    mask = prefix_pad_masks.bool()
+    if p["context"] == "visual_state":
+        mask = mask & visual_pos_masks.bool()
+    loss, metrics = probe.loss(prefix_hidden, mask, batch, state=state if p["context"] == "visual_state" else None)
+    w = p["loss_weight"]
     metrics["d4rt/loss_weighted"] = (loss * w).detach()
     return loss * w, metrics
 
@@ -141,3 +165,43 @@ def dataset_fields(config, repo_id: str, raw_item: dict, item: dict) -> dict:
     imgs = imgs.cpu().numpy() if torch.is_tensor(imgs) else np.asarray(imgs)
     fields = _sampler(config)(task_from_repo(repo_id), ep, frame, imgs)
     return {k: torch.from_numpy(v) for k, v in fields.items()}
+
+
+# ---- d4rt-only co-training ------------------------------------------------------------
+def cotrain_every(config) -> int:
+    return int(params(config)["cotrain_every"]) if enabled(config) else 0
+
+
+def make_perturbed(dataset, config) -> None:
+    """Give every sub-dataset's feature transform the calibrated random-domain perturbation.
+    The baseline trains with ``data.image_augment: false`` (no colour augmentation at all); on this
+    separate stream train-mode image processing is switched on and ``prepare_images`` applies the
+    perturbation *instead of* the standard colour augmentation, so the perturbation is the only
+    photometric change. The action stream is untouched."""
+    from .perturb import Perturb
+
+    path = params(config)["perturb"]
+    if not path:
+        raise ValueError("d4rt_params.cotrain_every > 0 needs d4rt_params.perturb (calibrate_perturb.py output)")
+    pert = Perturb(path)
+    subs = getattr(dataset, "_datasets", None) or [dataset]
+    seen = set()
+    for d in subs:
+        ft = d.feature_transform
+        if id(ft) in seen:
+            continue
+        seen.add(id(ft))
+        ft.image_augment = True
+        ft.visual_perturb = pert
+
+
+def d4rt_only_trainable(name: str) -> bool:
+    """Parameters a d4rt-only step may update: the VLM (vision + LLM), the prefix alignment-query
+    embeddings the probe reads, and the probe. Everything else (action expert, state/action
+    projections, alignment heads) keeps its grad None, so the optimizer skips it entirely."""
+    return (
+        ".qwenvl_with_expert.qwenvl." in f".{name}"
+        or f".{PROBE_ATTR}." in f".{name}"
+        or name.split(".")[-1].endswith("_align_embs")
+        or "_align_embs." in name
+    )

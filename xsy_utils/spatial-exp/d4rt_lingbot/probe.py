@@ -8,6 +8,7 @@ unified decoding (no offset head), xyz target space, target-frame table of 5, dt
     query = LN( patch_proj(RGB 14x14 @ (u,v) in c_src) + fourier(u, v) + cam_embed(c_src)
                 + dt_embed(dt) + tgt_embed(F) )
     context = context_proj(VLM prefix hidden states)          # all prefix tokens, padding masked
+              (d4rt_params.context = visual_state: only the image patch tokens + state_proj(state))
     x = query; for block: x = CrossAttnBlock(x, context)       # pre-LN attn + SwiGLU MLP
     pred = to_pred(LN(x)) -> [K, 14, 14, 3]                    # xyz / 1.2 m in frame F
     loss = masked mean |pred - target|                          # L1, x 0.1 in the total loss
@@ -71,6 +72,7 @@ class D4rtProbe(nn.Module):
         max_dt: int = 49,
         xyz_scale: float = 1.2,
         fourier_seed: int = 0,
+        state_dim: int = 0,
     ):
         super().__init__()
         if width % 2:
@@ -84,6 +86,8 @@ class D4rtProbe(nn.Module):
         self.dt_embed = nn.Embedding(max_dt + 1, width)
         self.query_norm = nn.LayerNorm(width, bias=False)
         self.context_proj = nn.Linear(context_width, width, bias=False)
+        # context "visual_state": the raw (normalized, padded) robot state as one extra context token
+        self.state_proj = nn.Linear(state_dim, width, bias=False) if state_dim else None
         self.blocks = nn.ModuleList(CrossAttnBlock(width, num_heads, head_dim, mlp_dim) for _ in range(depth))
         self.out_norm = nn.LayerNorm(width, bias=False)
         self.to_pred = nn.Linear(width, patch_size * patch_size * 3, bias=False)
@@ -128,21 +132,28 @@ class D4rtProbe(nn.Module):
         )
         return self.query_norm(q)
 
-    def forward(self, context, context_mask, patches, coords, cam, dt, tgt) -> torch.Tensor:
-        """-> [b, k, p, p, 3] normalized xyz."""
+    def forward(self, context, context_mask, patches, coords, cam, dt, tgt, state=None) -> torch.Tensor:
+        """-> [b, k, p, p, 3] normalized xyz. ``state`` [b, state_dim] is appended as one context
+        token when the probe was built with ``state_dim``."""
         x = self.build_queries(patches, coords, cam, dt, tgt)
         ctx = self.context_proj(context.to(self.context_proj.weight.dtype))
         mask = context_mask.bool()
+        if self.state_proj is not None:
+            if state is None:
+                raise ValueError("probe built with state_dim needs state")
+            s = self.state_proj(state.to(self.state_proj.weight.dtype))[:, None]
+            ctx = torch.cat([ctx, s], dim=1)
+            mask = torch.cat([mask, mask.new_ones(mask.shape[0], 1)], dim=1)
         for blk in self.blocks:
             x = blk(x, ctx, mask)
         raw = self.to_pred(self.out_norm(x))
         return raw.view(*raw.shape[:2], self.p, self.p, 3)
 
-    def loss(self, context, context_mask, batch: dict) -> tuple[torch.Tensor, dict]:
+    def loss(self, context, context_mask, batch: dict, state=None) -> tuple[torch.Tensor, dict]:
         """Masked L1 over the xyz patch + reporting metrics (mm errors per task, constant baseline)."""
         pred = self(
             context, context_mask, batch["d4rt_patches"], batch["d4rt_coords"], batch["d4rt_cam"],
-            batch["d4rt_dt"], batch["d4rt_tgt"],
+            batch["d4rt_dt"], batch["d4rt_tgt"], state=state,
         ).float()
         target = batch["d4rt_target"].float()
         mask = batch["d4rt_mask"].float()

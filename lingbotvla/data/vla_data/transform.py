@@ -285,6 +285,7 @@ def prepare_images(
     return_image_grid_thw=False,
     augment_params=None,
     return_augment_params=False,
+    visual_perturb=None,
 ):
     """Normalize, resize, and pad images and stack them into a tensor.
 
@@ -302,6 +303,10 @@ def prepare_images(
     image_grid_thw_dict = {}
     image_keys = image_keys if image_keys is not None else IMAGE_KEYS
     if train:
+        if visual_perturb is not None and augment_params is None:
+            # xsy_utils/spatial-exp d4rt-only steps: the calibrated random-domain perturbation
+            # replaces the standard colour augmentation (one draw per sample, shared by all views)
+            augment_params = {"rt_perturb": visual_perturb.sample()}
         for key in image_keys:
             if key in observation["image"]:
                 if augment_params is None:
@@ -319,10 +324,13 @@ def prepare_images(
             if augment_params is None:
                 augment_params = sample_visual_augmentation_params(img)
 
-            img = apply_visual_augmentation(
-                img,
-                augment_params,
-            )
+            if "rt_perturb" in augment_params:
+                img = visual_perturb(img, augment_params["rt_perturb"])
+            else:
+                img = apply_visual_augmentation(
+                    img,
+                    augment_params,
+                )
 
         if use_depth_align:
             pil_image_dict[key] = img.cpu().numpy()

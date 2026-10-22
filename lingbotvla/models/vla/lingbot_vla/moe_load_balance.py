@@ -76,7 +76,8 @@ def build_moe_load_balance_hook(model, coeff: float, group=None, bias_centering:
     _state = {"step": 0}
 
     def _hook(optimizer, *args, **kwargs):
-        if not moe_blocks:
+        if not moe_blocks or getattr(_hook, "paused", False):
+            # paused: an optimizer step that did not run the MoE (xsy_utils/spatial-exp d4rt-only)
             return
 
         _state["step"] += 1

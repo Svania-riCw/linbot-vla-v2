@@ -46,6 +46,7 @@ from lingbotvla.models.vla.vision_models.module_utils import (
     log_video,
 )
 from lingbotvla.models.vla.lingbot_vla.moe_load_balance import build_moe_load_balance_hook
+from lingbotvla.spatial_exp import d4rt, d4rt_enabled
 import gc
 gc.set_threshold(50000, 50, 50)
 
@@ -476,6 +477,35 @@ def main():
     else:
         raise NotImplementedError(f"Unsupported dataloader type: {args.data.dataloader_type}.")
 
+    # xsy_utils/spatial-exp d4rt-only co-training: a separate data stream (its own dataset copy,
+    # sampler seed + 1, calibrated random-domain perturbation) so the action steps see exactly the
+    # same samples as without co-training.
+    cotrain_every = d4rt().cotrain_every(model.config) if d4rt_enabled(model.config) else 0
+    rt_dataloader, rt_iter, rt_epoch = None, None, 0
+    if cotrain_every:
+        rt_dataset = build_vla_dataset(dataset_config=args.data, model_config=args.model, config=model.config, processor=processor, use_depth_align=use_depth_align)
+        d4rt().make_perturbed(rt_dataset, model.config)
+        rt_dataloader = build_dataloader(
+            dataset=rt_dataset,
+            micro_batch_size=args.train.micro_batch_size,
+            global_batch_size=args.train.global_batch_size,
+            dataloader_batch_size=args.train.dataloader_batch_size,
+            seed=args.train.seed + 1,
+            collate_fn=data_collate_fn,
+            max_seq_len=args.data.max_seq_len,
+            train_steps=args.train.train_steps,
+            rmpad=args.train.rmpad,
+            rmpad_with_pos_ids=args.train.rmpad_with_pos_ids,
+            bsz_warmup_ratio=args.train.bsz_warmup_ratio,
+            dyn_bsz_margin=args.train.dyn_bsz_margin,
+            dyn_bsz_buffer_size=args.train.dyn_bsz_buffer_size,
+            num_workers=args.data.num_workers,
+            drop_last=args.data.drop_last,
+            pin_memory=args.data.pin_memory,
+            prefetch_factor=args.data.prefetch_factor if args.data.num_workers > 0 else None,
+        )
+        logger.info_rank0(f"d4rt co-training: one d4rt-only step after every {cotrain_every} action steps")
+
     fsdp_kwargs = {}
     if args.train.freeze_vit:
         model.visual.requires_grad_(False)
@@ -552,6 +582,7 @@ def main():
     # last_tokens_per_expert (the global load used for monitoring). Setting
     # bias_update_speed=0 makes the bias update a no-op (bias frozen at 0) while
     # keeping the global load monitoring intact.
+    _lb_hook = None
     if args.train.use_moe:
         _lb_hook = build_moe_load_balance_hook(
             model, coeff=args.train.bias_update_speed, bias_centering=args.train.bias_centering,
@@ -916,6 +947,78 @@ def main():
             if hasattr(grad_norm, "full_tensor"):
                 grad_norm = grad_norm.full_tensor().item()
 
+            # xsy_utils/spatial-exp d4rt-only co-training step (after every `cotrain_every`-th
+            # action step): perturbed batch from the separate stream, prefix forward only, d4rt
+            # loss only. Only the VLM / alignment-query embeddings / probe are updated (all other
+            # grads are set to None so the optimizer skips them, incl. state and weight decay);
+            # the LR schedule is not advanced and the MoE load-balance hook is paused.
+            rt_log = {}
+            if cotrain_every and global_step % cotrain_every == 0:
+                try:
+                    rt_batches = next(rt_iter) if rt_iter is not None else None
+                except StopIteration:
+                    rt_batches = None
+                if rt_batches is None:
+                    if rt_iter is not None:
+                        rt_epoch += 1
+                    if hasattr(rt_dataloader, "set_epoch"):
+                        rt_dataloader.set_epoch(rt_epoch)
+                    rt_iter = iter(rt_dataloader)
+                    rt_batches = next(rt_iter)
+                torch.cuda.synchronize()
+                rt_start = time.time()
+                for rt_mb in rt_batches:
+                    rt_mb.pop("rep_id", None)
+                    rt_mb = {k: v.cuda(non_blocking=True) if isinstance(v, torch.Tensor) else v for k, v in rt_mb.items()}
+                    for _k in ("future_video_effective_fps", "pil_images", "future_pil_images"):
+                        rt_mb.pop(_k, None)
+                    with model_fwd_context:
+                        rt_loss, rt_metrics = model(**rt_mb, d4rt_only=True)
+                        rt_loss = rt_loss / len(rt_batches)
+                    with model_bwd_context:
+                        rt_loss.backward()
+                    for _k, _v in rt_metrics.items():
+                        rt_log[_k] = rt_log.get(_k, 0.0) + float(_v) / len(rt_batches)
+                    del rt_mb
+                n_kept, n_dropped = 0, 0
+                for _n, _p in model.named_parameters():
+                    if _p.grad is None:
+                        continue
+                    if d4rt().d4rt_only_trainable(_n):
+                        n_kept += 1
+                    else:
+                        _p.grad = None
+                        n_dropped += 1
+                if global_step == cotrain_every:
+                    logger.info(
+                        f"[rank {args.train.global_rank}] first d4rt-only step: {n_kept} params updated, "
+                        f"{n_dropped} non-VLM grads dropped"
+                    )
+                if args.train.data_parallel_mode == "fsdp1":
+                    rt_grad_norm = model.clip_grad_norm_(max_grad_norm).item()
+                elif hasattr(model, '_ep_param_set'):
+                    from lingbotvla.distributed.fsdp2.clip_grad_norm import ep_fsdp2_clip_grad_norm
+                    rt_grad_norm = ep_fsdp2_clip_grad_norm(model, max_grad_norm)
+                else:
+                    rt_grad_norm = torch.nn.utils.clip_grad_norm_(
+                        [p for p in model.parameters() if p.grad is not None], max_grad_norm, foreach=True
+                    )
+                if _lb_hook is not None:
+                    _lb_hook.paused = True
+                optimizer.step()
+                if _lb_hook is not None:
+                    _lb_hook.paused = False
+                optimizer.zero_grad()
+                if hasattr(rt_grad_norm, "full_tensor"):
+                    rt_grad_norm = rt_grad_norm.full_tensor().item()
+                torch.cuda.synchronize()
+                rt_log["d4rt_only/grad_norm"] = float(rt_grad_norm)
+                rt_log["d4rt_only/step_time"] = time.time() - rt_start
+                _keys = sorted(rt_log)
+                _vals = torch.tensor([rt_log[_k] for _k in _keys], device="cuda")
+                dist.all_reduce(_vals, op=dist.ReduceOp.AVG, group=get_parallel_state().fsdp_group)
+                rt_log = dict(zip(_keys, _vals.tolist()))
+
             # collect mean loss across data parallel group
             total_loss, total_vla_loss, total_depth_loss, total_future_depth_loss, total_future_video_loss, total_seq_wise_loss, total_router_z_loss, avg_lang_length, grad_norm = all_reduce((total_loss, total_vla_loss, total_depth_loss, total_future_depth_loss, total_future_video_loss, total_seq_wise_loss, total_router_z_loss, avg_lang_length, grad_norm), group=get_parallel_state().fsdp_group)
             total_depth_loss = total_depth_loss / depth_loss_weight
@@ -923,6 +1026,8 @@ def main():
             total_future_video_loss = total_future_video_loss / future_video_loss_weight
             torch.cuda.synchronize()
             delta_time = time.time() - start_time
+            if rt_log:  # report the action step's own time; the d4rt-only step is RT_StepTime
+                delta_time -= rt_log["d4rt_only/step_time"]
             all_lrs = lr_scheduler.get_last_lr()
             if args.train.use_moe_expert_lr and len(all_lrs) > 1:
                 lr = min(all_lrs)          # base (non-expert) lr
@@ -942,6 +1047,11 @@ def main():
                     f"(dep {d4rt_log.get('d4rt/xyz_l2_mm_depth', 0):.1f} tim {d4rt_log.get('d4rt/xyz_l2_mm_time', 0):.1f} "
                     f"he {d4rt_log.get('d4rt/xyz_l2_mm_handeye', 0):.1f} reg {d4rt_log.get('d4rt/xyz_l2_mm_reg', 0):.1f}), "
                     f"D4rt_Mask {d4rt_log.get('d4rt/mask_frac', 0):.3f}, "
+                )
+            if rt_log:
+                d4rt_str += (
+                    f"RT_D4rt_Loss {rt_log.get('d4rt/loss', 0):.4f}, RT_D4rt_mm {rt_log.get('d4rt/xyz_l2_mm', 0):.1f}, "
+                    f"RT_GradNorm {rt_log['d4rt_only/grad_norm']:.4f}, RT_StepTime {rt_log['d4rt_only/step_time']:.3f}s, "
                 )
             train_metrics = environ_meter.step(delta_time, global_step=global_step)
             data_loader_tqdm.set_postfix(
@@ -980,6 +1090,8 @@ def main():
                 writer.add_scalar("training/vla_loss", total_vla_loss, global_step)
                 for _k, _v in d4rt_log.items():
                     writer.add_scalar(f"training/{_k}", _v, global_step)
+                for _k, _v in rt_log.items():
+                    writer.add_scalar(f"training/rt/{_k}", _v, global_step)
                 writer.add_scalar("training/depth_loss", total_depth_loss, global_step)
                 writer.add_scalar("training/future_depth_loss", total_future_depth_loss, global_step)
                 writer.add_scalar("training/future_video_loss", total_future_video_loss, global_step)

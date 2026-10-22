@@ -1,0 +1,61 @@
+{
+ "ranges": {
+  "gain_r": [
+   -0.1656839399129309,
+   -0.09637705215268862
+  ],
+  "gain_g": [
+   -0.12495967405014174,
+   -0.09427570743564852
+  ],
+  "gain_b": [
+   -0.1909839269611562,
+   -0.0649630564288225
+  ],
+  "brightness": [
+   -1.7315152547709818,
+   -1.2460808398041612
+  ],
+  "contrast": [
+   5.265553699826378,
+   5.750800642688102
+  ],
+  "saturation": [
+   1.8527352248094184,
+   2.0593383239881864
+  ],
+  "hue": [
+   -0.6981821673971245
+  ],
+  "gamma": [
+   -0.43589995838912027,
+   -0.21976058378282914
+  ],
+  "blur": [
+   0.6209318955770489
+  ]
+ },
+ "describe": "gain_r x[0.847, 0.908], gain_g x[0.883, 0.910], gain_b x[0.826, 0.937], brightness x[0.177, 0.288], contrast [5.266, 5.751], saturation [1.853, 2.059], hue +-40.0 deg, gamma x[0.647, 0.803], blur [0, 0.62] px",
+ "fit_objective_112": 1.7811,
+ "report_224": [
+  "clean(eval)      W1/std total 37.219 | mean_r 10.64 mean_g 9.96 mean_b 7.94 lum_std 1.95 mean_i 0.67 mean_q 0.77 chroma 1.57 hsv_sat 2.09 std_i 0.61 std_q 0.64 sharp 0.39",
+  "clean(train)     W1/std total 37.609 | mean_r 10.30 mean_g 9.59 mean_b 7.54 lum_std 2.29 mean_i 0.62 mean_q 0.81 chroma 1.70 hsv_sat 2.11 std_i 0.99 std_q 0.90 sharp 0.76",
+  "random(eval)     W1/std total  0.000 | mean_r 0.00 mean_g 0.00 mean_b 0.00 lum_std 0.00 mean_i 0.00 mean_q 0.00 chroma 0.00 hsv_sat 0.00 std_i 0.00 std_q 0.00 sharp 0.00",
+  "perturbed(eval)  W1/std total  2.630 | mean_r 0.15 mean_g 0.08 mean_b 0.09 lum_std 0.11 mean_i 0.09 mean_q 0.17 chroma 0.07 hsv_sat 0.10 std_i 0.25 std_q 0.29 sharp 1.25",
+  "perturbed(train) W1/std total  3.532 | mean_r 0.17 mean_g 0.07 mean_b 0.09 lum_std 0.37 mean_i 0.10 mean_q 0.14 chroma 0.24 hsv_sat 0.26 std_i 0.54 std_q 0.33 sharp 1.21"
+ ],
+ "source": "/2025233210/xiesy/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/baseline_gbs128_10k_global_step_10000",
+ "stats": [
+  "mean_r",
+  "mean_g",
+  "mean_b",
+  "lum_std",
+  "mean_i",
+  "mean_q",
+  "chroma",
+  "hsv_sat",
+  "std_i",
+  "std_q",
+  "sharp"
+ ]
+}

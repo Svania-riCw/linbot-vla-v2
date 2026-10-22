@@ -1,0 +1,63 @@
+{
+ "ranges": {
+  "gain_r": [
+   -0.2720996164420019,
+   -0.3162879342124137
+  ],
+  "gain_g": [
+   -0.28508151542794674,
+   -0.03976298716025943
+  ],
+  "gain_b": [
+   -0.39995832620054816,
+   0.05997356365298783
+  ],
+  "brightness": [
+   -0.6983331031757539,
+   -0.6993973803535489
+  ],
+  "contrast": [
+   0.727475589663509,
+   0.9849684782201226
+  ],
+  "saturation": [
+   2.173624318068847,
+   1.4985225749642708
+  ],
+  "hue": [
+   3.0753714349432206
+  ],
+  "gamma": [
+   -0.06902203567595629,
+   0.10516553823998663
+  ],
+  "blur": [
+   0.2791061748624628
+  ]
+ },
+ "describe": "gain_r x[0.762, 0.729], gain_g x[0.752, 0.961], gain_b x[0.670, 1.062], brightness x[0.497, 0.497], contrast [0.727, 0.985], saturation [2.174, 1.499], hue +-176.2 deg, gamma x[0.933, 1.111], blur [0, 0.28] px",
+ "fit_objective_112": 8.37910270690918,
+ "report_224": [
+  "clean(eval)      W1/std total 9371.120 | mean_r 10.64 mean_g 9.96 mean_b 7.94 lum_std 1.95 mean_i 0.67 mean_q 0.77 chroma 1.57 hsv_sat 2.09 std_i 0.61 std_q 0.64 sharp 0.39 dark 0.20 bright 9333.70",
+  "clean(train)     W1/std total 7644.238 | mean_r 10.30 mean_g 9.59 mean_b 7.54 lum_std 2.29 mean_i 0.62 mean_q 0.81 chroma 1.70 hsv_sat 2.11 std_i 0.99 std_q 0.90 sharp 0.76 dark 0.27 bright 7606.35",
+  "random(eval)     W1/std total  0.000 | mean_r 0.00 mean_g 0.00 mean_b 0.00 lum_std 0.00 mean_i 0.00 mean_q 0.00 chroma 0.00 hsv_sat 0.00 std_i 0.00 std_q 0.00 sharp 0.00 dark 0.00 bright 0.00",
+  "perturbed(eval)  W1/std total  9.927 | mean_r 0.24 mean_g 0.22 mean_b 0.61 lum_std 1.37 mean_i 0.32 mean_q 0.66 chroma 0.18 hsv_sat 0.11 std_i 1.49 std_q 0.63 sharp 3.19 dark 0.72 bright 0.18",
+  "perturbed(train) W1/std total  9.320 | mean_r 0.13 mean_g 0.15 mean_b 0.38 lum_std 1.23 mean_i 0.33 mean_q 0.52 chroma 0.13 hsv_sat 0.11 std_i 1.58 std_q 0.80 sharp 3.56 dark 0.21 bright 0.18"
+ ],
+ "source": "/2025233210/xiesy/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/baseline_gbs128_10k_global_step_10000",
+ "stats": [
+  "mean_r",
+  "mean_g",
+  "mean_b",
+  "lum_std",
+  "mean_i",
+  "mean_q",
+  "chroma",
+  "hsv_sat",
+  "std_i",
+  "std_q",
+  "sharp",
+  "dark",
+  "bright"
+ ]
+}

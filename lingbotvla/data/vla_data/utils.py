@@ -423,6 +423,7 @@ class FeatureTransform:
                 use_depth_align=self.use_depth_align,
                 return_image_grid_thw=return_image_grid_thw,
                 return_augment_params=True,
+                visual_perturb=getattr(self, "visual_perturb", None),
             )
             if self.use_future_image and len(batch_dict.get("future_image", {})) > 0:
                 future_obs = {**batch_dict, "image": batch_dict["future_image"]}
@@ -433,6 +434,7 @@ class FeatureTransform:
                     use_depth_align=self.use_depth_align,
                     return_image_grid_thw=False,
                     augment_params=image_augment_params,
+                    visual_perturb=getattr(self, "visual_perturb", None),
                 )
             else:
                 future_images, future_pil_images = None, None

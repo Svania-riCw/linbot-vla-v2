@@ -820,6 +820,35 @@ class FlowMatchingV2(FlowMatchingV1):
         suffix_position_ids = suffix_1d.unsqueeze(0).expand(3, -1, -1)
         return torch.cat([prefix_position_ids, suffix_position_ids], dim=-1)
 
+    def _forward_d4rt_only(self, images, img_masks, lang_tokens, lang_masks, state, image_grid_thw, d4rt_batch):
+        """xsy_utils/spatial-exp d4rt-only co-training step: prefix (VLM) forward only, as in
+        ``sample_actions`` -- the action expert does not run. The VLM is causal and the prefix
+        never attends to the suffix, so the prefix hidden states equal those of a full forward."""
+        (
+            prefix_embs,
+            prefix_pad_masks,
+            prefix_att_masks,
+            prefix_position_ids,
+            visual_pos_masks,
+            deepstack_visual_embeds,
+        ) = self.embed_prefix(images, img_masks, lang_tokens, lang_masks, image_grid_thw=image_grid_thw)
+        prefix_att_2d_masks = make_att_2d_masks(prefix_pad_masks, prefix_att_masks)
+        (outputs_embeds, _), _, _ = self.qwenvl_with_expert.forward(
+            attention_mask=prefix_att_2d_masks,
+            position_ids=prefix_position_ids,
+            vlm_position_ids=prefix_position_ids,
+            past_key_values=None,
+            inputs_embeds=[prefix_embs, None],
+            use_cache=self.config.use_cache,
+            fill_kv_cache=True,
+            visual_pos_masks=visual_pos_masks,
+            deepstack_visual_embeds=deepstack_visual_embeds,
+        )
+        return d4rt().model_loss(
+            self.config, self.d4rt_probe, outputs_embeds, prefix_pad_masks, d4rt_batch,
+            visual_pos_masks=visual_pos_masks, state=state,
+        )
+
     def _current_depth_task_tokens(self, hidden_states, num_images=3):
         query_spans = prefix_query_token_spans(
             prefix_len=hidden_states.shape[1],
@@ -858,7 +887,10 @@ class FlowMatchingV2(FlowMatchingV1):
         action_is_pad=None,
         rtc_delay=None,
         d4rt_batch=None,
+        d4rt_only=False,
     ) -> Tensor:
+        if d4rt_only:
+            return self._forward_d4rt_only(images, img_masks, lang_tokens, lang_masks, state, image_grid_thw, d4rt_batch)
         dtype = state.dtype
         device = state.device
         rtc_loss_mask = None
@@ -963,7 +995,8 @@ class FlowMatchingV2(FlowMatchingV1):
         align_metrics = {}
         if getattr(self, "d4rt_probe", None) is not None and d4rt_batch is not None:
             loss_d4rt, d4rt_metrics = d4rt().model_loss(
-                self.config, self.d4rt_probe, outputs_embeds, prefix_pad_masks, d4rt_batch
+                self.config, self.d4rt_probe, outputs_embeds, prefix_pad_masks, d4rt_batch,
+                visual_pos_masks=visual_pos_masks, state=state,
             )
             align_metrics.update(d4rt_metrics)
             align_metrics["_d4rt_loss"] = loss_d4rt  # carries grad; popped by LingbotVlaV2Policy.forward
@@ -1423,6 +1456,12 @@ class LingbotVlaV2Policy(PreTrainedModel):
         if getattr(self.config, "action_fp32", False):
             state = state.float()
             actions = actions.float()
+        if kwargs.pop("d4rt_only", False):
+            # xsy_utils/spatial-exp co-training: -> (weighted d4rt loss, d4rt metrics); no action loss
+            return self.model.forward(
+                images, img_masks, lang_tokens, lang_masks, state, actions,
+                image_grid_thw=image_grid_thw, d4rt_batch=d4rt_batch, d4rt_only=True,
+            )
         (
             losses,
             loss_depth,
