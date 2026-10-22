@@ -1,0 +1,393 @@
+{
+  "verified_at": "2026-10-22T10:02:12.406100+00:00",
+  "status": {
+    "state": "COMPLETE",
+    "at": "2026-10-22T08:54:47.577344+00:00",
+    "target": 20000,
+    "rates": {
+      "clean": 0.7714285714285715,
+      "random": 0.33714285714285713
+    }
+  },
+  "evaluation": {
+    "mode": "full",
+    "checkpoint": "/2025233210/ysj/lingbot_ws/outputs/baseline_bs256_20k_20261020/step_20000/train/checkpoints/global_step_20000/hf_ckpt",
+    "seed": 0,
+    "tasks": [
+      "blocks_ranking_rgb",
+      "hanging_mug",
+      "open_laptop",
+      "pick_diverse_bottles",
+      "rotate_qrcode",
+      "stack_blocks_three",
+      "place_shoe"
+    ],
+    "configs": [
+      "demo_clean",
+      "demo_randomized"
+    ],
+    "episodes": 25,
+    "total_episodes": 350,
+    "inference_precision": "fp32",
+    "use_compile": false,
+    "use_length": 50,
+    "gpus": [
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7"
+    ],
+    "command": [
+      "bash",
+      "/2025233210/ysj/lingbot_ws/linbot-vla-v2/xsy_utils/eval_baseline.sh",
+      "/2025233210/ysj/lingbot_ws/outputs/baseline_bs256_20k_20261020/step_20000/train/checkpoints/global_step_20000/hf_ckpt"
+    ],
+    "contract": {
+      "robot_config_root": "/2025233210/ysj/lingbot_ws/outputs/baseline_bs256_20k_20261020/robot_configs",
+      "robot_config": "/2025233210/ysj/lingbot_ws/outputs/baseline_bs256_20k_20261020/robot_configs/robotwin.yaml",
+      "norm_stats": "/2025233210/ysj/lingbot_ws/outputs/baseline_bs256_20k_20261020/norm_stats.json",
+      "mode": "joint_absolute",
+      "config": "/2025233210/ysj/lingbot_ws/outputs/baseline_bs256_20k_20261020/step_20000/train/lingbotvla_cli.yaml"
+    },
+    "process_exit_code": 0,
+    "run_dir": "/2025233210/ysj/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/ysj_full_38034247e705/run_20261022_080427",
+    "code_commit": "287259c71b39e08913f8a2fd0686473a01a09b40",
+    "norm_sha256": "bd1ada4579d9c3cd5106255f4a53385af2cd82999322b395d4204c28d85a29f6",
+    "robot_sha256": "290319b49181e725122ddf7d6c99953bb75ad858654ffc4c4739789459596b15",
+    "training_config_sha256": "b77f52cf02698a5d905fc5ed792d728986c5df90a140473318023de84f30d317",
+    "state_features_sha256": "bee0e7383352e7effaaa21d656225f7851b01819c67beb90f6b879cdfa98357b",
+    "label_manifests": {},
+    "action_loss": {
+      "joint_ee_aux_weight": -1.0,
+      "mask_action_padding": false
+    },
+    "action_supervision": {
+      "flow_dimension_weights": null,
+      "flow_horizon_weights": null,
+      "spline_control_points": 0,
+      "spline_degree": 3
+    },
+    "training_summary": {
+      "global_batch_size": 256,
+      "max_steps": 20000,
+      "enable_fp32": true,
+      "enable_mixed_precision": true,
+      "seed": 42,
+      "chunk_size": 50,
+      "lr": 0.0001,
+      "lr_min": 5e-05,
+      "lr_decay_style": "cosine",
+      "optimizer": "muon",
+      "training_time_rtc": false,
+      "loss_type": "L1_fm",
+      "align_params": {
+        "depth": {
+          "block_future_depth_to_action": false,
+          "detach_future_image_feats": true,
+          "dim_head": 32,
+          "dim_out": 1024,
+          "ff_mult": 1,
+          "input_size": 224,
+          "model_type": "MoRGBD",
+          "moge_path": "/2025233210/xiesy/lingbot_ws/checkpoints/moge-2-vitb-normal/model.pt",
+          "morgbd_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/depth/model.pt",
+          "num_backbone_tokens": 256,
+          "num_heads": 4,
+          "num_layers": 1,
+          "token_size": 16,
+          "use_future_depth": true
+        },
+        "depth_loss_weight": 0.004,
+        "future_depth_loss_weight": 0.004,
+        "llm": {
+          "dim_out": 2560,
+          "image_input_size": 224,
+          "image_token_size": 8
+        },
+        "mode": "query",
+        "num_task_tokens": 8,
+        "use_future_video": true,
+        "video": {
+          "attention_mode": "flex_block_causal",
+          "block_suffix_to_future_video": false,
+          "ckpt_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/dino_video/teacher_step_10000.pth",
+          "cls_loss_type": "mse",
+          "cls_loss_weight": 0.2,
+          "cls_pool": "last",
+          "config_path": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b/dino_video/config.yaml",
+          "cosine_loss_weight": 0.2,
+          "detach_image_feats": true,
+          "dim_head": 32,
+          "dim_out": 1024,
+          "effective_fps": 1.0,
+          "ff_mult": 1,
+          "future_video_loss_weight": 0.004,
+          "input_size": 256,
+          "log_max_samples": 32,
+          "log_scale": 16,
+          "mse_loss_weight": 1.0,
+          "n_blocks": 1,
+          "num_backbone_tokens": 256,
+          "num_future_frames": 1,
+          "num_heads": 4,
+          "num_layers": 1,
+          "share_future_depth_query": true,
+          "use_cls_loss": false,
+          "use_cosine_loss": true,
+          "use_current_patch_loss": true,
+          "use_current_shared_task_proj": true,
+          "use_mse_loss": true,
+          "use_patch_loss": true,
+          "use_shared_future_task_proj": true,
+          "use_smooth_l1_loss": false,
+          "use_warmup_frame": true
+        },
+        "visual_steps": 5000
+      },
+      "use_compile": true,
+      "lr_schedule_steps": 20000
+    },
+    "initial_model": "/2025233210/lmx/checkpoints/lingbot-vla-v2-6b",
+    "train_list_sha256": "8ff079a9d23511b7b47c774243422c9e11ae69752fc6b2268e239b74d26e9f44",
+    "status": "COMPLETE",
+    "rates": {
+      "clean": 0.7714285714285715,
+      "random": 0.33714285714285713
+    }
+  },
+  "raw_results": "blocks_ranking_rgb\tclean\t19/25\t0.76\nhanging_mug\tclean\t9/25\t0.36\nopen_laptop\tclean\t25/25\t1.0\npick_diverse_bottles\tclean\t15/25\t0.6\nplace_shoe\tclean\t23/25\t0.92\nrotate_qrcode\tclean\t23/25\t0.92\nstack_blocks_three\tclean\t21/25\t0.84\nblocks_ranking_rgb\trandom\t18/25\t0.72\nhanging_mug\trandom\t3/25\t0.12\nopen_laptop\trandom\t6/25\t0.24\npick_diverse_bottles\trandom\t7/25\t0.28\nplace_shoe\trandom\t15/25\t0.6\nrotate_qrcode\trandom\t2/25\t0.08\nstack_blocks_three\trandom\t8/25\t0.32\n# ---- summary: mean of per-unit success rates ----\n# all_clean_avg\t0.7714\t(7 units, 135/175 episodes)\n# all_random_avg\t0.3371\t(7 units, 59/175 episodes)\n# all_avg\t0.5543\t(14 units, 194/350 episodes)\n",
+  "baseline_raw_results": "blocks_ranking_rgb\tclean\t15/25\t0.6\nhanging_mug\tclean\t6/25\t0.24\nopen_laptop\tclean\t22/25\t0.88\npick_diverse_bottles\tclean\t7/25\t0.28\nplace_shoe\tclean\t21/25\t0.84\nrotate_qrcode\tclean\t18/25\t0.72\nstack_blocks_three\tclean\t20/25\t0.8\nblocks_ranking_rgb\trandom\t16/25\t0.64\nhanging_mug\trandom\t0/25\t0.0\nopen_laptop\trandom\t12/25\t0.48\npick_diverse_bottles\trandom\t5/25\t0.2\nplace_shoe\trandom\t13/25\t0.52\nrotate_qrcode\trandom\t2/25\t0.08\nstack_blocks_three\trandom\t5/25\t0.2\n# ---- summary: mean of per-unit success rates ----\n# all_clean_avg\t0.6229\t(7 units, 109/175 episodes)\n# all_random_avg\t0.3029\t(7 units, 53/175 episodes)\n# all_avg\t0.4629\t(14 units, 162/350 episodes)\n",
+  "baseline_source": "/2025233210/xiesy/lingbot_ws/linbot-vla-v2/external/RoboTwin/eval_result/baseline_gbs128_10k_global_step_10000/run_20261015_115635/_result.txt",
+  "totals": {
+    "baseline128_10k": {
+      "clean": {
+        "successes": 109,
+        "episodes": 175,
+        "rate": 0.6228571428571429
+      },
+      "random": {
+        "successes": 53,
+        "episodes": 175,
+        "rate": 0.3028571428571429
+      },
+      "overall": {
+        "successes": 162,
+        "episodes": 350,
+        "rate": 0.46285714285714286
+      }
+    },
+    "baseline256_20k": {
+      "clean": {
+        "successes": 135,
+        "episodes": 175,
+        "rate": 0.7714285714285715
+      },
+      "random": {
+        "successes": 59,
+        "episodes": 175,
+        "rate": 0.33714285714285713
+      },
+      "overall": {
+        "successes": 194,
+        "episodes": 350,
+        "rate": 0.5542857142857143
+      }
+    }
+  },
+  "per_task": [
+    {
+      "task": "blocks_ranking_rgb",
+      "setting": "clean",
+      "episodes": 25,
+      "baseline128_10k": 15,
+      "baseline256_20k": 19,
+      "difference_successes": 4,
+      "difference_pp": 16
+    },
+    {
+      "task": "blocks_ranking_rgb",
+      "setting": "random",
+      "episodes": 25,
+      "baseline128_10k": 16,
+      "baseline256_20k": 18,
+      "difference_successes": 2,
+      "difference_pp": 8
+    },
+    {
+      "task": "hanging_mug",
+      "setting": "clean",
+      "episodes": 25,
+      "baseline128_10k": 6,
+      "baseline256_20k": 9,
+      "difference_successes": 3,
+      "difference_pp": 12
+    },
+    {
+      "task": "hanging_mug",
+      "setting": "random",
+      "episodes": 25,
+      "baseline128_10k": 0,
+      "baseline256_20k": 3,
+      "difference_successes": 3,
+      "difference_pp": 12
+    },
+    {
+      "task": "open_laptop",
+      "setting": "clean",
+      "episodes": 25,
+      "baseline128_10k": 22,
+      "baseline256_20k": 25,
+      "difference_successes": 3,
+      "difference_pp": 12
+    },
+    {
+      "task": "open_laptop",
+      "setting": "random",
+      "episodes": 25,
+      "baseline128_10k": 12,
+      "baseline256_20k": 6,
+      "difference_successes": -6,
+      "difference_pp": -24
+    },
+    {
+      "task": "pick_diverse_bottles",
+      "setting": "clean",
+      "episodes": 25,
+      "baseline128_10k": 7,
+      "baseline256_20k": 15,
+      "difference_successes": 8,
+      "difference_pp": 32
+    },
+    {
+      "task": "pick_diverse_bottles",
+      "setting": "random",
+      "episodes": 25,
+      "baseline128_10k": 5,
+      "baseline256_20k": 7,
+      "difference_successes": 2,
+      "difference_pp": 8
+    },
+    {
+      "task": "rotate_qrcode",
+      "setting": "clean",
+      "episodes": 25,
+      "baseline128_10k": 18,
+      "baseline256_20k": 23,
+      "difference_successes": 5,
+      "difference_pp": 20
+    },
+    {
+      "task": "rotate_qrcode",
+      "setting": "random",
+      "episodes": 25,
+      "baseline128_10k": 2,
+      "baseline256_20k": 2,
+      "difference_successes": 0,
+      "difference_pp": 0
+    },
+    {
+      "task": "stack_blocks_three",
+      "setting": "clean",
+      "episodes": 25,
+      "baseline128_10k": 20,
+      "baseline256_20k": 21,
+      "difference_successes": 1,
+      "difference_pp": 4
+    },
+    {
+      "task": "stack_blocks_three",
+      "setting": "random",
+      "episodes": 25,
+      "baseline128_10k": 5,
+      "baseline256_20k": 8,
+      "difference_successes": 3,
+      "difference_pp": 12
+    },
+    {
+      "task": "place_shoe",
+      "setting": "clean",
+      "episodes": 25,
+      "baseline128_10k": 21,
+      "baseline256_20k": 23,
+      "difference_successes": 2,
+      "difference_pp": 8
+    },
+    {
+      "task": "place_shoe",
+      "setting": "random",
+      "episodes": 25,
+      "baseline128_10k": 13,
+      "baseline256_20k": 15,
+      "difference_successes": 2,
+      "difference_pp": 8
+    }
+  ],
+  "training_budget": {
+    "baseline128_10k": 1280000,
+    "baseline256_20k": 5120000,
+    "ratio": 4
+  },
+  "limitations": [
+    "Historical baseline was not re-evaluated in current environment.",
+    "Batch and optimizer updates both changed; new run processes4x samples.",
+    "Single training seed and25trials/task/setting; descriptive comparison, no significance claim."
+  ],
+  "timing": {
+    "now": "2026-10-22T10:03:21.849735+00:00",
+    "status": {
+      "state": "COMPLETE",
+      "at": "2026-10-22T08:54:47.577344+00:00",
+      "target": 20000,
+      "rates": {
+        "clean": 0.7714285714285715,
+        "random": 0.33714285714285713
+      }
+    },
+    "phases": [
+      {
+        "target": 50,
+        "start": "2026-10-20T15:27:14.550003+00:00",
+        "finish": "2026-10-20T15:37:18.991329+00:00",
+        "finished": true,
+        "phase_hours": 0.16790036833333333,
+        "logged_updates": 50,
+        "last_step": 50,
+        "step_time_sum_hours": 0.10807750000000002
+      },
+      {
+        "target": 5000,
+        "start": "2026-10-20T15:37:19.771689+00:00",
+        "finish": "2026-10-21T00:35:12.499948+00:00",
+        "finished": true,
+        "phase_hours": 8.96464673861111,
+        "logged_updates": 4950,
+        "last_step": 5000,
+        "step_time_sum_hours": 8.78546277777769
+      },
+      {
+        "target": 20000,
+        "start": "2026-10-21T04:57:34.843876+00:00",
+        "finish": "2026-10-22T08:04:26.230661+00:00",
+        "finished": true,
+        "phase_hours": 27.114274106944443,
+        "logged_updates": 15000,
+        "last_step": 20000,
+        "step_time_sum_hours": 26.62181916666684
+      }
+    ],
+    "latest_step": 20000,
+    "current_step_seconds": 6.369395,
+    "training_phase_hours_so_far": 36.246821213888886,
+    "wall_hours_since_initial_launch": 42.602027703333334,
+    "remaining_compute_hours": 0.0,
+    "all_logged_compute_hours": 35.51535944444487,
+    "started_beijing": "2026-10-20T23:27:14.550003+08:00",
+    "latest_update_time_utc": "10/22/2026 08:01:30",
+    "training_finished_beijing": "2026-10-22T16:04:26.230661+08:00",
+    "wall_to_training_finish_hours": 40.61991129388889
+  }
+}

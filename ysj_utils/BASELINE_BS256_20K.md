@@ -44,3 +44,9 @@ cat /2025233210/ysj/lingbot_ws/outputs/baseline_bs256_20k_20261020/status.json
 由于30010被队友ROI训练占用，恢复任务转至空闲的30375。用户随后要求尽量节省时间、直接训20k，已停止自有中途评测并切换`--eval-final-only`。未修改模型、数据、BS256、20k学习率日程或动作监督。新的训练目录为`step_20000/train`，断点来源为`step_05000/train/checkpoints/global_step_5000`。剩余15k步按此前6.4秒/步约26.7小时，加最终评测和保存开销，先估计余下28—30小时。
 
 失败与修复记录：[首次评测失败](reports/baseline_bs256_5k_failed_eval_2026-10-21.json)、[网络修复与迁移](reports/baseline_bs256_eval_recovery_2026-10-21.json)。
+
+## 最终结果（2026-10-22）
+
+训练及350次评测完成：Clean135/175（77.14%），Random59/175（33.71%），总体194/350（55.43%）。历史baseline128×10k总体162/350（46.29%），本次多32次成功、提高9.14个百分点。新实验累计数据处理量为历史参考4倍，不能将提升单独归因于batch大小。
+
+完整逐任务与来源见[最终报告](reports/baseline_bs256_20k_complete_2026-10-22.md)。

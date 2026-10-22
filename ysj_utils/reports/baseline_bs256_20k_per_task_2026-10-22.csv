@@ -1,0 +1,15 @@
+﻿task,setting,episodes,baseline128_10k,baseline256_20k,difference_successes,difference_pp
+blocks_ranking_rgb,clean,25,15,19,4,16
+blocks_ranking_rgb,random,25,16,18,2,8
+hanging_mug,clean,25,6,9,3,12
+hanging_mug,random,25,0,3,3,12
+open_laptop,clean,25,22,25,3,12
+open_laptop,random,25,12,6,-6,-24
+pick_diverse_bottles,clean,25,7,15,8,32
+pick_diverse_bottles,random,25,5,7,2,8
+rotate_qrcode,clean,25,18,23,5,20
+rotate_qrcode,random,25,2,2,0,0
+stack_blocks_three,clean,25,20,21,1,4
+stack_blocks_three,random,25,5,8,3,12
+place_shoe,clean,25,21,23,2,8
+place_shoe,random,25,13,15,2,8
