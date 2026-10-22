@@ -60,6 +60,7 @@ robot configs, and normalization statistics, see
 | `data.img_size` | int | `256` | Image size used by VLA data utilities. |
 | `data.state_norm_type` | str | `"none"` | Normalization type for VLA state features. Use `"none"` to reuse `norm_type`; use `"sincos"` to encode raw state angles as cos/sin while actions still use `norm_type`. |
 | `data.image_augment` | bool | `False` | Enable training-time image augmentation for VLA datasets. Random color parameters are sampled once per sample and replayed across all camera views. |
+| `data.image_augmentation_config` | dict | `{}` | Opt-in full432 training RGB recipe; requires `image_augment=true`. Empty retains legacy color jitter. Policy evaluation disables all augmentation. See `xsy_utils/resolution_exp/FULL432_AUGMENTATION.md`. |
 | `data.num_workers` | int | `20` | Number of workers used to load data. |
 | `data.prefetch_factor` | int | `4` | Number of batches loaded in advance by each worker. |
 | `data.drop_last` | bool | `True` | Whether to drop the last incomplete batch. |

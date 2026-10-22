@@ -1,0 +1,29 @@
+# Augmentation options, NOT a standalone training YAML.
+# tools/prepare_full432_augmentation.py embeds these into a verified run recipe.
+schema_version: 1
+keep_original_probability: 0.10
+color_probability: 0.80
+brightness: [0.25, 1.10]
+contrast: [0.50, 1.50]
+saturation: [0.40, 1.60]
+affine_probability: 0.50
+scale: [0.90, 1.10]
+translation_fraction: 0.06
+occlusion_probability: 0.95
+missing_foreground: skip
+gaussian_noise_probability: 0.50
+salt_pepper_probability: 0.15
+gaussian_blur_probability: 0.25
+motion_blur_probability: 0.10
+jpeg_probability: 0.30
+jpeg_quality: [35, 90]
+# Below are our configurable initial choices; the supplied image omits them.
+temperature: [-0.10, 0.10]
+occlusion_area: [0.02, 0.10]
+occlusion_aspect: [0.50, 2.00]
+occlusion_attempts: 20
+foreground_margin_pixels: 4
+gaussian_noise_std: [0.005, 0.030]
+salt_pepper_fraction: [0.001, 0.010]
+gaussian_blur_sigma: [0.10, 1.50]
+motion_blur_sizes: [3, 5, 7]

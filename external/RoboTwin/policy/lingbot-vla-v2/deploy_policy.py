@@ -26,11 +26,13 @@ class LingbotClient:
     def __init__(self, host, port, robo_name):
         self.robo_name = robo_name
         self.policy = WebsocketClientPolicy(host=host, port=port)
+        self.roi_enabled = False
 
     def reset(self):
         # path_to_pi_model=None: keep the weights the server loaded, only rebuild the
         # feature transform and clear the cached action chunk.
-        self.policy.infer(dict(reset=True, robo_name=self.robo_name, path_to_pi_model=None))
+        reply = self.policy.infer(dict(reset=True, robo_name=self.robo_name, path_to_pi_model=None))
+        self.roi_enabled = bool(reply.get("roi_enabled", False))
 
     def infer(self, observation):
         return self.policy.infer(observation)
@@ -55,7 +57,11 @@ def get_model(usr_args):
 
 
 def eval(TASK_ENV, model, observation):
-    ret = model.infer(encode_obs(TASK_ENV, observation))
+    encoded = encode_obs(TASK_ENV, observation)
+    if model.roi_enabled:
+        from lingbotvla.utils.ee_roi import robotwin_geometry
+        encoded["roi_geometry"] = robotwin_geometry(TASK_ENV, observation)
+    ret = model.infer(encoded)
     actions = np.asarray(ret["action"])
     if actions.ndim == 1:
         actions = actions[None]

@@ -37,6 +37,8 @@ from lingbotvla.utils.async_hf_checkpoint import AsyncHFCheckpointSaver
 from lingbotvla.utils.arguments import EvalArguments, DataArguments, ModelArguments, TrainingArguments, parse_args, save_args
 from lingbotvla.utils.dist_utils import all_reduce
 from lingbotvla.models.config_registry import get_config_registry
+from lingbotvla.utils.training_schedule import training_stop_step, capture_rng_state, restore_rng_state
+from lingbotvla.utils.loader_resume import migrate_loader_workers
 
 from lingbotvla.models.vla.vision_models.module_utils import (
     build_depth_model,
@@ -119,6 +121,10 @@ def get_moe_param_groups(model: "torch.nn.Module", args_train) -> Optional[List[
 
 @dataclass
 class MyTrainingArguments(TrainingArguments):
+    pause_after_steps: int = field(
+        default=0,
+        metadata={"help": "Save and stop at this global step without changing the max_steps LR horizon."},
+    )
     freeze_vit: bool = field(
         default=False,
         metadata={"help": "Whether or not to freeze the vit parameters."},
@@ -202,6 +208,10 @@ class MyTrainingArguments(TrainingArguments):
     resume_dataloader_state: bool = field(
         default=True,
         metadata={"help": "Whether to resume dataloader."},
+    )
+    allow_dataloader_worker_change: bool = field(
+        default=False,
+        metadata={"help": "Explicitly migrate stateless map-loader workers while keeping the saved sampler position."},
     )
     use_moe: bool = field(
         default=False,
@@ -320,6 +330,22 @@ class MyDataArguments(DataArguments):
         default=256,
         metadata={"help": "Size of the image."},
     )
+    image_resize_mode: Literal["torchvision_bilinear", "opencv_lanczos4"] = field(
+        default="torchvision_bilinear",
+        metadata={"help": "Shared training/inference resize; opencv_lanczos4 uses classical interpolation."},
+    )
+    preserve_image_resolution: bool = field(
+        default=False,
+        metadata={"help": "Disable processor resizing and verify the configured image/token grid."},
+    )
+    roi_config: dict = field(
+        default_factory=dict,
+        metadata={"help": "Opt-in ROI-432 layout and embedded verified FK profile; empty keeps full views."},
+    )
+    roi_geometry_root: Optional[str] = field(
+        default=None,
+        metadata={"help": "Verified per-dataset/per-episode current camera geometry for ROI training."},
+    )
     norm_stats_file: str = field(
         default=None,
         metadata={"help": "Path to the normalization stats file."},
@@ -345,6 +371,9 @@ class Arguments:
 
 def main():
     args = parse_args(Arguments)
+    stop_step = training_stop_step(
+        args.train.max_steps, args.train.pause_after_steps, args.train.save_steps
+    )
     logger.info(f"Process rank: {args.train.global_rank}, world size: {args.train.world_size}")
     logger.info_rank0(json.dumps(asdict(args), indent=2))
     torch.cuda.set_device(f"cuda:{args.train.local_rank}")
@@ -392,6 +421,14 @@ def main():
         config_kwargs=config_kwargs,
         moe_implementation=getattr(args.model, 'moe_implementation', None),
     )
+    if args.data.roi_config:
+        from lingbotvla.utils.ee_roi import canonical_hash
+        # Survives HF export; serving must not silently fall back to full views.
+        model.config.roi_config_sha256 = canonical_hash(args.data.roi_config)
+    from lingbotvla.utils.observation_augmentation import AugmentationError, config_hash, check_augmentation_identity
+    if args.data.image_augmentation_config and not args.data.image_augment:
+        raise ValueError("image_augmentation_config requires data.image_augment=true during training")
+    model.config.image_augmentation_config_sha256 = config_hash(args.data.image_augmentation_config)
     use_depth_align = True if args.train.align_params != {} else False
     use_future_depth = args.train.align_params.get('depth', {}).get('use_future_depth', False)
     use_future_video = use_depth_align and args.train.align_params.get('use_future_video', False)
@@ -611,12 +648,16 @@ def main():
 
     if args.train.global_rank == 0:
         log_dir=f"{args.train.output_dir}/runs/"
-        writer = AsyncTBWriter(log_dir=log_dir)
         if args.train.use_wandb:
             wandb.init(
+                project=args.train.wandb_project,
                 name=args.train.wandb_name,
-                config={**vars(args.model), **vars(args.data), **vars(args.train)},  # flatten dict
+                config={**vars(args.model), **vars(args.data), **vars(args.train),
+                        "experiment": json.loads(os.environ.get("QL_WANDB_RUN_METADATA", "{}"))},
+                sync_tensorboard=True,
             )
+        # W&B must patch TensorBoard before its event writer is created.
+        writer = AsyncTBWriter(log_dir=log_dir)
 
         if args.train.enable_profiling:
             profiler = helper.create_profiler(
@@ -702,34 +743,63 @@ def main():
             else:
                 logger.info_rank0(f"No checkpoints in {args.train.output_dir} now!")
     if candidates:
+        from lingbotvla.utils.ee_roi import check_roi_identity, ROIGeometryError
         last_err = None
         loaded = False
         for cp in candidates:
             state = {"model": model, "ema": None, "optimizer": optimizer, "extra_state": {}}  # cannot be None
             try:
+                checkpoint_config = os.path.join(cp, "hf_ckpt", "config.json")
+                if args.data.roi_config or args.data.image_augmentation_config or os.path.isfile(checkpoint_config):
+                    with open(checkpoint_config, encoding="utf-8") as stream:
+                        checkpoint_metadata = json.load(stream)
+                    check_roi_identity(checkpoint_metadata, args.data.roi_config)
+                    check_augmentation_identity(checkpoint_metadata, args.data.image_augmentation_config)
                 Checkpointer.load(cp, state, allow_partial_load=getattr(args.train, 'allow_partial_checkpoint', False))
                 global_step = state["extra_state"]["global_step"]
                 start_epoch = global_step // args.train.train_steps
                 start_step = global_step % args.train.train_steps
                 lr_scheduler.load_state_dict(state["extra_state"]["lr_scheduler"])
                 if start_step > 0 and args.train.resume_dataloader_state:
-                    train_dataloader.load_state_dict(state["extra_state"]["train_dataloader"])
+                    loader_state = state["extra_state"]["train_dataloader"]
+                    if args.train.allow_dataloader_worker_change:
+                        from torch.utils.data import IterableDataset
+                        from lingbotvla.data.data_loader import DistributedDataloader
+                        if (not isinstance(train_dataloader, DistributedDataloader)
+                                or isinstance(train_dataloader.dataset, IterableDataset)
+                                or not train_dataloader.in_order):
+                            raise ValueError("Worker migration requires the ordered native map loader")
+                        old_workers = loader_state.get('_snapshot', {}).get('_main_snapshot', {}).get('_num_workers')
+                        loader_state = migrate_loader_workers(loader_state, args.data.num_workers)
+                        logger.info_rank0(f"Dataloader worker migration {old_workers}->{args.data.num_workers}; "
+                                          f"preserving sampler at global_step={global_step}")
+                    train_dataloader.load_state_dict(loader_state)
                 environ_meter.load_state_dict(state["extra_state"]["environ_meter"])
-                torch.set_rng_state(state["extra_state"]["torch_rng_state"])
+                if "rng_state" in state["extra_state"]:
+                    restore_rng_state(state["extra_state"]["rng_state"])
+                else:
+                    torch.set_rng_state(state["extra_state"]["torch_rng_state"])
                 if start_step == 0:  # resume at the end of epoch
                     iter(train_dataloader)  # clear resume state and prefetch data
                 dist.barrier()
                 logger.info_rank0(f"Load distributed checkpoint from {cp} successfully!")
                 loaded = True
                 break
+            except (ROIGeometryError, AugmentationError):
+                raise  # a different input representation is not a recoverable checkpoint failure
             except Exception as e:
                 last_err = e
                 logger.info_rank0(f"Failed to load checkpoint {cp}: {repr(e)}. Trying older one...")
                 continue
         if not loaded:
+            if args.train.load_checkpoint_path or args.data.roi_config or args.data.image_augmentation_config:
+                raise RuntimeError(f"Cannot resume explicitly requested checkpoint: {load_checkpoint_path}") from last_err
             logger.info_rank0("Starting training from scratch. No valid checkpoint could be loaded.")
     else:
         logger.info_rank0("Starting training from scratch.")
+
+    if stop_step is not None and global_step >= stop_step:
+        raise ValueError(f"Loaded step {global_step} already reaches stop step {stop_step}.")
 
     helper.empty_cache()
     model_fwd_context, model_bwd_context = build_activation_offloading_context(
@@ -1086,6 +1156,11 @@ def main():
 
 
             if args.train.global_rank == 0:
+                # EnvironMeter already computes these on every step. Persist
+                # them so TensorBoard/W&B include memory and throughput too.
+                for name, value in train_metrics.items():
+                    writer.add_scalar(name, value, global_step)
+                writer.add_scalar("samples_per_second", args.train.global_batch_size / delta_time, global_step)
                 writer.add_scalar("training/loss", total_loss, global_step)
                 writer.add_scalar("training/vla_loss", total_vla_loss, global_step)
                 for _k, _v in d4rt_log.items():
@@ -1258,6 +1333,7 @@ def main():
                         "train_dataloader": train_dataloader.state_dict(),
                         "environ_meter": environ_meter.state_dict(),
                         "torch_rng_state": torch.get_rng_state(),
+                        "rng_state": capture_rng_state(),
                     },
                 }
                 if args.train.global_rank == 0:
@@ -1273,8 +1349,8 @@ def main():
                     current_epoch_step_for_eval,
                 )
 
-            if args.train.max_steps is not None and global_step >= args.train.max_steps:
-                logger.info_rank0(f"Reached max_steps={args.train.max_steps}, stopping training.")
+            if stop_step is not None and global_step >= stop_step:
+                logger.info_rank0(f"Reached stop step={stop_step} (LR horizon max_steps={args.train.max_steps}), stopping training.")
                 reached_max_steps = True
                 break
 
@@ -1299,6 +1375,7 @@ def main():
                         "train_dataloader": train_dataloader.state_dict(),
                         "environ_meter": environ_meter.state_dict(),
                         "torch_rng_state": torch.get_rng_state(),
+                        "rng_state": capture_rng_state(),
                     },
                 }
                 Checkpointer.save(args.train.save_checkpoint_path, state, global_steps=global_step)
@@ -1325,6 +1402,7 @@ def main():
                     "train_dataloader": train_dataloader.state_dict(),
                     "environ_meter": environ_meter.state_dict(),
                     "torch_rng_state": torch.get_rng_state(),
+                    "rng_state": capture_rng_state(),
                 },
             }
             Checkpointer.save(args.train.save_checkpoint_path, state, global_steps=global_step)
@@ -1356,6 +1434,12 @@ def main():
             current_epoch_step_for_eval,
         )
     hf_saver.wait_all_across_ranks()
+
+    if args.train.global_rank == 0 and args.train.use_wandb:
+        wandb.summary["completed_global_step"] = int(global_step)
+        wandb.summary["paused_for_evaluation"] = bool(args.train.pause_after_steps)
+        wandb.summary["last_checkpoint_path"] = save_checkpoint_path
+        wandb.finish()
 
     dist.barrier()
     dist.destroy_process_group()

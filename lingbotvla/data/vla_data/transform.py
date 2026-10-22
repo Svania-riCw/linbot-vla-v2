@@ -10,6 +10,7 @@ import torch.nn.functional as F
 from torch import Tensor
 from torchvision.transforms import v2
 from lingbotvla.utils import logging as logging_utils
+from lingbotvla.utils.image_resize import process_image_at_fixed_size
 
 logger = logging_utils.get_logger(__name__)
 
@@ -286,6 +287,7 @@ def prepare_images(
     augment_params=None,
     return_augment_params=False,
     visual_perturb=None,
+    fixed_image_size=None,
 ):
     """Normalize, resize, and pad images and stack them into a tensor.
 
@@ -338,7 +340,10 @@ def prepare_images(
         if image_processor is None:
             img = img.to(dtype) / 127.5 - 1.0 # to [-1, 1]
         else:
-            processed = image_processor(img)
+            if fixed_image_size is None:
+                processed = image_processor(img)
+            else:
+                processed = process_image_at_fixed_size(image_processor, img, fixed_image_size)
             img = processed['pixel_values'] # (grid_t * grid_h * grid_w, channel * temporal_patch_size * patch_size * patch_size) in qwen2.5vl, 256, 3*2*14*14
             if return_image_grid_thw and 'image_grid_thw' in processed:
                 image_grid_thw_dict[key] = processed['image_grid_thw']

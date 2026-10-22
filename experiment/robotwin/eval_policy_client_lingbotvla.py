@@ -364,17 +364,22 @@ def eval_policy(task_name,
             path_to_pi_model = usr_args['new_ckpt_path']
         progress('model_reset')
         ret = model.infer(dict(reset = True, robo_name=usr_args['robo_name'], path_to_pi_model=path_to_pi_model))
+        roi_enabled = bool(ret.get("roi_enabled", False))
 
         def observe():
             progress('observation')
             observation = TASK_ENV.get_obs()
-            return {
+            encoded = {
                 "observation.images.cam_high": observation["observation"]["head_camera"]["rgb"],
                 "observation.images.cam_left_wrist": observation["observation"]["left_camera"]["rgb"],
                 "observation.images.cam_right_wrist": observation["observation"]["right_camera"]["rgb"],
                 "observation.state": observation["joint_action"]["vector"],
                 "task": TASK_ENV.get_instruction(),
             }
+            if roi_enabled:
+                from lingbotvla.utils.ee_roi import robotwin_geometry
+                encoded["roi_geometry"] = robotwin_geometry(TASK_ENV, observation)
+            return encoded
 
         if usr_args.get('rtc_async', False):
             from script.deploy.async_rtc import AsyncRTC

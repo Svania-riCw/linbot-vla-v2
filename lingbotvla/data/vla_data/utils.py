@@ -99,6 +99,20 @@ class FeatureTransform:
         self.model_config = model_config
         self.tokenizer = processor.tokenizer if processor is not None else None
         self.processor = processor
+        self.fixed_image_size = None
+        if (getattr(data_config, 'preserve_image_resolution', False)
+                and not disabled_image_features and processor is not None):
+            from ...utils.image_resize import fixed_image_grid
+
+            image_size = getattr(data_config, 'img_size', 256)
+            image_processor = processor.image_processor
+            grid = fixed_image_grid((image_size, image_size), image_processor.patch_size, image_processor.merge_size)
+            grid_side = int(grid[0, 1]) // int(image_processor.merge_size)
+            align_params = getattr(model_config, 'align_params', None) or {}
+            configured_side = align_params.get('llm', {}).get('image_token_size')
+            if configured_side is not None and int(configured_side) != grid_side:
+                raise ValueError(f"align_params.llm.image_token_size must be {grid_side} for {image_size}px inputs")
+            self.fixed_image_size = (image_size, image_size)
 
         self.chunk_size = chunk_size
         self.return_item_befor_padding = return_item_befor_padding
@@ -110,6 +124,16 @@ class FeatureTransform:
 
         if not disabled_image_features:
             self.image_augment = image_augment
+        self.observation_augmenter = None
+        if image_augment and not disabled_image_features and getattr(data_config, "image_augmentation_config", None):
+            from ...utils.observation_augmentation import ObservationAugmenter, AugmentationError
+            if (getattr(data_config, "roi_config", None)
+                    or getattr(data_config, "img_size", None) != 384
+                    or getattr(data_config, "image_resize_mode", None) != "opencv_lanczos4"
+                    or not getattr(data_config, "preserve_image_resolution", False)
+                    or list(data_config.cameras) != ["camera_top", "camera_wrist_left", "camera_wrist_right"]):
+                raise AugmentationError("The new augmentation experiment requires full-view 384/432, Lanczos4, and ROI disabled")
+            self.observation_augmenter = ObservationAugmenter(data_config.image_augmentation_config)
         
         # keep the self.feature_to_keep in lerobot item when convert to new item
         self.feature_to_keep = set([
@@ -131,6 +155,15 @@ class FeatureTransform:
         self.org_features = org_features
 
         self.normalizer = self.get_normalizer(norm_stats_path, do_nomalize, data_config)
+        self.roi_processor = None
+        if do_nomalize and not disabled_image_features:
+            from ...utils.ee_roi import build_roi_processor
+            self.roi_processor = build_roi_processor(data_config, model_config, processor)
+            if self.roi_processor is not None:
+                from ...utils.ee_roi import IMAGE_KEYS, ROIGeometryError
+                origins = [self.key_mapping[k]["origin_keys"] for k in self.feature_config.images]
+                if origins != list(IMAGE_KEYS):
+                    raise ROIGeometryError("ROI requires the RoboTwin head/left/right source mapping")
 
     def get_normalizer(self, norm_stats_path, do_nomalize, data_config):
 
@@ -373,6 +406,14 @@ class FeatureTransform:
 
 
     def apply(self, item, policy_eval=False):
+        if self.roi_processor is not None:
+            # Raw CHW frames and raw current joints, before normalization/mapping.
+            item, self.last_roi_diagnostics = self.roi_processor.prepare_sample(item)
+        if self.observation_augmenter is not None and not policy_eval:
+            # Apply to all frames before splitting current/future, mapping or
+            # normalization. Teacher and student see exactly the same RGB input.
+            item, self.last_augmentation_report = self.observation_augmenter.apply_tensors(
+                item, self.org_features['images'])
         w_action = not policy_eval
         if w_action:
             item['action_is_pad'] = item[f"{self.org_features['actions'][0]}_is_pad"] if not len(self.actions_convert_from_state)>0 else item[f"{self.org_features['states'][0]}_is_pad"][1:]
@@ -419,22 +460,24 @@ class FeatureTransform:
                 self.processor.image_processor,
                 batch_dict,
                 image_keys=self.feature_config.images,
-                train=self.image_augment and not policy_eval,
+                train=self.image_augment and self.observation_augmenter is None and not policy_eval,
                 use_depth_align=self.use_depth_align,
                 return_image_grid_thw=return_image_grid_thw,
                 return_augment_params=True,
                 visual_perturb=getattr(self, "visual_perturb", None),
+                fixed_image_size=self.fixed_image_size,
             )
             if self.use_future_image and len(batch_dict.get("future_image", {})) > 0:
                 future_obs = {**batch_dict, "image": batch_dict["future_image"]}
                 future_images, _, future_pil_images, _ = prepare_images(
                     self.processor.image_processor, future_obs,
                     image_keys=self.feature_config.images,
-                    train=self.image_augment and not policy_eval,
+                    train=self.image_augment and self.observation_augmenter is None and not policy_eval,
                     use_depth_align=self.use_depth_align,
                     return_image_grid_thw=False,
                     augment_params=image_augment_params,
                     visual_perturb=getattr(self, "visual_perturb", None),
+                    fixed_image_size=self.fixed_image_size,
                 )
             else:
                 future_images, future_pil_images = None, None
@@ -449,6 +492,16 @@ class FeatureTransform:
             merge_size=merge_size,
             use_vision_boundaries=getattr(self.model_config, "qwen3vl_use_vision_boundaries", True),
         )
+        if self.roi_processor is not None:
+            from ...utils.ee_roi import ROIGeometryError
+            expected = 432 + (6 if getattr(self.model_config, "qwen3vl_use_vision_boundaries", True) else 0)
+            if image_token_count != expected or not bool(img_masks.all()):
+                raise ROIGeometryError("ROI-432 actual processor grid/masks changed the visual budget")
+        if self.observation_augmenter is not None:
+            from ...utils.observation_augmentation import AugmentationError
+            expected = 432 + (6 if getattr(self.model_config, "qwen3vl_use_vision_boundaries", True) else 0)
+            if image_token_count != expected or not bool(img_masks.all()):
+                raise AugmentationError("Full432 augmentation changed the visual token budget/camera masks")
         batch_dict["image_token_count"] = image_token_count
         
         lang_tokens, lang_masks = prepare_language(self.model_config, self.tokenizer, batch_dict) # bs, seq_len

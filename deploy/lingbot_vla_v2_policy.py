@@ -1,4 +1,5 @@
 import os
+import json
 import sys
 import time
 import yaml
@@ -23,7 +24,7 @@ import numpy as np
 from torch import Tensor
 from safetensors.torch import load_file
 import torch
-from torchvision.transforms.v2 import Resize
+from lingbotvla.utils.image_resize import build_image_resize
 import torch.nn.functional as F
 from lingbotvla.models.vla.lingbot_vla.configuration_lingbot_vla import LingbotVLAV2Config
 from lingbotvla.models.vla.lingbot_vla.modeling_lingbot_vla_v2 import LingbotVlaV2Policy
@@ -353,6 +354,9 @@ class LingbotVLAv2Server:
         self.processor = build_processor(base_model_path)
         self.language_tokenizer = self.processor.tokenizer
         data_config = SimpleNamespace(**training_config['data'])
+        from lingbotvla.utils.ee_roi import check_roi_identity
+        checkpoint_config = json.loads((Path(path_to_pi_model) / "config.json").read_text(encoding="utf-8"))
+        check_roi_identity(checkpoint_config, getattr(data_config, "roi_config", None))
         
         print('Initializing model ... ')
 
@@ -411,12 +415,18 @@ class LingbotVLAv2Server:
     def resize_image(self, observation):
         image_features  = self.vla.feature_transform.org_features['images']
         image_size = getattr(self.data_config, 'img_size', 256)
-        resize = Resize((image_size, image_size))
+        resize_mode = getattr(self.data_config, 'image_resize_mode', 'torchvision_bilinear')
+        resize = build_image_resize((image_size, image_size), resize_mode)
         for image_feature in image_features:
             assert image_feature in observation
             assert len(observation[image_feature].shape)==3 and observation[image_feature].shape[-1] == 3
             image = torch.as_tensor(observation[image_feature]).permute(2, 0, 1).contiguous()
-            image = image.to(dtype=torch.float32)
+            if self.vla.feature_transform.roi_processor is not None:
+                # Shared FeatureTransform constructs ROI before any downsampling.
+                observation[image_feature] = image
+                continue
+            if resize_mode == 'torchvision_bilinear':
+                image = image.to(dtype=torch.float32)
             observation[image_feature] = resize(image)
 
     def _unapply_batched_actions(self, transformed_observations, actions):
@@ -514,7 +524,7 @@ class LingbotVLAv2Server:
         #            the original height and width by sqrt(0.9) -- not 0.9!
         if 'reset' in observation and observation['reset']:
             self.reset(robo_name=observation['robo_name'], path_to_pi_model=observation['path_to_pi_model'] if 'path_to_pi_model' in observation else None)
-            return dict(action = None)
+            return dict(action=None, roi_enabled=self.vla.feature_transform.roi_processor is not None)
 
         observation = dict(observation)
         rtc = observation.pop('_rtc', None)

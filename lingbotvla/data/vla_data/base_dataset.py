@@ -19,7 +19,7 @@ from pathlib import Path
 
 import torch
 from torch.utils.data import Dataset
-from torchvision.transforms.v2 import Resize
+from ...utils.image_resize import build_image_resize
 
 try:
     from lerobot.datasets.lerobot_dataset import LeRobotDataset as BaseLeRobotDataset
@@ -206,9 +206,18 @@ class VLADataset(Dataset):
         self.dataset_meta = LeRobotDatasetMetadata(**metadata_kwargs)
         merged_delta = {**self.get_delta_timestamps(), **self.get_video_delta_timestamps()}
 
+        self.roi_geometry = None
+        if self.feature_transform.roi_processor is not None:
+            from ...utils.ee_roi import EpisodeGeometry, ROIGeometryError
+            root = getattr(dataset_config, "roi_geometry_root", None)
+            if not root:
+                raise ROIGeometryError("ROI training requires data.roi_geometry_root")
+            self.roi_geometry = EpisodeGeometry(root, repo_id, self.feature_transform.roi_processor.fk.sha256)
         self.dataset = LeRobotDataset(
             repo_id=repo_id,
-            image_transforms=Resize(image_size),
+            image_transforms=None if self.roi_geometry is not None else build_image_resize(
+                image_size, getattr(dataset_config, 'image_resize_mode', 'torchvision_bilinear')
+            ),
             delta_timestamps=merged_delta,
             load_image=load_image
         )
@@ -269,6 +278,10 @@ class VLADataset(Dataset):
 
     def getitem(self, idx):
         raw_item = self.check_lerobot_item(self.dataset[idx])
+        if self.roi_geometry is not None:
+            raw_item["roi_geometry"] = self.roi_geometry.get(
+                raw_item["episode_index"].item(), raw_item["frame_index"].item(),
+                raw_item["observation.state"].detach().cpu().numpy())
         if (
             self.use_future_image
             and "future_video_effective_fps" not in raw_item
