@@ -278,7 +278,7 @@ class RTCMigrationTests(unittest.TestCase):
         delay = torch.tensor([2, 0])
         pad = torch.tensor([[False, False, False, True], [False, False, False, False]])
         with patch(
-            "lingbotvla.models.vla.lingbot_vla.modeling_lingbot_vla_v2.torch.rand",
+            "lingbotvla.models.vla.lingbot_vla.modeling_lingbot_vla_v2.sample_beta",
             return_value=torch.tensor([0.25, 0.75]),
         ):
             output = model.forward(
@@ -295,8 +295,8 @@ class RTCMigrationTests(unittest.TestCase):
             )
         rtc_mask = output[-1]
         self.assertTrue(torch.equal(embedded["x"][0, :2], actions[0, :2]))
-        self.assertEqual(embedded["time"][0].tolist(), [0.0, 0.0, 0.25, 0.0])
-        self.assertEqual(embedded["time"][1].tolist(), [0.75] * horizon)
+        torch.testing.assert_close(embedded["time"][0], torch.tensor([0.0, 0.0, 0.25075, 0.0]))
+        torch.testing.assert_close(embedded["time"][1], torch.full((horizon,), 0.75025))
         self.assertEqual(rtc_mask.tolist(), [[False, False, True, False], [True] * 4])
         self.assertEqual(embedded["ada_shape"], (batch, horizon + 1, width))
 
@@ -304,7 +304,7 @@ class RTCMigrationTests(unittest.TestCase):
         # training batch supplies no explicit rtc_delay.
         config.training_time_rtc_fixed_delay = 2
         with patch(
-            "lingbotvla.models.vla.lingbot_vla.modeling_lingbot_vla_v2.torch.rand",
+            "lingbotvla.models.vla.lingbot_vla.modeling_lingbot_vla_v2.sample_beta",
             return_value=torch.tensor([0.25, 0.75]),
         ):
             fixed_output = model.forward(
@@ -313,7 +313,10 @@ class RTCMigrationTests(unittest.TestCase):
                 action_is_pad=pad,
             )
         self.assertTrue(torch.equal(embedded["x"][:, :2], actions[:, :2]))
-        self.assertEqual(embedded["time"].tolist(), [[0.0, 0.0, 0.25, 0.0], [0.0, 0.0, 0.75, 0.75]])
+        torch.testing.assert_close(
+            embedded["time"],
+            torch.tensor([[0.0, 0.0, 0.25075, 0.0], [0.0, 0.0, 0.75025, 0.75025]]),
+        )
         self.assertEqual(fixed_output[-1].tolist(), [[False, False, True, False], [False, False, True, True]])
 
         config.training_time_rtc = False
