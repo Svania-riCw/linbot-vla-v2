@@ -25,6 +25,12 @@ data:
     - effector.position: bounds_99_woclip
   num_workers: 8
   use_future_image: true
+  # roi branch default: original three full views, 432 visual patch tokens.
+  img_size: 384
+  image_resize_mode: opencv_lanczos4
+  preserve_image_resolution: true
+  roi_config: {}
+  image_augment: false
 
 train:
   output_dir: /path/to/save_ckpt
@@ -96,7 +102,7 @@ train:
     use_future_video: true
     llm:
       dim_out: 2560
-      image_token_size: 8
+      image_token_size: 12
       image_input_size: 224
     depth:
       model_type: MoRGBD

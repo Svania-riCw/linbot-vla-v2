@@ -13,6 +13,7 @@ from tqdm import tqdm
 from torch.utils.data import Dataset
 from .base_dataset import VLADataset
 from ...utils.ee_roi import ROIGeometryError
+from ...utils.observation_augmentation import AugmentationError
 
 logger = helper.create_logger(__name__)
 
@@ -156,8 +157,8 @@ class MultiVLADataset(Dataset):
         while attempts < max_retries:
             try:
                 return self.getdata(cur)
-            except ROIGeometryError:
-                # Broken calibration/frame alignment must not bias the dataset
+            except (ROIGeometryError, AugmentationError):
+                # Broken calibration/masks/image alignment must not bias the dataset
                 # by silently replacing difficult examples with random samples.
                 raise
             except Exception as e:

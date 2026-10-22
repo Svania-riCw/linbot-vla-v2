@@ -420,6 +420,10 @@ def main():
         from lingbotvla.utils.ee_roi import canonical_hash
         # Survives HF export; serving must not silently fall back to full views.
         model.config.roi_config_sha256 = canonical_hash(args.data.roi_config)
+    from lingbotvla.utils.observation_augmentation import AugmentationError, config_hash, check_augmentation_identity
+    if args.data.image_augmentation_config and not args.data.image_augment:
+        raise ValueError("image_augmentation_config requires data.image_augment=true during training")
+    model.config.image_augmentation_config_sha256 = config_hash(args.data.image_augmentation_config)
     use_depth_align = True if args.train.align_params != {} else False
     use_future_depth = args.train.align_params.get('depth', {}).get('use_future_depth', False)
     use_future_video = use_depth_align and args.train.align_params.get('use_future_video', False)
@@ -711,9 +715,11 @@ def main():
             state = {"model": model, "ema": None, "optimizer": optimizer, "extra_state": {}}  # cannot be None
             try:
                 checkpoint_config = os.path.join(cp, "hf_ckpt", "config.json")
-                if args.data.roi_config or os.path.isfile(checkpoint_config):
+                if args.data.roi_config or args.data.image_augmentation_config or os.path.isfile(checkpoint_config):
                     with open(checkpoint_config, encoding="utf-8") as stream:
-                        check_roi_identity(json.load(stream), args.data.roi_config)
+                        checkpoint_metadata = json.load(stream)
+                    check_roi_identity(checkpoint_metadata, args.data.roi_config)
+                    check_augmentation_identity(checkpoint_metadata, args.data.image_augmentation_config)
                 Checkpointer.load(cp, state, allow_partial_load=getattr(args.train, 'allow_partial_checkpoint', False))
                 global_step = state["extra_state"]["global_step"]
                 start_epoch = global_step // args.train.train_steps
@@ -744,14 +750,14 @@ def main():
                 logger.info_rank0(f"Load distributed checkpoint from {cp} successfully!")
                 loaded = True
                 break
-            except ROIGeometryError:
+            except (ROIGeometryError, AugmentationError):
                 raise  # a different input representation is not a recoverable checkpoint failure
             except Exception as e:
                 last_err = e
                 logger.info_rank0(f"Failed to load checkpoint {cp}: {repr(e)}. Trying older one...")
                 continue
         if not loaded:
-            if args.train.load_checkpoint_path or args.data.roi_config:
+            if args.train.load_checkpoint_path or args.data.roi_config or args.data.image_augmentation_config:
                 raise RuntimeError(f"Cannot resume explicitly requested checkpoint: {load_checkpoint_path}") from last_err
             logger.info_rank0("Starting training from scratch. No valid checkpoint could be loaded.")
     else:

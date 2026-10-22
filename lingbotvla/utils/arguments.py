@@ -240,6 +240,10 @@ class DataArguments:
             )
         },
     )
+    image_augmentation_config: dict = field(
+        default_factory=dict,
+        metadata={"help": "Opt-in training RGB recipe. Empty preserves legacy color jitter; see FULL432_AUGMENTATION.md."},
+    )
     def __post_init__(self):
         if self.text_keys is None:
             if self.data_type == "plaintext":
