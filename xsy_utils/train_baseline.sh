@@ -10,27 +10,34 @@ set -euo pipefail
 XSY_UTILS="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 WS="${WS:-$(cd -- "$XSY_UTILS/../.." && pwd)}"          # /2025233210/xiesy/lingbot_ws
 CODE="$(cd -- "$XSY_UTILS/.." && pwd)"                 # this repo
-CONFIG="${CONFIG:-$XSY_UTILS/configs/robotwin_clean_baseline.yaml}"
 RUN_NAME="${RUN_NAME:-baseline_$(date +%Y%m%d_%H%M%S)}"
 OUT="$WS/outputs/$RUN_NAME"
 MICRO_BS="${MICRO_BS:-32}"
 
-# Envs live on shared storage (container-local /root/miniconda3/envs does not survive restarts).
-export CONDA_ENVS_PATH="${CONDA_ENVS_PATH:-$WS/conda_envs}"
-source /root/miniconda3/etc/profile.d/conda.sh
-set +u; conda activate "${TRAIN_ENV:-lingbotvla}"; set -u
+CONDA_SH="${CONDA_SH:-/root/miniconda3/etc/profile.d/conda.sh}"
+if [[ -f "$CONDA_SH" ]]; then
+    # Envs live on shared storage (container-local /root/miniconda3/envs does not survive restarts).
+    export CONDA_ENVS_PATH="${CONDA_ENVS_PATH:-$WS/conda_envs}"
+    source "$CONDA_SH"
+    set +u; conda activate "${TRAIN_ENV:-lingbotvla}"; set -u
 
-# PYTHONPATH takes precedence over any editable installs, so every module
-# (lingbotvla, moge, mdm, utils3d) resolves to this checkout.
-VM="$CODE/lingbotvla/models/vla/vision_models"
-export PYTHONPATH="$CODE:$VM/MoGe:$VM/lingbot-depth:$CODE/third_party/utils3d"
+    # PYTHONPATH takes precedence over any editable installs, so every module
+    # (lingbotvla, moge, mdm, utils3d) resolves to this checkout.
+    VM="$CODE/lingbotvla/models/vla/vision_models"
+    export PYTHONPATH="$CODE:$VM/MoGe:$VM/lingbot-depth:$CODE/third_party/utils3d"
+    export PYTHONNOUSERSITE=1 TOKENIZERS_PARALLELISM=false PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+    export HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_HUB_DISABLE_TELEMETRY=1 DISABLE_TELEMETRY=1
+else
+    # PPU box / DLC: no conda; venv from env/setup_venv_ppu.sh, same exports as above.
+    source "$XSY_UTILS/env/ppu_env.sh"
+    DEFAULT_CONFIG="$XSY_UTILS/configs/ppu/robotwin_clean_baseline_ppu.yaml"
+fi
+CONFIG="${CONFIG:-${DEFAULT_CONFIG:-$XSY_UTILS/configs/robotwin_clean_baseline.yaml}}"
 # Optional experiment-only SDK overlay; shared Conda packages stay in place.
 if [[ -n "${QL_WANDB_SDK_PATH:-}" ]]; then
     [[ -d "$QL_WANDB_SDK_PATH/wandb" ]] || { echo "Invalid QL_WANDB_SDK_PATH" >&2; exit 2; }
     export PYTHONPATH="$QL_WANDB_SDK_PATH:$PYTHONPATH"
 fi
-export PYTHONNOUSERSITE=1 TOKENIZERS_PARALLELISM=false PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-export HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_HUB_DISABLE_TELEMETRY=1 DISABLE_TELEMETRY=1
 
 if [[ -z "${CUDA_VISIBLE_DEVICES:-}" ]]; then NPROC=$(nvidia-smi -L | wc -l)
 else NPROC=$(tr ',' '\n' <<<"$CUDA_VISIBLE_DEVICES" | wc -l); fi
@@ -49,7 +56,9 @@ cp "$CONFIG" "$OUT/config.yaml"
 git -C "$CODE" diff > "$OUT/code.diff"
 
 cd "$CODE"
-torchrun --nnodes=1 --nproc-per-node "$NPROC" --master-port="${MASTER_PORT:-62511}" \
+# `python -m` rather than the torchrun script: on the PPU box its shebang is the system python,
+# which would bypass the venv.
+python -m torch.distributed.run --nnodes=1 --nproc-per-node "$NPROC" --master-port="${MASTER_PORT:-62511}" \
     tasks/vla/train_lingbotvla.py "$CONFIG" \
     --train.output_dir "$OUT" \
     --train.micro_batch_size "$MICRO_BS" \

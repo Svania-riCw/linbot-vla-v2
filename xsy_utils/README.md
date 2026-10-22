@@ -17,6 +17,24 @@ bash xsy_utils/env/setup.sh            # deps model_env sim_env assets gl
   The step extracts the matching driver's userspace GL/Vulkan libs into `$WS/nvidia-gl-<ver>`;
   `eval_parallel.sh` picks them up automatically. Nothing under /usr is touched.
 
+## PPU box (/mnt/cpfs, PPU-ZW810E) / DLC
+
+No conda here, and the torch 2.8/cu128 wheels do not run on PPU. Model env only (no Vulkan device,
+so no RoboTwin sim eval on this box).
+
+```bash
+bash xsy_utils/env/setup_venv_ppu.sh   # venv /mnt/cpfs/venvs/lingbotvla + third_party/utils3d
+source xsy_utils/env/ppu_env.sh        # = conda activate + exports; caches in .runtime/
+```
+
+- venv on the system python 3.12 with `--system-site-packages` (same as the pi05 env): inherits the
+  vendor torch 2.9.0 / triton 3.5 / flash-attn 2.7.4; the rest is `env/lingbotvla.lock.txt` --no-deps.
+  No torchcodec (no PPU build) -> image-mode LeRobot data only.
+- `train_baseline.sh` falls back to `ppu_env.sh` when conda is absent and then defaults to
+  `configs/ppu/robotwin_clean_baseline_ppu.yaml`: weights in `/mnt/cpfs/legacy_lingbot/checkpoints`,
+  clean-50 data (LeRobot v3.0, image mode) in `/mnt/cpfs/legacy_lingbot/data/robotwin_clean50_lerobot`,
+  clean-50 norm stats in `configs/ppu/`. Outputs go to `$WS/outputs` = `/mnt/cpfs/outputs` (~73 GB per save).
+
 ## Training
 
 Baseline (no RTC) on RoboTwin clean data: 50 tasks x 50 episodes.
