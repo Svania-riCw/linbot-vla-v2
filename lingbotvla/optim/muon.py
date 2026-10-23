@@ -194,6 +194,19 @@ _KIND_MOE_LOCAL_3D = "moe_local_3d"
 _KIND_MOE_GATHER_3D = "moe_gather_3d"
 
 
+def _shard_layout(global_size: int, world_size: int) -> Tuple[int, List[int], List[int]]:
+    """Row layout of a DTensor ``Shard`` / FSDP2 parameter over ``world_size`` ranks: torch.chunk
+    semantics (ceil-sized chunks, the last ones shorter or empty) -> (max chunk, offsets, sizes).
+
+    The previous formula (the first ``global_size % world_size`` ranks get one extra row) only agrees
+    when the remainder is 0 or ``world_size - 1``; e.g. the d4rt head's 588-row ``to_pred`` on 8 ranks
+    is 7 x 74 + 70, not 4 x 74 + 4 x 73, and its Muon update was assembled from the wrong rows."""
+    chunk = -(-global_size // world_size)
+    offsets = [min(r * chunk, global_size) for r in range(world_size)]
+    sizes = [max(0, min(chunk, global_size - r * chunk)) for r in range(world_size)]
+    return chunk, offsets, sizes
+
+
 def _shard_dims(p: DTensor) -> List[int]:
     """Return the list of tensor dims along which ``p`` is sharded."""
     return [pl.dim for pl in p.placements if isinstance(pl, Shard)]
@@ -262,6 +275,11 @@ class DistributedMuon(Optimizer):
     Same-shape FSDP2-sharded 2D parameters are processed together: one batched
     all-gather, one batched NS, then local scatter. This reduces NCCL calls from
     O(num_params) to O(num_unique_shapes).
+
+    ``distribute_ns`` (default): matrix i of a same-shape batch is orthogonalised on
+    rank ``i % world_size`` only (all-to-all in, NS on 1/world_size of the batch,
+    all-to-all back) instead of every rank gathering and orthogonalising every
+    matrix. Same math; NS was 2.55 s of every optimizer step on 2 PPU.
     """
 
     def __init__(
@@ -275,7 +293,9 @@ class DistributedMuon(Optimizer):
         eps: float = EPS,
         ns_steps: int = DEFAULT_NS_STEPS,
         adjust_lr_fn: Optional[str] = None,
+        distribute_ns: bool = True,
     ) -> None:
+        self.distribute_ns = distribute_ns
         if isinstance(lr, Tensor) and lr.numel() != 1:
             raise ValueError("Tensor lr must be 1-element")
         if not 0.0 <= float(lr):
@@ -395,10 +415,8 @@ class DistributedMuon(Optimizer):
                     full_ortho = batched_newton_schulz(full_update, ns_coefficients, ns_steps, eps)
                     # Take this rank's local shard back
                     pg, ws, rk, sdim = _get_dtensor_shard_info(p)
-                    global_size = p.shape[sdim]
-                    chunk_floor = global_size // ws
-                    rem = global_size % ws
-                    start = rk * chunk_floor + min(rk, rem)
+                    _, offsets, _ = _shard_layout(p.shape[sdim], ws)
+                    start = offsets[rk]
                     local_size = update_local.shape[sdim]
                     ortho_local = full_ortho.narrow(sdim, start, local_size).contiguous()
                 else:
@@ -502,7 +520,12 @@ class DistributedMuon(Optimizer):
         # (ceil vs floor when global_dim % world_size != 0). dist.all_gather
         # requires uniform sizes. Pad to max_local_size before gathering.
         global_dim_size = params[0].shape[shard_dim]  # DTensor .shape = global
-        max_local_size = (global_dim_size + world_size - 1) // world_size
+        max_local_size, shard_offsets, shard_sizes = _shard_layout(global_dim_size, world_size)
+        if original_local_size != shard_sizes[rank]:
+            raise RuntimeError(
+                f"DistributedMuon: local shard of a {tuple(params[0].shape)} param has {original_local_size} rows on "
+                f"rank {rank}, expected {shard_sizes[rank]} (torch.chunk layout over {world_size} ranks)"
+            )
         needs_padding = (max_local_size != original_local_size)
 
         if needs_padding:
@@ -513,33 +536,32 @@ class DistributedMuon(Optimizer):
             pad_spec[pad_idx + 1] = pad_amount
             stacked_local = torch.nn.functional.pad(stacked_local, pad_spec)
 
-        gather_list = [torch.empty_like(stacked_local) for _ in range(world_size)]
-        dist.all_gather(gather_list, stacked_local.contiguous(), group=pg)
-        del stacked_local
-
-        # Reconstruct full global tensor, stripping per-rank padding if needed.
-        remainder = global_dim_size % world_size
-        if remainder == 0:
-            stacked_full = torch.cat(gather_list, dim=gather_dim)
+        if self.distribute_ns and world_size > 1:
+            local_ortho_batch = self._distributed_ns(
+                stacked_local, gather_dim, max_local_size, shard_offsets, shard_sizes, original_local_size,
+                world_size, pg, ns_coefficients, ns_steps, eps,
+            )
+            del stacked_local
         else:
-            real_chunks = []
-            for r in range(world_size):
-                real_size = max_local_size if r < remainder else (global_dim_size // world_size)
-                real_chunks.append(gather_list[r].narrow(gather_dim, 0, real_size))
-            stacked_full = torch.cat(real_chunks, dim=gather_dim)
-        del gather_list
+            gather_list = [torch.empty_like(stacked_local) for _ in range(world_size)]
+            dist.all_gather(gather_list, stacked_local.contiguous(), group=pg)
+            del stacked_local
 
-        # Phase 3: Batched Newton-Schulz
-        stacked_ortho = batched_newton_schulz(stacked_full, ns_coefficients, ns_steps, eps)
-        del stacked_full
+            # Reconstruct full global tensor, stripping per-rank padding if needed.
+            stacked_full = torch.cat(
+                [gather_list[r].narrow(gather_dim, 0, shard_sizes[r]) for r in range(world_size)], dim=gather_dim
+            )
+            del gather_list
 
-        # Phase 4: Local scatter + apply update
-        chunk_floor = global_dim_size // world_size
-        shard_start = rank * chunk_floor + min(rank, remainder)
-        local_ortho_batch = stacked_ortho.narrow(
-            gather_dim, shard_start, original_local_size
-        ).contiguous()
-        del stacked_ortho
+            # Phase 3: Batched Newton-Schulz
+            stacked_ortho = batched_newton_schulz(stacked_full, ns_coefficients, ns_steps, eps)
+            del stacked_full
+
+            # Phase 4: Local scatter + apply update
+            local_ortho_batch = stacked_ortho.narrow(
+                gather_dim, shard_offsets[rank], original_local_size
+            ).contiguous()
+            del stacked_ortho
 
         for i, p in enumerate(params):
             if not has_grad[i]:
@@ -551,6 +573,59 @@ class DistributedMuon(Optimizer):
                 p_local.mul_(1 - lr * weight_decay)
 
             p_local.add_(ortho_local.to(dtype=p_local.dtype), alpha=-adjusted_lr)
+
+    @staticmethod
+    def _distributed_ns(
+        stacked_local: Tensor,
+        gather_dim: int,
+        max_local_size: int,
+        shard_offsets: List[int],
+        shard_sizes: List[int],
+        original_local_size: int,
+        world_size: int,
+        pg: Any,
+        ns_coefficients: tuple,
+        ns_steps: int,
+        eps: float,
+    ) -> Tensor:
+        """[N, ...local shard padded to max_local_size...] -> this rank's shard of each orthogonalised matrix.
+
+        Matrix i is owned by rank ``i % world_size``: the first all-to-all brings the owner every
+        rank's shard of its matrices, the owner runs NS on its ``ceil(N / world_size)`` full
+        matrices, the second all-to-all returns every rank its shard of each result."""
+        W = world_size
+        N = stacked_local.size(0)
+        m = -(-N // W)
+        if m * W > N:  # zero matrices fill the last round; NS(0) = 0, dropped below
+            stacked_local = torch.cat([stacked_local, stacked_local.new_zeros((m * W - N, *stacked_local.shape[1:]))])
+        rest = stacked_local.shape[1:]
+
+        # send[d] = this rank's shards of the matrices owned by d (indices d, d + W, ...)
+        send = stacked_local.reshape(m, W, *rest).transpose(0, 1).contiguous()
+        recv = torch.empty_like(send)
+        dist.all_to_all_single(recv, send, group=pg)  # recv[s] = rank s's shards of this rank's matrices
+        del send
+        full = torch.cat([recv[s].narrow(gather_dim, 0, shard_sizes[s]) for s in range(W)], dim=gather_dim)
+        del recv
+        ortho = batched_newton_schulz(full, ns_coefficients, ns_steps, eps)
+        del full
+
+        pieces = []
+        for d in range(W):
+            piece = ortho.narrow(gather_dim, shard_offsets[d], shard_sizes[d])
+            if shard_sizes[d] < max_local_size:
+                pad_spec = [0] * (2 * piece.ndim)
+                pad_spec[2 * (piece.ndim - 1 - gather_dim) + 1] = max_local_size - shard_sizes[d]
+                piece = torch.nn.functional.pad(piece, pad_spec)
+            pieces.append(piece)
+        del ortho
+        send = torch.stack(pieces).contiguous()  # send[d] = rank d's shard of each of this rank's results
+        del pieces
+        recv = torch.empty_like(send)
+        dist.all_to_all_single(recv, send, group=pg)  # recv[s] = this rank's shard of rank s's matrices
+        del send
+        local = recv.transpose(0, 1).reshape(m * W, *rest)[:N]  # back to matrix order j * W + s
+        return local.narrow(gather_dim, 0, original_local_size).contiguous()
 
     @staticmethod
     def _compute_ortho(

@@ -189,6 +189,17 @@ lines were bs 128 × 10k = 1.28 M samples (2.3 epochs).
 - **Speed, pure** (`d4rt_lingbot/data.py`): concurrent episode open + one `pread` per depth frame / track window
   instead of memmap page faults (section 1), bit-identical outputs.
 - Multi-node launcher (`train.sh`, `warm_hf_cache.py`, `comm_test.py`, `test_multinode.sh`; section 2b).
+- **Muon optimizer** (`lingbotvla/optim/muon.py`, 2026-10-24):
+  - *Speed, same math*: every rank used to all-gather and Newton-Schulz-orthogonalise every 2D matrix of the
+    model (831 matrices, 2.31 s per optimizer step per rank, independent of the number of GPUs). Now matrix i
+    of a same-shape batch is orthogonalised on rank i % world only (all-to-all in / out): 0.31 s on 8 ranks.
+    2 PPU res2 step 8.78 → 7.63 s; 8 PPU res2 (bs 256, GA 2) expected ~15.4 → ~13.4 s.
+  - *Correctness*: the shard layout assumed "the first rows % world ranks get one extra row"; DTensor/FSDP2
+    use torch.chunk (ceil-sized chunks). They differ for the d4rt head's 588-row `to_pred` on 8 ranks
+    (7 × 74 + 70 vs 4 × 74 + 4 × 73): its Muon update was assembled from the wrong rows and applied at the
+    wrong offsets, every step, silently (exact on 2 ranks, so the 2-PPU tests never saw it). Both paths
+    now use the real layout and assert it. `tests/test_muon_distributed_ns.py` checks 8 and 3 CPU ranks
+    against Muon on the full tensors (the old code fails it on the 588-row matrices by ~1 lr).
 - d4rt task names also accept the PPU-side LeRobot dirs (`<task>-aloha-agilex_clean_50-50`);
   `validate_targets.py --root`.
 - **Speed, pure** (`base_dataset._query_hf_dataset`): select the column before the rows. Row-first decoded
