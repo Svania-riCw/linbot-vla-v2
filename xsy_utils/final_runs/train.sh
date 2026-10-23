@@ -3,13 +3,13 @@
 #
 #   bash xsy_utils/final_runs/train.sh <run>      # run = a configs/<run>.yaml, or use the train_<run>.sh wrappers
 #
-# Common to every run (README.md): global batch 256, 20k steps (user, 2026-10-23: 1024 x 50k would take 16-30
-# days), official lr 1e-4 -> 5e-5 cosine over the run, Muon, torch.compile OFF. Batch = MBS x world x grad-accum;
-# memory depends on MBS only.
+# Common to every run (README.md): 20k steps, global batch 256 (user, 2026-10-23: 1024 x 50k would take 16-30
+# days on one node) except the 4-node d4rt_q96_ctxvs_res1_augon at the official 1024; official lr 1e-4 -> 5e-5
+# cosine over the run, Muon, torch.compile OFF. Batch = MBS x world x grad-accum; memory depends on MBS only.
 #
 # Knobs (env):
 #   MBS / GRAD_CKPT   per-GPU micro batch / gradient checkpointing (defaults per resolution, measured)
-#   GBS=256 MAX_STEPS=20000 SAVE_STEPS=2500   USE_COMPILE=false   NUM_WORKERS (default cpus/ranks - 2, max 12)
+#   GBS (default: the config's train.global_batch_size) MAX_STEPS=20000 SAVE_STEPS=2500   USE_COMPILE=false   NUM_WORKERS (default cpus/ranks - 2, max 12)
 #   KEEP_LAST=2       full saves (DCP model + optimizer + hf_ckpt) kept for resume, the rest pruned ...
 #   KEEP_HF_EVERY=5000   ... except the hf_ckpt of these steps (for eval)
 #   CKPT_BASE=/mnt/oss/xiesy/lingbot-ckpts   checkpoints in $CKPT_BASE/<run>/checkpoints (OSS; ~75 GB per save)
@@ -48,7 +48,7 @@ case "$RUN" in
 esac
 MBS=${MBS:-$MBS_DEF}
 GRAD_CKPT=${GRAD_CKPT:-$CKPT_DEF}
-GBS=${GBS:-256}
+GBS=${GBS:-$(python -c 'import sys, yaml; print(yaml.safe_load(open(sys.argv[1]))["train"]["global_batch_size"])' "$CONFIG")}
 MAX_STEPS=${MAX_STEPS:-20000}
 SAVE_STEPS=${SAVE_STEPS:-2500}
 USE_COMPILE=${USE_COMPILE:-false}

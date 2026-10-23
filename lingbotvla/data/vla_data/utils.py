@@ -127,12 +127,18 @@ class FeatureTransform:
         self.observation_augmenter = None
         if image_augment and not disabled_image_features and getattr(data_config, "image_augmentation_config", None):
             from ...utils.observation_augmentation import ObservationAugmenter, AugmentationError
+            # The augmenter runs on the resized frames before the processor and keeps their size, so the visual
+            # token budget is fixed per input layout: full432 (384 Lanczos4, 3 x 12x12 tokens) or the default
+            # 256 bilinear input (3 x 8x8 tokens, the res1 runs of xsy_utils/final_runs).
+            layout = (getattr(data_config, "img_size", None), getattr(data_config, "image_resize_mode", None),
+                      bool(getattr(data_config, "preserve_image_resolution", False)))
+            budgets = {(384, "opencv_lanczos4", True): 432, (256, "torchvision_bilinear", False): 192}
             if (getattr(data_config, "roi_config", None)
-                    or getattr(data_config, "img_size", None) != 384
-                    or getattr(data_config, "image_resize_mode", None) != "opencv_lanczos4"
-                    or not getattr(data_config, "preserve_image_resolution", False)
+                    or layout not in budgets
                     or list(data_config.cameras) != ["camera_top", "camera_wrist_left", "camera_wrist_right"]):
-                raise AugmentationError("The new augmentation experiment requires full-view 384/432, Lanczos4, and ROI disabled")
+                raise AugmentationError("The new augmentation experiment requires full views with ROI disabled, at "
+                                        "384 Lanczos4 (full432) or the default 256 bilinear input")
+            self.augmentation_token_budget = budgets[layout]
             self.observation_augmenter = ObservationAugmenter(data_config.image_augmentation_config)
         
         # keep the self.feature_to_keep in lerobot item when convert to new item
@@ -499,9 +505,9 @@ class FeatureTransform:
                 raise ROIGeometryError("ROI-432 actual processor grid/masks changed the visual budget")
         if self.observation_augmenter is not None:
             from ...utils.observation_augmentation import AugmentationError
-            expected = 432 + (6 if getattr(self.model_config, "qwen3vl_use_vision_boundaries", True) else 0)
+            expected = self.augmentation_token_budget + (6 if getattr(self.model_config, "qwen3vl_use_vision_boundaries", True) else 0)
             if image_token_count != expected or not bool(img_masks.all()):
-                raise AugmentationError("Full432 augmentation changed the visual token budget/camera masks")
+                raise AugmentationError("Observation augmentation changed the visual token budget/camera masks")
         batch_dict["image_token_count"] = image_token_count
         
         lang_tokens, lang_masks = prepare_language(self.model_config, self.tokenizer, batch_dict) # bs, seq_len

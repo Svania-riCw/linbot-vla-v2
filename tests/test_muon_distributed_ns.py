@@ -98,7 +98,7 @@ class DistributedMuonShardingTest(unittest.TestCase):
     def test_layout_matches_dtensor(self):
         from lingbotvla.optim.muon import _shard_layout
 
-        for rows, world in ((588, 8), (55, 8), (55, 16), (5, 8), (64, 8), (7, 3)):
+        for rows, world in ((588, 8), (55, 8), (55, 16), (588, 32), (55, 32), (5, 8), (64, 8), (7, 3)):
             chunks = torch.arange(rows).chunk(world)
             sizes = [len(c) for c in chunks] + [0] * (world - len(chunks))
             chunk, offsets, got = _shard_layout(rows, world)

@@ -1,4 +1,4 @@
-"""Write the four final-run configs (configs/*.yaml) from the spatial-exp d4rt_ctxvs line.
+"""Write the final-run configs (configs/*.yaml) from the spatial-exp d4rt_ctxvs line.
 
     python xsy_utils/final_runs/gen_configs.py
 
@@ -11,9 +11,12 @@ visual_state) with PPU-side paths, and only these changes:
     augon  data.image_augment + configs/vla/robotwin/full432_augmentation_recipe.yaml
            (qianlei's full432 observation augmentation; FULL432_AUGMENTATION.md)
     q96    d4rt_params.num_queries 96
+    res1 + augon   the same augmentation on the default 256 bilinear input (the augmenter's input guard
+           accepts both layouts, lingbotvla/data/vla_data/utils.py)
 
-Batch / steps / compile / checkpointing are set by train.sh (bs 256, 20k steps, compile off); the yaml carries the
-same values for reference.
+train.global_batch_size is the run's batch (train.sh default GBS): 256, except the 4-node res1 aug-on run at the
+official 1024 (32 GPUs, no grad accumulation). Steps / compile / checkpointing are set by train.sh (20k steps,
+compile off); the yaml carries the same values for reference.
 """
 import copy
 import pathlib
@@ -40,6 +43,7 @@ RUNS = {
     "d4rt_q08_ctxvs_res2_augon": dict(res2=True, aug=True, queries=8),
     "d4rt_q96_ctxvs_res2_augoff": dict(res2=True, aug=False, queries=96),
     "d4rt_q96_ctxvs_res2_augon": dict(res2=True, aug=True, queries=96),
+    "d4rt_q96_ctxvs_res1_augon": dict(res2=False, aug=True, queries=96, gbs=1024),  # 4 nodes x 8 PPU
 }
 
 
@@ -59,15 +63,16 @@ def base_config() -> dict:
     t["d4rt_params"]["root"] = D4RT_ROOT
     t["output_dir"] = "/set/by/train.sh"
     t["use_compile"] = False
-    t["global_batch_size"], t["max_steps"], t["save_steps"] = 256, 20000, 2500  # = train.sh defaults
+    t["max_steps"], t["save_steps"] = 20000, 2500  # = train.sh defaults
     for key in ("model_path", "tokenizer_path"):
         assert "/2025233210" not in m[key]
     return cfg
 
 
-def make(res2: bool, aug: bool, queries: int) -> dict:
+def make(res2: bool, aug: bool, queries: int, gbs: int = 256) -> dict:
     cfg = copy.deepcopy(base_config())
     d, t = cfg["data"], cfg["train"]
+    t["global_batch_size"] = gbs
     if res2:
         d.update(img_size=384, image_resize_mode="opencv_lanczos4", preserve_image_resolution=True, roi_config={})
         t["align_params"]["llm"]["image_token_size"] = 12

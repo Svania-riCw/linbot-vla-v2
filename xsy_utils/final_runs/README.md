@@ -1,7 +1,8 @@
 # final_runs — d4rt-ctxvs × {resolution, colour augmentation}, DLC 8 × PPU
 
-Five runs, all **global batch 256, 20k steps** (5.1 M samples, 9.3 epochs; changed from 1024 × 50k on 2026-10-23,
-which would have taken 16–30 days), lr as in the official RoboTwin recipe (1e-4 → 5e-5 cosine over the run,
+Six runs, all **20k steps**; five on one 8-PPU node at **global batch 256** (5.1 M samples, 9.3 epochs; changed
+from 1024 × 50k on 2026-10-23, which would have taken 16–30 days), one on **4 nodes × 8 PPU at the official
+global batch 1024** (32 GPUs × MBS 32, no grad accumulation; 20.5 M samples, 37 epochs). lr as in the official RoboTwin recipe (1e-4 → 5e-5 cosine over the run,
 Muon, fp32), **torch.compile off**, initialised from `lingbot-vla-v2-6b`, RoboTwin clean-50 (50 tasks ×
 50 episodes, 549,787 frames).
 
@@ -12,12 +13,16 @@ Muon, fp32), **torch.compile off**, initialised from `lingbot-vla-v2-6b`, RoboTw
 | `train_d4rt_q08_ctxvs_res2_augoff.sh` | 384² (432 tok) | off | 8 | fallback |
 | `train_d4rt_q96_ctxvs_res2_augoff.sh` | 384² (432 tok) | off | 96 | q96 twin of the res2 aug-off fallback |
 | `train_d4rt_q08_ctxvs_res1_augoff.sh` | 256² (192 tok) | off | 8 | fallback |
+| `train_d4rt_q96_ctxvs_res1_augon.sh` | 256² (192 tok) | on | 96 | **4 nodes, bs 1024** |
 
 - **d4rt-ctxvs** = `xsy_utils/spatial-exp/configs/robotwin_clean_d4rt_ctxvs.yaml` (alignment teachers +
   d4rt probe, `context: visual_state`), unchanged except paths. res1 keeps its torchvision-bilinear 256².
 - **res2** = qianlei's full432 input: 384², OpenCV Lanczos4, fixed processor grid, 12×12 student grid.
 - **aug** = qianlei's full432 observation augmentation (`configs/vla/robotwin/full432_augmentation_recipe.yaml`;
   colour/temperature, 2-D scale+shift, noise, blur, JPEG; occlusion is skipped — no foreground masks).
+  At res1 the same recipe runs on the 256² frames (its input guard accepted only full432 before, section 4):
+  everything is relative to the image except blur σ / motion-blur kernel, which are in pixels and so ~1.5×
+  stronger relative to the frame than at 384².
 - Configs are generated: `python xsy_utils/final_runs/gen_configs.py` → `configs/*.yaml` (edit the generator).
 
 ## 1. Data
@@ -101,7 +106,15 @@ DRYRUN=1 bash ...   # preflight + resolved settings only
 ## 2b. Multi-node (e.g. 2 × 8 = 16 PPU)
 
 Same command on every node; DLC exports `WORLD_SIZE` (= number of nodes), `RANK` (= node rank), `MASTER_ADDR/PORT`
-(`PET_NNODES/PET_NODE_RANK` take precedence if present). Global batch stays 256 (res1: 32 × 16 already covers it at GA 1 → `MBS=16`).
+(`PET_NNODES/PET_NODE_RANK` take precedence if present). The global batch is the config's (`GBS` overrides): the
+256 runs on 16 GPUs need `MBS=16` at res1 (32 × 16 > 256). `train_d4rt_q96_ctxvs_res1_augon.sh` is the 4-node run
+(1024 = 32 GPUs × 32) and stops on any other node count unless `ALLOW_NNODES=1` (it would accumulate gradients:
+same batch, 2–4× slower).
+
+Measured on DLC 2 × 8 (2026-10-24, `test_multinode.sh`, full shard over 16, `NCCL_IB_DISABLE=1` → inter-node
+busbw ~10 GB/s): q96 res2 bs 256 **7.0 s/step** (MBS 16, GA 1) vs 13.6 s on one node (GA 2) = 1.94×. The 4-node
+res1 run has the same per-GPU work as the 1-node res1 runs (MBS 32, GA 1; 7.1 s/step on DLC), so expect ~7–7.5
+s/step (20k ≈ 1.7 days) if the inter-node traffic stays hidden as it did on 2 nodes — untested on 4 nodes.
 
 ```bash
 bash .../train_d4rt_q96_ctxvs_res2_augon.sh                 # full shard over all 16 ranks
@@ -213,5 +226,11 @@ lines were bs 128 × 10k = 1.28 M samples (2.3 epochs).
   per training sample, identical tensors. On 2 PPU the loader was just keeping up (9.1 → 8.9 s per step);
   it removes the data-bound risk on DLC and frees ~10× loader CPU.
 - PPU env (`xsy_utils/env/{setup_venv_ppu.sh,ppu_env.sh}`, `configs/ppu/`, `train_baseline.sh` fallback).
+- **full432 augmentation at res1** (`lingbotvla/data/vla_data/utils.py`, 2026-10-24): the augmenter's input guard
+  accepted only 384 Lanczos4 / fixed grid (432 tokens). It runs on the resized frames before the processor and
+  keeps their size, so it is resolution-independent; the guard now also accepts the default 256 bilinear input
+  with its fixed budget of 192 tokens (3 × 8 × 8), and the post-processor budget check uses the layout's value.
+  Checked on real samples (`d4rt_q96_ctxvs_res1_augon`: augmented vs un-augmented pixels, budget check,
+  d4rt fields), `tests/test_observation_augmentation.py` passes; full432 behaviour unchanged.
 
 Tests: `pytest tests/` → 132 passed (126 existing incl. qianlei's + 6 new).
