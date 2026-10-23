@@ -18,19 +18,29 @@ Muon, fp32), **torch.compile off**, initialised from `lingbot-vla-v2-6b`, RoboTw
   colour/temperature, 2-D scale+shift, noise, blur, JPEG; occlusion is skipped — no foreground masks).
 - Configs are generated: `python xsy_utils/final_runs/gen_configs.py` → `configs/*.yaml` (edit the generator).
 
-## 1. Data to copy (you)
+## 1. Data
 
-Only the d4rt targets are missing on this side. Everything else is already on CPFS.
+The d4rt targets (copy of H20 `/2025233210/xiesy/data/lingbot_robotwin_clean_d4rt/`, ≈ 262 GB, 98 % `depth/`) are
+at **`/mnt/oss/xiesy/lingbot-data/lingbot_robotwin_clean_d4rt/`** (OSS: the 2 TB CPFS quota is full);
+`D4RT_ROOT` in `gen_configs.py`. Layout `<task>/{ee,cam,depth/<cam>,depth_meta/<cam>,tracks/<cam>,tvis/<cam>,tmeta/<cam>}/episode_NNNNNN.*`.
+Verified 2026-10-23: all 2,500 episodes complete, `ee` rows = LeRobot length + 1, and `--compare-ee` bit-identical.
 
-| what | from (H20) | to | size |
-|---|---|---|---|
-| d4rt targets (all of it, incl. `*_INFO.json`) | `/2025233210/xiesy/data/lingbot_robotwin_clean_d4rt/` | `/mnt/cpfs/data/lingbot_robotwin_clean_d4rt/` | ≈ 262 GB (98 % `depth/`) |
+**Reading it from OSS.** Every sample opens the ~20 files of a random episode and reads a few depth frames; on
+ossfs each open / page fault is a round trip (~2.5 ms per 4 KB page). `d4rt_lingbot/data.py` therefore opens an
+episode's files concurrently and reads whole frames / track windows with one `pread` each (outputs bit-identical
+to the memmap version: 480 samples over all 50 tasks, K = 8/96, with and without the augmentation affine).
+Cold (never-read episode) d4rt cost per sample on the dev box, K = 96:
 
-Layout must stay `<task>/{ee,cam,depth/<cam>,depth_meta/<cam>,tracks/<cam>,tvis/<cam>,tmeta/<cam>}/episode_NNNNNN.*`.
-Another location works too: change `D4RT_ROOT` in `gen_configs.py` and regenerate. Keep it on CPFS: every
-sample opens ~21 files of a random episode, and OSS (ossfs) pays 0.2–0.5 s per first open.
+| workers | old (memmap) | new |
+|---|---|---|
+| 8  | 0.93 s, 8.6 samples/s | 0.29 s, 27.7 samples/s |
+| 16 | 1.18 s, 13.6 samples/s | 0.28 s, 56.7 samples/s |
+| 32–64 | 1.1–1.5 s, 28–43 samples/s | 0.5–1.1 s, ~57–60 samples/s (dev box saturated: ossfs kernel CPU on 16 cores) |
 
-Check after copying (also runs automatically at every launch):
+Needed per 8-GPU node: ~41 samples/s (res1), ~22 (res2); CPU in the worker itself is 0.04 s per sample.
+CPFS (same task, copied): 0.07 s per sample.
+
+Check (also runs automatically at every launch):
 
 ```bash
 source xsy_utils/env/ppu_env.sh
@@ -52,7 +62,8 @@ venv `/mnt/cpfs/venvs/lingbotvla`.
 
 **CPFS quota.** On 2026-10-23 `/mnt/cpfs` held ≈ 1.89 TB (`data` 1.4 T, `legacy_lingbot` 367 G, ...). The first
 training job also builds the HF-datasets Arrow cache of the LeRobot parquet in `.runtime/huggingface`
-(≈ 141 GB, once, shared by all four runs). The old cache in `legacy_lingbot/.cache/huggingface` (141 GB) is
+(≈ 150 GB = the parquet size, once, shared by all four runs; a few minutes with `warm_hf_cache.py`'s 8 processes, estimated:
+the first 4 datasets, 14 GB, took 26 s). The old cache in `legacy_lingbot/.cache/huggingface` (141 GB) is
 keyed on the pre-move path `/mnt/cpfs/lingbot-va2/...` and is not used by these runs.
 
 ## 2. Launch (DLC, 8 × PPU, same image as the dev box)
@@ -64,12 +75,54 @@ DRYRUN=1 bash ...   # preflight + resolved settings only
 ```
 
 - Run dir (CPFS): `.runtime/final_runs/<run>/` — `logs/train_node0_*.log`, TensorBoard `runs/`, `run_info.txt`,
-  `code_*.diff`. `checkpoints/` there is a link to OSS `/mnt/oss/xiesy/lingbot-va-checkpoints/final_runs/<run>/checkpoints`
-  (ossfs2 cannot append, so logs/TensorBoard must not live on OSS).
+  `code_*.diff`. `checkpoints/` there is a link to OSS **`/mnt/oss/xiesy/lingbot-ckpts/<run>/checkpoints`**
+  (`CKPT_BASE`; ossfs2 cannot append, so logs/TensorBoard must not live on OSS).
 - Saves every 2,500 steps (≈ 75 GB each). A pruner keeps the newest 2 complete saves (resume) and the
   `hf_ckpt` of every 10k step (eval); everything else is deleted.
-- Multi-node works the same way (DLC sets `WORLD_SIZE/RANK/MASTER_ADDR/MASTER_PORT`); global batch stays 1024.
+- The HF export of a save (rank 0, ~24 GB of safetensors written single-threaded) takes **~12 min on OSS**
+  (40–50 s on local disk). Synchronous, it kept the other ranks in a collective past torch's 10-min NCCL
+  timeout and killed the (simulated 2-node) test run at its first save — the full runs would have died at
+  step 2,500. Now `--train.async_save_hf_weights true` (training continues while rank 0 exports) and
+  `LINGBOT_PG_TIMEOUT_MIN=60` (end-of-run wait for the last export). `RESUME=1` only picks saves whose
+  `hf_ckpt/config.json` exists (the export lands atomically; resume reads it for the augmentation check).
+- Multi-node: section 2b.
 - A watchdog writes a node snapshot (py-spy stacks, memory, I/O) to `logs/` if the train log is idle for 15 min.
+
+## 2b. Multi-node (e.g. 2 × 8 = 16 PPU)
+
+Same command on every node; DLC exports `WORLD_SIZE` (= number of nodes), `RANK` (= node rank), `MASTER_ADDR/PORT`
+(`PET_NNODES/PET_NODE_RANK` take precedence if present). Global batch stays 1024, grad-accum halves.
+
+```bash
+bash .../train_d4rt_q96_ctxvs_res2_augon.sh                 # full shard over all 16 ranks
+DP_SHARD=8 bash .../train_d4rt_q96_ctxvs_res2_augon.sh      # HSDP: shard inside a node, replicate across nodes
+```
+
+- The trainer is multi-node clean: global rank for logging / TensorBoard / HF export, the sampler uses the
+  global dp rank, DCP + per-rank `extra_state` go to the shared OSS dir; resume needs the same world size.
+- `train.sh` additions for > 1 node: node 0 alone builds/opens the HF-datasets cache (`warm_hf_cache.py`; the
+  cache's file lock does not work across nodes) while the others wait; node 0 alone creates the checkpoint link,
+  `run_info.txt`, the code diff, and runs the pruner; every node logs to `logs/train_node<rank>_*.log`.
+- **Full shard vs HSDP.** Full shard over 16 ranks puts the per-micro-step parameter all-gathers and gradient
+  reduce-scatters on the inter-node links; HSDP (`DP_SHARD=8`) keeps them inside the node and only all-reduces
+  1/8 of the gradients across nodes (~15× less inter-node traffic), at the per-GPU memory of the 8-GPU run.
+  Which is faster depends on the RDMA fabric — `test_multinode.sh` measures both.
+- Check the comm env in the first log lines: the dev box sets `NCCL_IB_DISABLE=1` (no RDMA); a DLC RDMA job must
+  not, or inter-node traffic goes over TCP.
+
+**Test first** (≈ 40 min on the dev box, ~20 of them the HF export to OSS; same command on every node; the test checkpoints are deleted afterwards):
+
+```bash
+bash /mnt/cpfs/linbot-vla-v2/xsy_utils/final_runs/test_multinode.sh
+DP_SHARD=8 bash /mnt/cpfs/linbot-vla-v2/xsy_utils/final_runs/test_multinode.sh   # second job: HSDP
+```
+
+1. `comm`: rank → host placement, all_reduce correctness, all_gather / reduce_scatter / all_reduce bandwidth for
+   all ranks, inside a node and between nodes (inter-node busbw of only a few GB/s = TCP fallback);
+2. `train`: the q96 hero config at the real bs 1024, 4 steps on the first 4 datasets (`TEST_DATASETS`), save;
+3. `resume`: `RESUME=1` from that save, 2 more steps.
+Node 0 prints a summary (StepTime per stage); the log is `.runtime/final_runs/<run>_mntest_2x8[_hsdp8]/logs/test_node*.log`.
+Compare StepTime with the single-node estimate (res2 ≈ 51 s at bs 1024 on 8 PPU → ideal ≈ 26 s on 16).
 
 ## 3. Batch, memory, speed (measured on 2 × PPU-ZW810E, 97.9 GB, compile off)
 
@@ -127,6 +180,9 @@ communication unmeasured).
   (`CanvasAffine`; photometric parts need nothing). Tested against the augmenter's real `cv2.warpAffine`
   (error < 0.01 grey levels; half-pixel convention errors are detected) and by projecting depth targets back
   through the camera (`tests/test_d4rt_augment.py`).
+- **Speed, pure** (`d4rt_lingbot/data.py`): concurrent episode open + one `pread` per depth frame / track window
+  instead of memmap page faults (section 1), bit-identical outputs.
+- Multi-node launcher (`train.sh`, `warm_hf_cache.py`, `comm_test.py`, `test_multinode.sh`; section 2b).
 - d4rt task names also accept the PPU-side LeRobot dirs (`<task>-aloha-agilex_clean_50-50`);
   `validate_targets.py --root`.
 - **Speed, pure** (`base_dataset._query_hf_dataset`): select the column before the rows. Row-first decoded

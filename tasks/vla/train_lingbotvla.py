@@ -3,6 +3,7 @@ import os
 import re
 import time
 from dataclasses import asdict, dataclass, field
+from datetime import timedelta
 from functools import partial
 from io import BytesIO
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Literal
@@ -377,7 +378,11 @@ def main():
     logger.info(f"Process rank: {args.train.global_rank}, world size: {args.train.world_size}")
     logger.info_rank0(json.dumps(asdict(args), indent=2))
     torch.cuda.set_device(f"cuda:{args.train.local_rank}")
-    dist.init_process_group(backend="nccl")
+    # LINGBOT_PG_TIMEOUT_MIN: collective timeout (torch default 10 min). Ranks wait in a collective while rank 0
+    # writes the HF export, e.g. at the end of the run; on ossfs that alone takes ~12 min.
+    dist.init_process_group(
+        backend="nccl", timeout=timedelta(minutes=float(os.getenv("LINGBOT_PG_TIMEOUT_MIN", "10")))
+    )
     helper.set_seed(args.train.seed, args.train.enable_full_determinism)
     if args.train.local_rank == 0:
         helper.enable_third_party_logging()

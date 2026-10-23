@@ -27,7 +27,9 @@ sys.path.insert(0, str(REPO))
 from lingbotvla.utils.observation_augmentation import parse_config  # noqa: E402
 
 CKPT = "/mnt/cpfs/legacy_lingbot/checkpoints"
-D4RT_ROOT = "/mnt/cpfs/data/lingbot_robotwin_clean_d4rt"  # copy of H20 /2025233210/xiesy/data/lingbot_robotwin_clean_d4rt
+# copy of H20 /2025233210/xiesy/data/lingbot_robotwin_clean_d4rt (on OSS: CPFS quota; d4rt_lingbot reads it with
+# concurrent preads, ~0.3 s per cold sample, see README)
+D4RT_ROOT = "/mnt/oss/xiesy/lingbot-data/lingbot_robotwin_clean_d4rt"
 BASE = REPO / "xsy_utils/spatial-exp/configs/robotwin_clean_d4rt_ctxvs.yaml"
 RECIPE = REPO / "configs/vla/robotwin/full432_augmentation_recipe.yaml"
 

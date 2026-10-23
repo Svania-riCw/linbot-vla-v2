@@ -34,9 +34,12 @@ What differs from pi05, and why:
 from __future__ import annotations
 
 import json
+import operator
+import os
 import pathlib
 import re
 from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 
@@ -187,8 +190,61 @@ def sample_cells(weight: np.ndarray, rng: np.random.Generator, num: int, alpha: 
     return np.stack([r, c], axis=-1).astype(np.int32)
 
 
+_IO_POOL: tuple[int, ThreadPoolExecutor] | None = None
+
+
+def _io_pool() -> ThreadPoolExecutor:
+    """Per-process thread pool for file reads (dataloader workers are forked: a parent's pool has no threads)."""
+    global _IO_POOL
+    if _IO_POOL is None or _IO_POOL[0] != os.getpid():
+        _IO_POOL = (os.getpid(), ThreadPoolExecutor(max_workers=16, thread_name_prefix="d4rt-io"))
+    return _IO_POOL[1]
+
+
+class _Rows:
+    """Leading-axis rows of a C-order .npy file, one ``pread`` per row. On network mounts a memmap
+    costs one round trip per 4 KB page it touches (~2.5 ms each on the ossfs /mnt/oss); a row is one."""
+
+    def __init__(self, path: pathlib.Path):
+        self._f = open(path, "rb")
+        version = np.lib.format.read_magic(self._f)
+        read_header = {(1, 0): np.lib.format.read_array_header_1_0, (2, 0): np.lib.format.read_array_header_2_0}
+        if version not in read_header:
+            raise ValueError(f"{path}: unsupported .npy version {version}")
+        shape, fortran_order, dtype = read_header[version](self._f)
+        if fortran_order or dtype.hasobject or not shape:
+            raise ValueError(f"{path}: need a C-order numeric array, got shape {shape} fortran={fortran_order}")
+        self.shape, self.dtype = shape, dtype
+        self._offset = self._f.tell()
+        self._row_bytes = int(np.prod(shape[1:], dtype=np.int64)) * dtype.itemsize
+
+    def __len__(self) -> int:
+        return self.shape[0]
+
+    def __getitem__(self, i) -> np.ndarray:
+        i = operator.index(i)
+        if i < 0:
+            i += self.shape[0]
+        if not 0 <= i < self.shape[0]:
+            raise IndexError(f"row {i} out of range for {self.shape[0]}")
+        buf = bytearray(self._row_bytes)
+        view, got, base = memoryview(buf), 0, self._offset + i * self._row_bytes
+        while got < len(buf):
+            n = os.preadv(self._f.fileno(), [view[got:]], base + got)
+            if n == 0:
+                raise EOFError(f"{self._f.name}: truncated at row {i}")
+            got += n
+        return np.frombuffer(buf, self.dtype).reshape(self.shape[1:])
+
+
+def _load_npz(path: pathlib.Path, keys: dict[str, type]) -> dict[str, np.ndarray]:
+    with np.load(path) as z:
+        return {k: np.asarray(z[k], dtype=t) for k, t in keys.items()}
+
+
 class _Store:
-    """Per-worker LRU of one (task, episode)'s d4rt arrays (memmapped where large)."""
+    """Per-worker LRU of one (task, episode)'s d4rt arrays (row readers where large). The ~20 files of an
+    episode are opened concurrently: on ossfs each open + small read is a round trip."""
 
     def __init__(self, root: pathlib.Path, max_open: int = 32):
         self.root = root
@@ -218,28 +274,31 @@ class _Store:
             **{f"tvis/{c}": d / "tvis" / c / f"{name}.npy" for c in CAMERAS},
             **{f"tmeta/{c}": d / "tmeta" / c / f"{name}.npz" for c in CAMERAS},
         }
-        if not all(p.exists() for p in paths.values()):
+        jobs = {
+            "ee": (np.load, paths["ee"]),
+            # intrinsic [3, T, 3, 3]; extrinsic [3, T, 3, 4] world->cam; grip [T, 3 cams, 2 arms, (u, v, z, valid)]
+            "cam": (lambda p: _load_npz(p, {"intrinsic": np.float64, "extrinsic": np.float64, "grip": np.float64}),
+                    paths["cam"]),
+            **{f"meta/{c}": (lambda p: _load_npz(p, {"reliable": bool})["reliable"], paths[f"meta/{c}"]) for c in CAMERAS},
+            **{f"tmeta/{c}": (lambda p: _load_npz(p, {"starts": np.int64})["starts"], paths[f"tmeta/{c}"]) for c in CAMERAS},
+            **{f"{k}/{c}": (_Rows, paths[f"{k}/{c}"]) for k in ("depth", "tracks", "tvis") for c in CAMERAS},
+        }
+        futures = {k: _io_pool().submit(fn, p) for k, (fn, p) in jobs.items()}
+        try:
+            got = {k: f.result() for k, f in futures.items()}
+        except FileNotFoundError:
             return None
-        with np.load(paths["cam"]) as cam:
-            intr = np.asarray(cam["intrinsic"], dtype=np.float64)  # [3, T, 3, 3]
-            extr = np.asarray(cam["extrinsic"], dtype=np.float64)  # [3, T, 3, 4] world->cam
-            grip = np.asarray(cam["grip"], dtype=np.float64)  # [T, 3 cams, 2 arms, (u, v, z, valid)]
-        reliable, starts = [], []
-        for c in CAMERAS:
-            with np.load(paths[f"meta/{c}"]) as m:
-                reliable.append(np.asarray(m["reliable"], dtype=bool))
-            with np.load(paths[f"tmeta/{c}"]) as m:
-                starts.append(np.asarray(m["starts"], dtype=np.int64))
+        cam = got["cam"]
         return {
-            "ee": np.load(paths["ee"]),  # [T, 16]
-            "intr": intr,
-            "extr": extr,
-            "grip": grip,
-            "depth": [np.load(paths[f"depth/{c}"], mmap_mode="r") for c in CAMERAS],  # u16 [T, 240, 320]
-            "reliable": reliable,
-            "tracks": [np.load(paths[f"tracks/{c}"], mmap_mode="r") for c in CAMERAS],  # f16 [W, L, N, 2] (u, v)
-            "tvis": [np.load(paths[f"tvis/{c}"], mmap_mode="r") for c in CAMERAS],  # bool [W, L, N]
-            "starts": starts,
+            "ee": got["ee"],  # [T, 16]
+            "intr": cam["intrinsic"],
+            "extr": cam["extrinsic"],
+            "grip": cam["grip"],
+            "depth": [got[f"depth/{c}"] for c in CAMERAS],  # u16 [T, 240, 320]
+            "reliable": [got[f"meta/{c}"] for c in CAMERAS],
+            "tracks": [got[f"tracks/{c}"] for c in CAMERAS],  # f16 [W, L, N, 2] (u, v)
+            "tvis": [got[f"tvis/{c}"] for c in CAMERAS],  # bool [W, L, N]
+            "starts": [got[f"tmeta/{c}"] for c in CAMERAS],
         }
 
 
@@ -277,6 +336,7 @@ class D4rtSampler:
         self.seed = seed
         self.cell_ok = valid_cell_mask(patch_size)
         self._store = _Store(self.root)
+        self._rows_memo: dict[tuple[int, int], np.ndarray] = {}  # (id(_Rows), row) -> row, one sample's reads
         tasks = sorted(p.name for p in self.root.iterdir() if p.is_dir())
         self._task_id = {t: i for i, t in enumerate(tasks)}
 
@@ -329,11 +389,11 @@ class D4rtSampler:
         if dt_max < 1:
             return
         # [L, N, 2] native (u, v); CoTracker puts pixel i's centre at i, here it is at i + 0.5
-        uv = np.asarray(tracks[w]).astype(np.float64) + 0.5
+        uv = self._row(tracks, w).astype(np.float64) + 0.5
         rows, cols = native_to_canvas(uv[..., 1], uv[..., 0])
         rows = np.floor(rows + 0.5).astype(np.int64)
         cols = np.floor(cols + 0.5).astype(np.int64)
-        usable = np.asarray(tvis[w]) & in_patch_bounds(rows, cols, self.p)
+        usable = self._row(tvis, w) & in_patch_bounds(rows, cols, self.p)
         horizon = usable[i + 1 : i + dt_max + 1]
         q_ok = in_patch_bounds(*aff.fwd_idx(rows[i], cols[i]), self.p)  # query visible after augmentation
         pts = np.flatnonzero(usable[i] & q_ok & horizon.any(axis=0))
@@ -392,7 +452,7 @@ class D4rtSampler:
             return None
         iv = np.minimum(np.floor(v1).astype(np.int64), NATIVE_H - 1)
         iu = np.minimum(np.floor(u1).astype(np.int64), NATIVE_W - 1)
-        z = e["depth"][cam][frame][iv[:, None], iu[None, :]].astype(np.float64) / 1000.0
+        z = self._row(e["depth"][cam], frame)[iv[:, None], iu[None, :]].astype(np.float64) / 1000.0
         if (z <= 0).any():
             return None
         v, u = v1[:, None], u1[None, :]
@@ -401,22 +461,49 @@ class D4rtSampler:
         y = (v - k[1, 2]) / k[1, 1] * z
         return np.stack([x, y, z], axis=-1)
 
+    def _row(self, rows: _Rows, i: int) -> np.ndarray:
+        key = (id(rows), int(i))
+        if key not in self._rows_memo:
+            self._rows_memo[key] = rows[i]
+        return self._rows_memo[key]
+
+    def _prefetch(self, reqs) -> None:
+        """Read [(rows, i)] concurrently into the per-sample memo (latency-bound on network mounts)."""
+        todo = [(r, int(i)) for r, i in dict.fromkeys((r, int(i)) for r, i in reqs) if (id(r), int(i)) not in self._rows_memo]
+        for (r, i), row in zip(todo, _io_pool().map(lambda q: q[0][q[1]], todo)):
+            self._rows_memo[(id(r), i)] = row
+
     def __call__(self, task: str, episode: int, frame: int, images: np.ndarray | None,
                  affine: CanvasAffine | None = None) -> dict:
         """``images``: the model's views after augmentation, resized to the canvas, [3 cams, 3, 224, 224],
         float in [0, 1] (or uint8). ``affine``: the augmentation's 2-D scale/translation (None = none).
         Returns numpy fields; all-masked if the episode has no data."""
+        self._rows_memo = {}
+        try:
+            return self._sample(task, episode, frame, images, affine)
+        finally:
+            self._rows_memo = {}
+
+    def _sample(self, task, episode, frame, images, affine) -> dict:
         aff = affine or IDENTITY
         e = self._store.get(task, episode)
         if e is None or images is None:
             return self.empty()
         n_frames = e["depth"][0].shape[0]
         frame = min(frame, n_frames - 1)
+        # this frame's depth in every camera + every camera's track window around it, in one round trip
+        reqs = [(e["depth"][c], frame) for c in range(N_CAMS)]
+        for c in range(N_CAMS):
+            starts, length = e["starts"][c], e["tracks"][c].shape[1]
+            cand = np.flatnonzero((starts <= frame) & (frame < starts + length))
+            if len(cand):
+                reqs += [(e["tracks"][c], int(cand[-1])), (e["tvis"][c], int(cand[-1]))]
+        self._prefetch(reqs)
         rng = np.random.default_rng((self.seed, self._task_id.get(task, 0), episode, frame))
         k, p = self.k, self.p
         task_vec = self._assign_tasks(rng)
 
-        weights = [weight_map(canvas_depth(np.asarray(e["depth"][c][frame])), self.depth_max) for c in range(N_CAMS)]
+        weights = [weight_map(canvas_depth(self._row(e["depth"][c], frame)), self.depth_max) for c in range(N_CAMS)]
 
         # source camera: hand-eye and the gripper-pinned slots source from cam_high
         src = rng.integers(0, N_CAMS, size=k).astype(np.int64)
@@ -472,6 +559,7 @@ class D4rtSampler:
         aug_r, aug_c = aff.fwd_idx(coords[:, 0], coords[:, 1])
         offs = np.arange(-(p // 2), p - p // 2, dtype=np.float64)
         xyz = np.zeros((k, p, p, 3), np.float32)
+        self._prefetch((e["depth"][int(src[j])], frame + int(dt[j])) for j in np.flatnonzero(mask))
         for j in range(k):
             if not mask[j]:
                 continue
