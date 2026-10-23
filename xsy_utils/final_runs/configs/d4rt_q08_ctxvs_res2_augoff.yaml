@@ -125,7 +125,7 @@ train:
     - 0.25
     - 0.25
     - 0.25
-    root: /mnt/oss/xiesy/lingbot-data/lingbot_robotwin_clean_d4rt
+    root: /mnt/cpfs_shared/lingbot-data/lingbot_robotwin_clean_d4rt
   align_params:
     mode: query
     num_task_tokens: 8

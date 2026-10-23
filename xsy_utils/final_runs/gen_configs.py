@@ -27,9 +27,9 @@ sys.path.insert(0, str(REPO))
 from lingbotvla.utils.observation_augmentation import parse_config  # noqa: E402
 
 CKPT = "/mnt/cpfs/legacy_lingbot/checkpoints"
-# copy of H20 /2025233210/xiesy/data/lingbot_robotwin_clean_d4rt (on OSS: CPFS quota; d4rt_lingbot reads it with
-# concurrent preads, ~0.3 s per cold sample, see README)
-D4RT_ROOT = "/mnt/oss/xiesy/lingbot-data/lingbot_robotwin_clean_d4rt"
+# copy of H20 /2025233210/xiesy/data/lingbot_robotwin_clean_d4rt on the team CPFS (not on the personal 2 TB quota).
+# NOT /mnt/oss: under 8 ranks x 12 loader workers the ossfs mount of a DLC node died (README section 1).
+D4RT_ROOT = "/mnt/cpfs_shared/lingbot-data/lingbot_robotwin_clean_d4rt"
 BASE = REPO / "xsy_utils/spatial-exp/configs/robotwin_clean_d4rt_ctxvs.yaml"
 RECIPE = REPO / "configs/vla/robotwin/full432_augmentation_recipe.yaml"
 
@@ -37,6 +37,7 @@ RUNS = {
     "d4rt_q08_ctxvs_res1_augoff": dict(res2=False, aug=False, queries=8),
     "d4rt_q08_ctxvs_res2_augoff": dict(res2=True, aug=False, queries=8),
     "d4rt_q08_ctxvs_res2_augon": dict(res2=True, aug=True, queries=8),
+    "d4rt_q96_ctxvs_res2_augoff": dict(res2=True, aug=False, queries=96),
     "d4rt_q96_ctxvs_res2_augon": dict(res2=True, aug=True, queries=96),
 }
 

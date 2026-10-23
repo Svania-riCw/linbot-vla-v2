@@ -1,6 +1,6 @@
 # final_runs — d4rt-ctxvs × {resolution, colour augmentation}, DLC 8 × PPU
 
-Four runs, all **global batch 1024, 50k steps** (the official RoboTwin recipe: lr 1e-4 → 5e-5 cosine,
+Five runs, all **global batch 1024, 50k steps** (the official RoboTwin recipe: lr 1e-4 → 5e-5 cosine,
 Muon, fp32), **torch.compile off**, initialised from `lingbot-vla-v2-6b`, RoboTwin clean-50 (50 tasks ×
 50 episodes, 549,787 frames).
 
@@ -9,6 +9,7 @@ Muon, fp32), **torch.compile off**, initialised from `lingbot-vla-v2-6b`, RoboTw
 | `train_d4rt_q08_ctxvs_res2_augon.sh` | 384² (432 tok) | on | 8 | hero |
 | `train_d4rt_q96_ctxvs_res2_augon.sh` | 384² (432 tok) | on | 96 | hero |
 | `train_d4rt_q08_ctxvs_res2_augoff.sh` | 384² (432 tok) | off | 8 | fallback |
+| `train_d4rt_q96_ctxvs_res2_augoff.sh` | 384² (432 tok) | off | 96 | q96 twin of the res2 aug-off fallback |
 | `train_d4rt_q08_ctxvs_res1_augoff.sh` | 256² (192 tok) | off | 8 | fallback |
 
 - **d4rt-ctxvs** = `xsy_utils/spatial-exp/configs/robotwin_clean_d4rt_ctxvs.yaml` (alignment teachers +
@@ -21,11 +22,14 @@ Muon, fp32), **torch.compile off**, initialised from `lingbot-vla-v2-6b`, RoboTw
 ## 1. Data
 
 The d4rt targets (copy of H20 `/2025233210/xiesy/data/lingbot_robotwin_clean_d4rt/`, ≈ 262 GB, 98 % `depth/`) are
-at **`/mnt/oss/xiesy/lingbot-data/lingbot_robotwin_clean_d4rt/`** (OSS: the 2 TB CPFS quota is full);
-`D4RT_ROOT` in `gen_configs.py`. Layout `<task>/{ee,cam,depth/<cam>,depth_meta/<cam>,tracks/<cam>,tvis/<cam>,tmeta/<cam>}/episode_NNNNNN.*`.
+at **`/mnt/cpfs_shared/lingbot-data/lingbot_robotwin_clean_d4rt/`** (team CPFS, outside the personal 2 TB
+quota of `/mnt/cpfs`); `D4RT_ROOT` in `gen_configs.py`. Also on OSS at `/mnt/oss/xiesy/lingbot-data/` — **do not
+train from there**: in the 2 × 8 DLC test (2026-10-23) every loader worker failed at step 0 with `OSError(107,
+'Transport endpoint is not connected')` (after a few `ECONNABORTED`) on both nodes, i.e. the node's ossfs mount
+died under 8 ranks × 12 workers of d4rt reads. Layout `<task>/{ee,cam,depth/<cam>,depth_meta/<cam>,tracks/<cam>,tvis/<cam>,tmeta/<cam>}/episode_NNNNNN.*`.
 Verified 2026-10-23: all 2,500 episodes complete, `ee` rows = LeRobot length + 1, and `--compare-ee` bit-identical.
 
-**Reading it from OSS.** Every sample opens the ~20 files of a random episode and reads a few depth frames; on
+**Reading it (measured on OSS, before the move).** Every sample opens the ~20 files of a random episode and reads a few depth frames; on
 ossfs each open / page fault is a round trip (~2.5 ms per 4 KB page). `d4rt_lingbot/data.py` therefore opens an
 episode's files concurrently and reads whole frames / track windows with one `pread` each (outputs bit-identical
 to the memmap version: 480 samples over all 50 tasks, K = 8/96, with and without the augmentation affine).
@@ -62,7 +66,7 @@ venv `/mnt/cpfs/venvs/lingbotvla`.
 
 **CPFS quota.** On 2026-10-23 `/mnt/cpfs` held ≈ 1.89 TB (`data` 1.4 T, `legacy_lingbot` 367 G, ...). The first
 training job also builds the HF-datasets Arrow cache of the LeRobot parquet in `.runtime/huggingface`
-(≈ 150 GB = the parquet size, once, shared by all four runs; a few minutes with `warm_hf_cache.py`'s 8 processes, estimated:
+(≈ 150 GB = the parquet size, once, shared by all runs; a few minutes with `warm_hf_cache.py`'s 8 processes, estimated:
 the first 4 datasets, 14 GB, took 26 s). The old cache in `legacy_lingbot/.cache/huggingface` (141 GB) is
 keyed on the pre-move path `/mnt/cpfs/lingbot-va2/...` and is not used by these runs.
 
@@ -86,6 +90,11 @@ DRYRUN=1 bash ...   # preflight + resolved settings only
   `LINGBOT_PG_TIMEOUT_MIN=60` (end-of-run wait for the last export). `RESUME=1` only picks saves whose
   `hf_ckpt/config.json` exists (the export lands atomically; resume reads it for the augmentation check).
 - Multi-node: section 2b.
+- **Several jobs at once is fine.** The HF-datasets cache of all 50 datasets is built (2026-10-23, in
+  `.runtime/huggingface`), so every job only opens it (~1 min in `warm_hf_cache.py`). If it ever has to be
+  rebuilt (new data / parquet mtimes), jobs started together take turns through a lock dir next to the cache
+  (`.warm_lock`, atomic mkdir on CPFS; HF's own file lock is per machine): the first builds, the rest wait
+  and then open it. A lock left by a killed job is broken after 3 h.
 - A watchdog writes a node snapshot (py-spy stacks, memory, I/O) to `logs/` if the train log is idle for 15 min.
 
 ## 2b. Multi-node (e.g. 2 × 8 = 16 PPU)
@@ -153,7 +162,7 @@ communication not measured here, check `StepTime` in the first log lines):
 | run | MBS × 8 × GA | s / step | 50k steps | samples (epochs) |
 |---|---|---|---|---|
 | res1 | 32 × 8 × 4 | ~28 s | **~16 days** | 51.2 M (93) |
-| res2 (×3 runs) | 16 × 8 × 8 | ~51 s | **~29.5 days** | 51.2 M (93) |
+| res2 (×4 runs) | 16 × 8 × 8 | ~51 s | **~29.5 days** | 51.2 M (93) |
 | res1, bs 512 (`GBS=512`) | 32 × 8 × 2 | ~15 s | ~9 days | 25.6 M (47) |
 | res2, bs 512 (`GBS=512`) | 16 × 8 × 4 | ~27 s | ~15.5 days | 25.6 M (47) |
 
