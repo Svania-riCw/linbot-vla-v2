@@ -189,6 +189,12 @@ lines were bs 128 × 10k = 1.28 M samples (2.3 epochs).
 - **Speed, pure** (`d4rt_lingbot/data.py`): concurrent episode open + one `pread` per depth frame / track window
   instead of memmap page faults (section 1), bit-identical outputs.
 - Multi-node launcher (`train.sh`, `warm_hf_cache.py`, `comm_test.py`, `test_multinode.sh`; section 2b).
+- **Loader worker seeds per rank** (`lingbotvla/data/data_loader.py`, 2026-10-24): worker RNG derived from the
+  global torch RNG, identical on every rank after `set_seed`, so worker k of every rank drew the same
+  observation-augmentation seeds: the j-th sample of each rank's micro-batch got identical augmentation (1/8
+  of the intended diversity per global batch on 8 GPUs; aug-off runs unaffected). The DataLoader now gets a
+  generator seeded per data-parallel rank; the sampler (data partition) keeps the shared seed.
+  `tests/test_dataloader_worker_seed.py` (fails on the old code).
 - **Muon optimizer** (`lingbotvla/optim/muon.py`, 2026-10-24):
   - *Speed, same math*: every rank used to all-gather and Newton-Schulz-orthogonalise every 2D matrix of the
     model (831 matrices, 2.31 s per optimizer step per rank, independent of the number of GPUs). Now matrix i

@@ -17,6 +17,7 @@ import math
 import random
 from typing import TYPE_CHECKING, Callable, Iterator, List, Optional, Union
 
+import torch
 from torch.utils.data import IterableDataset, Sampler
 from torchdata.stateful_dataloader import StatefulDataLoader
 
@@ -214,6 +215,12 @@ def build_dataloader(
             seed=seed,
         )
 
+    # Worker RNG (torch / random / numpy, e.g. the observation augmentation's per-sample seed) derives from the
+    # loader's base seed. Without a generator it comes from the global torch RNG, which set_seed() makes identical
+    # on every rank: worker k of each rank then replayed the same augmentation stream, so the j-th sample of every
+    # rank's micro-batch got identical augmentation. Seeded per data-parallel rank; the sampler keeps `seed`.
+    worker_generator = torch.Generator()
+    worker_generator.manual_seed(seed * 1_000_003 + parallel_state.dp_rank)
     dataloader = DistributedDataloader(
         dataset,
         batch_size=dataloader_batch_size,
@@ -223,6 +230,7 @@ def build_dataloader(
         pin_memory=pin_memory,
         drop_last=drop_last,
         prefetch_factor=prefetch_factor,
+        generator=worker_generator,
     )
     if use_rmpad:
         dataloader = DynamicBatchSizeDataLoader(
