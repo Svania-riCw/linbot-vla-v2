@@ -15,6 +15,9 @@
 #   OUT_BASE=$REPO/.runtime/final_runs   run dir on CPFS: logs, TensorBoard, cli yaml (ossfs2 cannot append)
 #   RUN_SUFFIX        appended to the run name (e.g. _try2); RESUME=1 continues an existing run
 #   DRYRUN=1          preflight + print, no training     HANG_DUMP_MIN=15  watchdog idle threshold
+#   PREFETCH=2 PIN_MEMORY=false   loader batches in flight / pinned copies. Host RAM: the two q96 res2 runs were
+#                     SIGKILLed (OOM) 3 min into training with the trainer defaults 4 / true; 2 / false measured
+#                     -5.5 GB per rank while training and -16 GB per rank at a save, same step time (README)
 #   NNODES / NODE_RANK / MASTER_ADDR / MASTER_PORT   multi-node: same command on every node (DLC sets
 #                     WORLD_SIZE = #nodes, RANK = node rank, MASTER_*; PET_NNODES / PET_NODE_RANK win if set)
 #   DP_SHARD          FSDP shard group size; unset = shard over all ranks. DP_SHARD=8 on several nodes = HSDP
@@ -81,6 +84,11 @@ NODE_CPUS=$(nproc)
 [ "$CPU_QUOTA" != max ] && NODE_CPUS=$(( CPU_QUOTA / CPU_PERIOD < NODE_CPUS ? CPU_QUOTA / CPU_PERIOD : NODE_CPUS ))
 NW=$(( NODE_CPUS / NGPU - 2 )); [ $NW -gt 12 ] && NW=12; [ $NW -lt 2 ] && NW=2
 NUM_WORKERS=${NUM_WORKERS:-$NW}
+PREFETCH=${PREFETCH:-2}
+PIN_MEMORY=${PIN_MEMORY:-false}
+read -r MEM_TOTAL_KB < <(awk '/MemTotal/{print $2}' /proc/meminfo)
+MEM_LIMIT=$(cat /sys/fs/cgroup/memory.max 2>/dev/null || cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null || echo max)
+MEM_DESC="host RAM $((MEM_TOTAL_KB / 1048576)) GiB, cgroup limit $([ "$MEM_LIMIT" = max ] && echo none || echo "$((MEM_LIMIT / 1073741824)) GiB")"
 
 OUT="$OUT_BASE/$NAME"
 CKPT_DIR="$CKPT_BASE/$NAME/checkpoints"
@@ -133,7 +141,7 @@ if [ "$NNODES" -gt 1 ]; then
     [ "${NCCL_IB_DISABLE:-0}" = 1 ] && echo "[warn] NCCL_IB_DISABLE=1: inter-node traffic goes over TCP sockets (the dev box sets this; a DLC RDMA job should not)"
 fi
 [ "$RESUME" = 1 ] && echo "[info] resume from ${RESUME_ARGS[1]}"
-echo "[info] steps=$MAX_STEPS (~$(python -c "print(round($MAX_STEPS*$GBS/549787, 1))") epochs) save=$SAVE_STEPS keep_last=$KEEP_LAST keep_hf_every=$KEEP_HF_EVERY workers/rank=$NUM_WORKERS cpus=$NODE_CPUS"
+echo "[info] steps=$MAX_STEPS (~$(python -c "print(round($MAX_STEPS*$GBS/549787, 1))") epochs) save=$SAVE_STEPS keep_last=$KEEP_LAST keep_hf_every=$KEEP_HF_EVERY workers/rank=$NUM_WORKERS prefetch=$PREFETCH pin_memory=$PIN_MEMORY cpus=$NODE_CPUS; $MEM_DESC"
 if [ "$DRYRUN" = 1 ]; then echo "[info] DRYRUN=1, stop."; exit 0; fi
 
 # ---- warm the PPU math libraries (legacy DLC fix, 2026-10-13: all ranks stuck in D state for 30+ min
@@ -142,7 +150,8 @@ TORCH_LIB="$(python -c 'import os, torch; print(os.path.join(os.path.dirname(tor
 t0=$(date +%s)
 for f in /usr/local/PPU_SDK/targets/x86_64-linux/lib/*.so* /usr/local/PPU_SDK/CUDA_SDK/targets/x86_64-linux/lib/*.so* "$TORCH_LIB"/*.so*; do
     [ -f "$f" ] && [ ! -L "$f" ] || continue
-    timeout 300 cat "$f" > /dev/null || die "reading $f stalled/failed: container image I/O on this node is broken, resubmit"
+    timeout 300 cat "$f" > /dev/null || timeout 600 cat "$f" > /dev/null || \
+        die "reading $f stalled/failed twice (300 s + 600 s): container image I/O on this node is broken, resubmit"
 done
 timeout 600 python - <<'PY' || die "GPU linalg warmup failed or hung > 600 s"
 import torch
@@ -205,6 +214,17 @@ fi
     done
 ) &
 BG="$BG $!"
+# ---- host memory log (one line per minute, CPFS): headroom vs the container limit; SIGKILLed ranks = OOM ----
+(
+    echo "# $MEM_DESC"
+    while true; do
+        cur=$(cat /sys/fs/cgroup/memory.current 2>/dev/null || cat /sys/fs/cgroup/memory/memory.usage_in_bytes 2>/dev/null || echo 0)
+        awk -v t="$(date +%F_%T)" -v c="$cur" '/MemTotal/{tot=$2}/MemAvailable/{av=$2}/^Shmem:/{sh=$2}
+            END{printf "%s used %d GiB, shmem %d GiB, avail %d GiB, cgroup %d GiB\n", t, (tot-av)/1048576, sh/1048576, av/1048576, c/1073741824}' /proc/meminfo
+        sleep 60
+    done
+) >> "$LOG_DIR/mem_node${NODE_RANK}.log" 2>&1 &
+BG="$BG $!"
 trap 'kill $BG 2>/dev/null || true' EXIT
 
 LOG="$LOG_DIR/train_node${NODE_RANK}_$(date +%Y%m%d_%H%M%S).log"
@@ -212,6 +232,7 @@ if [ "$NODE_RANK" = 0 ]; then
     {
         echo "date: $(date -Is)  host: $(hostname)  code_rev: $(git -C "$REPO" rev-parse HEAD)"
         echo "MBS=$MBS GA=$GA GBS=$GBS nodes=$NNODES world=$WORLD dp_shard=${DP_SHARD:-$WORLD} grad_ckpt=$GRAD_CKPT compile=$USE_COMPILE steps=$MAX_STEPS save=$SAVE_STEPS ${TRAIN_LIST:+train_list=$TRAIN_LIST}"
+        echo "workers/rank=$NUM_WORKERS prefetch=$PREFETCH pin_memory=$PIN_MEMORY cpus=$NODE_CPUS; $MEM_DESC"
         echo "extra args: $*"
     } >> "$OUT/run_info.txt"
     git -C "$REPO" diff > "$OUT/code_$(date +%Y%m%d_%H%M%S).diff"
@@ -230,6 +251,8 @@ python -m torch.distributed.run --nnodes="$NNODES" --nproc-per-node="$NGPU" --no
     --train.enable_gradient_checkpointing "$GRAD_CKPT" \
     --train.async_save_hf_weights true \
     --data.num_workers "$NUM_WORKERS" \
+    --data.prefetch_factor "$PREFETCH" \
+    --data.pin_memory "$PIN_MEMORY" \
     "${DP_ARGS[@]}" "${DATA_ARGS[@]}" "${RESUME_ARGS[@]}" "$@" 2>&1 | tee --output-error=warn "$LOG"
 exit "${PIPESTATUS[0]}"
 }
