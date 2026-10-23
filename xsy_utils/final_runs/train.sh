@@ -3,14 +3,15 @@
 #
 #   bash xsy_utils/final_runs/train.sh <run>      # run = a configs/<run>.yaml, or use the train_<run>.sh wrappers
 #
-# Common to every run (README.md): global batch 1024, 50k steps, official lr 1e-4 -> 5e-5 cosine, Muon,
-# torch.compile OFF. Batch 1024 = MBS x world x grad-accum; memory depends on MBS only.
+# Common to every run (README.md): global batch 256, 20k steps (user, 2026-10-23: 1024 x 50k would take 16-30
+# days), official lr 1e-4 -> 5e-5 cosine over the run, Muon, torch.compile OFF. Batch = MBS x world x grad-accum;
+# memory depends on MBS only.
 #
 # Knobs (env):
 #   MBS / GRAD_CKPT   per-GPU micro batch / gradient checkpointing (defaults per resolution, measured)
-#   GBS=1024 MAX_STEPS=50000 SAVE_STEPS=2500   USE_COMPILE=false   NUM_WORKERS (default cpus/ranks - 2, max 12)
+#   GBS=256 MAX_STEPS=20000 SAVE_STEPS=2500   USE_COMPILE=false   NUM_WORKERS (default cpus/ranks - 2, max 12)
 #   KEEP_LAST=2       full saves (DCP model + optimizer + hf_ckpt) kept for resume, the rest pruned ...
-#   KEEP_HF_EVERY=10000  ... except the hf_ckpt of these steps (for eval)
+#   KEEP_HF_EVERY=5000   ... except the hf_ckpt of these steps (for eval)
 #   CKPT_BASE=/mnt/oss/xiesy/lingbot-ckpts   checkpoints in $CKPT_BASE/<run>/checkpoints (OSS; ~75 GB per save)
 #   OUT_BASE=$REPO/.runtime/final_runs   run dir on CPFS: logs, TensorBoard, cli yaml (ossfs2 cannot append)
 #   RUN_SUFFIX        appended to the run name (e.g. _try2); RESUME=1 continues an existing run
@@ -47,12 +48,12 @@ case "$RUN" in
 esac
 MBS=${MBS:-$MBS_DEF}
 GRAD_CKPT=${GRAD_CKPT:-$CKPT_DEF}
-GBS=${GBS:-1024}
-MAX_STEPS=${MAX_STEPS:-50000}
+GBS=${GBS:-256}
+MAX_STEPS=${MAX_STEPS:-20000}
 SAVE_STEPS=${SAVE_STEPS:-2500}
 USE_COMPILE=${USE_COMPILE:-false}
 KEEP_LAST=${KEEP_LAST:-2}
-KEEP_HF_EVERY=${KEEP_HF_EVERY:-10000}
+KEEP_HF_EVERY=${KEEP_HF_EVERY:-5000}
 RESUME=${RESUME:-0}
 DRYRUN=${DRYRUN:-0}
 HANG_DUMP_MIN=${HANG_DUMP_MIN:-15}

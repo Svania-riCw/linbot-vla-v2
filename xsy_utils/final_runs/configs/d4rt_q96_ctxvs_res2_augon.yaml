@@ -160,10 +160,10 @@ train:
   optimizer: muon
   num_train_epochs: 29000
   micro_batch_size: 32
-  global_batch_size: 1024
-  max_steps: 50000
+  global_batch_size: 256
+  max_steps: 20000
   ckpt_manager: dcp
-  save_steps: 10000
+  save_steps: 2500
   save_epochs: 29000
   enable_fp32: true
   enable_resume: true

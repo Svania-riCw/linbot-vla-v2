@@ -1,6 +1,7 @@
 # final_runs — d4rt-ctxvs × {resolution, colour augmentation}, DLC 8 × PPU
 
-Five runs, all **global batch 1024, 50k steps** (the official RoboTwin recipe: lr 1e-4 → 5e-5 cosine,
+Five runs, all **global batch 256, 20k steps** (5.1 M samples, 9.3 epochs; changed from 1024 × 50k on 2026-10-23,
+which would have taken 16–30 days), lr as in the official RoboTwin recipe (1e-4 → 5e-5 cosine over the run,
 Muon, fp32), **torch.compile off**, initialised from `lingbot-vla-v2-6b`, RoboTwin clean-50 (50 tasks ×
 50 episodes, 549,787 frames).
 
@@ -82,7 +83,7 @@ DRYRUN=1 bash ...   # preflight + resolved settings only
   `code_*.diff`. `checkpoints/` there is a link to OSS **`/mnt/oss/xiesy/lingbot-ckpts/<run>/checkpoints`**
   (`CKPT_BASE`; ossfs2 cannot append, so logs/TensorBoard must not live on OSS).
 - Saves every 2,500 steps (≈ 75 GB each). A pruner keeps the newest 2 complete saves (resume) and the
-  `hf_ckpt` of every 10k step (eval); everything else is deleted.
+  `hf_ckpt` of every 5k step (eval: 5k, 10k, 15k, 20k); everything else is deleted.
 - The HF export of a save (rank 0, ~24 GB of safetensors written single-threaded) takes **~12 min on OSS**
   (40–50 s on local disk). Synchronous, it kept the other ranks in a collective past torch's 10-min NCCL
   timeout and killed the (simulated 2-node) test run at its first save — the full runs would have died at
@@ -100,7 +101,7 @@ DRYRUN=1 bash ...   # preflight + resolved settings only
 ## 2b. Multi-node (e.g. 2 × 8 = 16 PPU)
 
 Same command on every node; DLC exports `WORLD_SIZE` (= number of nodes), `RANK` (= node rank), `MASTER_ADDR/PORT`
-(`PET_NNODES/PET_NODE_RANK` take precedence if present). Global batch stays 1024, grad-accum halves.
+(`PET_NNODES/PET_NODE_RANK` take precedence if present). Global batch stays 256 (res1: 32 × 16 already covers it at GA 1 → `MBS=16`).
 
 ```bash
 bash .../train_d4rt_q96_ctxvs_res2_augon.sh                 # full shard over all 16 ranks
@@ -128,16 +129,15 @@ DP_SHARD=8 bash /mnt/cpfs/linbot-vla-v2/xsy_utils/final_runs/test_multinode.sh  
 
 1. `comm`: rank → host placement, all_reduce correctness, all_gather / reduce_scatter / all_reduce bandwidth for
    all ranks, inside a node and between nodes (inter-node busbw of only a few GB/s = TCP fallback);
-2. `train`: the q96 hero config at the real bs 1024, 4 steps on the first 4 datasets (`TEST_DATASETS`), save;
+2. `train`: the q96 hero config at the real bs, 4 steps on the first 4 datasets (`TEST_DATASETS`), save;
 3. `resume`: `RESUME=1` from that save, 2 more steps.
 Node 0 prints a summary (StepTime per stage); the log is `.runtime/final_runs/<run>_mntest_2x8[_hsdp8]/logs/test_node*.log`.
-Compare StepTime with the single-node estimate (res2 ≈ 51 s at bs 1024 on 8 PPU → ideal ≈ 26 s on 16).
+Compare StepTime with the single-node numbers below (section 3).
 
 ## 3. Batch, memory, speed (measured on 2 × PPU-ZW810E, 97.9 GB, compile off)
 
-Global batch = MBS × world × grad-accum, so **memory depends on MBS only — bs 1024 and bs 512 need the
-same memory**. Defaults (train.sh): **res1 MBS 32, res2 MBS 16, gradient checkpointing on** → bs 1024 on 8
-GPUs = GA 4 (res1) / GA 8 (res2). Measured with `train.sh` itself on the smoke d4rt data (2 tasks):
+Global batch = MBS × world × grad-accum, so **memory depends on MBS only**. Defaults (train.sh): **res1 MBS 32,
+res2 MBS 16, gradient checkpointing on** → bs 256 on 8 GPUs = GA 1 (res1) / GA 2 (res2). Measured with `train.sh` itself on the smoke d4rt data (2 tasks):
 
 | config | MBS | grad ckpt | micro-step | optimizer step | samples/s/GPU | max alloc / reserved (GB), alloc retries |
 |---|---|---|---|---|---|---|
@@ -156,19 +156,16 @@ GPUs = GA 4 (res1) / GA 8 (res2). Measured with `train.sh` itself on the smoke d
   (estimated ~25 GB less per GPU), so there is extra headroom; `MBS=64` (res1) / `MBS=32` (res2) may fit
   there but are untested (2-rank runs OOM).
 
-**bs 1024 × 50k on one 8-PPU node** (extrapolated: GA × micro-step + optimizer step; 8-rank FSDP
-communication not measured here, check `StepTime` in the first log lines):
+**bs 256 × 20k on one 8-PPU node** (GA × micro-step + optimizer step; the DLC res1 run at bs 1024 / GA 4 measured
+27.9 s/step = 4 × 6.2 + 3.1, i.e. 8-rank communication adds little):
 
-| run | MBS × 8 × GA | s / step | 50k steps | samples (epochs) |
-|---|---|---|---|---|
-| res1 | 32 × 8 × 4 | ~28 s | **~16 days** | 51.2 M (93) |
-| res2 (×4 runs) | 16 × 8 × 8 | ~51 s | **~29.5 days** | 51.2 M (93) |
-| res1, bs 512 (`GBS=512`) | 32 × 8 × 2 | ~15 s | ~9 days | 25.6 M (47) |
-| res2, bs 512 (`GBS=512`) | 16 × 8 × 4 | ~27 s | ~15.5 days | 25.6 M (47) |
+| run | MBS × 8 × GA | s / step | 20k steps |
+|---|---|---|---|
+| res1 | 32 × 8 × 1 | ~9 s | **~2.1 days** |
+| res2 (×4 runs) | 16 × 8 × 2 | ~15 s | **~3.5 days** |
 
-For scale: the H20 spatial-exp lines were bs 128 × 10k = 1.28 M samples (2.3 epochs). More nodes cut
-wall clock almost linearly (same bs 1024, smaller GA; e.g. 4 nodes → res2 ~8–9 days, cross-node
-communication unmeasured).
+Plus ~1 h of startup and saves (DCP every 2,500 steps, ~1 min; HF export async). For scale: the H20 spatial-exp
+lines were bs 128 × 10k = 1.28 M samples (2.3 epochs).
 
 ## 4. Code changes on `xiesy` for these runs
 

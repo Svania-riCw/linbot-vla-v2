@@ -12,7 +12,8 @@ visual_state) with PPU-side paths, and only these changes:
            (qianlei's full432 observation augmentation; FULL432_AUGMENTATION.md)
     q96    d4rt_params.num_queries 96
 
-Batch / steps / compile / checkpointing are set by train.sh (bs 1024, 50k steps, compile off).
+Batch / steps / compile / checkpointing are set by train.sh (bs 256, 20k steps, compile off); the yaml carries the
+same values for reference.
 """
 import copy
 import pathlib
@@ -58,6 +59,7 @@ def base_config() -> dict:
     t["d4rt_params"]["root"] = D4RT_ROOT
     t["output_dir"] = "/set/by/train.sh"
     t["use_compile"] = False
+    t["global_batch_size"], t["max_steps"], t["save_steps"] = 256, 20000, 2500  # = train.sh defaults
     for key in ("model_path", "tokenizer_path"):
         assert "/2025233210" not in m[key]
     return cfg

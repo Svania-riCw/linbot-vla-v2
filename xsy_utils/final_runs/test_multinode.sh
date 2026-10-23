@@ -6,7 +6,7 @@
 #
 #   1. comm    comm_test.py: rank placement, all_reduce correctness, all_gather / reduce_scatter / all_reduce
 #              bandwidth for all ranks, inside a node and between nodes (TCP fallback = a few GB/s)
-#   2. train   train.sh on a real config (default the q96 hero) for TEST_STEPS steps at the real bs 1024,
+#   2. train   train.sh on a real config (default the q96 hero) for TEST_STEPS steps at the real bs (256),
 #              save at the last step: multi-node data loading, FSDP/HSDP, DCP save from every node to OSS,
 #              async HF export (~20 min on OSS: the stage waits for it at the end)
 #   3. resume  RESUME=1 from that save, 2 more steps: the multi-node resume path

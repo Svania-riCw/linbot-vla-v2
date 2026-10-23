@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 # d4rt_q96_ctxvs_res2_augon -- hero (with q08_res2_augon). DLC entry (8 x PPU): bash /mnt/cpfs/linbot-vla-v2/xsy_utils/final_runs/train_d4rt_q96_ctxvs_res2_augon.sh
-# bs 1024, 50k steps, compile off; knobs and data: train.sh / README.md. RESUME=1 to continue after a restart.
+# bs 256, 20k steps, compile off; knobs and data: train.sh / README.md. RESUME=1 to continue after a restart.
 exec bash "$(dirname "${BASH_SOURCE[0]}")/train.sh" d4rt_q96_ctxvs_res2_augon "$@"
