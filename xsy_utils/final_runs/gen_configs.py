@@ -64,7 +64,7 @@ def base_config() -> dict:
     t["d4rt_params"]["root"] = D4RT_ROOT
     t["output_dir"] = "/set/by/train.sh"
     t["use_compile"] = False
-    t["max_steps"], t["save_steps"] = 20000, 2500  # = train.sh defaults
+    t["max_steps"], t["save_steps"] = 20000, 1000  # = train.sh defaults
     for key in ("model_path", "tokenizer_path"):
         assert "/2025233210" not in m[key]
     return cfg

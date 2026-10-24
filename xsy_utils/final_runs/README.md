@@ -89,7 +89,7 @@ DRYRUN=1 bash ...   # preflight + resolved settings only
 - Run dir (CPFS): `.runtime/final_runs/<run>/` — `logs/train_node0_*.log`, TensorBoard `runs/`, `run_info.txt`,
   `code_*.diff`. `checkpoints/` there is a link to OSS **`/mnt/oss/xiesy/lingbot-ckpts/<run>/checkpoints`**
   (`CKPT_BASE`; ossfs2 cannot append, so logs/TensorBoard must not live on OSS).
-- Saves every 2,500 steps (≈ 75 GB each). A pruner keeps the newest 2 complete saves (resume) and the
+- Saves every 1,000 steps (≈ 75 GB each; was 2,500 until 2026-10-25). A pruner keeps the newest 2 complete saves (resume) and the
   `hf_ckpt` of every 5k step (eval: 5k, 10k, 15k, 20k); everything else is deleted.
 - The HF export of a save (rank 0, ~24 GB of safetensors written single-threaded) takes **~12 min on OSS**
   (40–50 s on local disk). Synchronous, it kept the other ranks in a collective past torch's 10-min NCCL
@@ -188,7 +188,7 @@ full-shard traffic per step is the same as on 2 nodes, but if the first steps ar
 with `DP_SHARD=8` (HSDP: all-gathers inside the node, only gradient all-reduce across nodes). On one node the
 same batch would take ~53 s/step (GA 8), ~12.5 days.
 
-Plus ~1 h of startup and saves (DCP every 2,500 steps, ~1 min; HF export async). For scale: the H20 spatial-exp
+Plus ~1 h of startup and saves (DCP every 1,000 steps, ~1 min; HF export async). For scale: the H20 spatial-exp
 lines were bs 128 × 10k = 1.28 M samples (2.3 epochs).
 
 ## 4. Code changes on `xiesy` for these runs

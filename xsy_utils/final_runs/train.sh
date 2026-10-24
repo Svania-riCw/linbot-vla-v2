@@ -10,7 +10,7 @@
 #
 # Knobs (env):
 #   MBS / GRAD_CKPT   per-GPU micro batch / gradient checkpointing (defaults per resolution, measured)
-#   GBS (default: the config's train.global_batch_size) MAX_STEPS=20000 SAVE_STEPS=2500   USE_COMPILE=false   NUM_WORKERS (default cpus/ranks - 2, max 12)
+#   GBS (default: the config's train.global_batch_size) MAX_STEPS=20000 SAVE_STEPS=1000   USE_COMPILE=false   NUM_WORKERS (default cpus/ranks - 2, max 12)
 #   KEEP_LAST=2       full saves (DCP model + optimizer + hf_ckpt) kept for resume, the rest pruned ...
 #   KEEP_HF_EVERY=5000   ... except the hf_ckpt of these steps (for eval)
 #   CKPT_BASE=/mnt/oss/xiesy/lingbot-ckpts   checkpoints in $CKPT_BASE/<run>/checkpoints (OSS; ~75 GB per save)
@@ -51,7 +51,7 @@ MBS=${MBS:-$MBS_DEF}
 GRAD_CKPT=${GRAD_CKPT:-$CKPT_DEF}
 GBS=${GBS:-$(python -c 'import sys, yaml; print(yaml.safe_load(open(sys.argv[1]))["train"]["global_batch_size"])' "$CONFIG")}
 MAX_STEPS=${MAX_STEPS:-20000}
-SAVE_STEPS=${SAVE_STEPS:-2500}
+SAVE_STEPS=${SAVE_STEPS:-1000}
 USE_COMPILE=${USE_COMPILE:-false}
 KEEP_LAST=${KEEP_LAST:-2}
 KEEP_HF_EVERY=${KEEP_HF_EVERY:-5000}
