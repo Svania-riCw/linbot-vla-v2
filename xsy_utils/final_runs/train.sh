@@ -5,7 +5,7 @@
 #
 # Common to every run (README.md): 20k steps, global batch 256 (user, 2026-10-23: 1024 x 50k would take 16-30
 # days on one node) except the official 1024 of d4rt_q96_ctxvs_res1_augon (4 nodes) and the final run
-# final_d4rt_q96_ctxvs_res2_augon_bs1024 (1 node, GA 8); official lr 1e-4 -> 5e-5
+# final_d4rt_q96_ctxvs_res2_augon_bs1024 (8 nodes); official lr 1e-4 -> 5e-5
 # cosine over the run, Muon, torch.compile OFF. Batch = MBS x world x grad-accum; memory depends on MBS only.
 #
 # Knobs (env):
