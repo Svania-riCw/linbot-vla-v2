@@ -75,13 +75,60 @@ def _worker(rank, world_size, port, distribute_ns, out_q):
         dist.destroy_process_group()
 
 
-def _run(world_size: int, distribute_ns: bool) -> float:
+def _moe_worker(rank, world_size, port, num_experts, out_q):
+    """MoE expert stacks [E, out, in] (qwen2_action_expert), sharded on the expert dim like FSDP2: with more ranks
+    than experts some ranks hold no expert (32 experts on 64 GPUs)."""
+    os.environ.update(MASTER_ADDR="127.0.0.1", MASTER_PORT=str(port))
+    dist.init_process_group("gloo", rank=rank, world_size=world_size)
+    try:
+        import functools
+
+        from torch.distributed.device_mesh import init_device_mesh
+        from torch.distributed.tensor import Shard, distribute_tensor
+
+        import lingbotvla.optim.muon as M
+
+        # Newton-Schulz in fp32 on both sides: in bf16 a last-bit difference of the momentum lerp (vectorised over
+        # the whole stack vs one expert) can flip one rounding and show up as ~1e-2 lr in a single entry.
+        M.batched_newton_schulz = batched_newton_schulz = functools.partial(M.batched_newton_schulz,
+                                                                            compute_dtype=torch.float32)
+        DistributedMuon, _adjust_lr = M.DistributedMuon, M._adjust_lr
+
+        mesh = init_device_mesh("cpu", (world_size,))
+        g = torch.Generator().manual_seed(1)
+        shapes = [(num_experts, 24, 16), (num_experts, 24, 16), (num_experts, 16, 24)]
+        full = [torch.randn(s, generator=g) for s in shapes]
+        grads = [[torch.randn(s, generator=g) for _ in range(STEPS)] for s in shapes]
+        params = [torch.nn.Parameter(distribute_tensor(p.clone(), mesh, [Shard(0)])) for p in full]
+        opt = DistributedMuon(params, lr=LR, weight_decay=WD, momentum=MOMENTUM, nesterov=True, adjust_lr_fn=None)
+        for step in range(STEPS):
+            for p, gr in zip(params, grads):
+                p.grad = distribute_tensor(gr[step], mesh, [Shard(0)])
+            opt.step()
+        got = [p.full_tensor() for p in params]
+        if rank == 0:
+            ref, bufs = [p.clone() for p in full], [torch.zeros_like(p) for p in full]
+            for step in range(STEPS):
+                for i, p in enumerate(ref):
+                    gr = grads[i][step]
+                    bufs[i].lerp_(gr, 1 - MOMENTUM)
+                    ortho = batched_newton_schulz(gr.lerp(bufs[i], MOMENTUM))  # per expert matrix
+                    p.mul_(1 - LR * WD).add_(ortho, alpha=-_adjust_lr(LR, None, p.shape[-2:]))
+            out_q.put(max(((a - b).abs().max() / LR).item() for a, b in zip(got, ref)))
+    finally:
+        dist.destroy_process_group()
+
+
+def _run(world_size: int, distribute_ns: bool = True, num_experts: int = 0) -> float:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
     ctx = mp.get_context("spawn")
     q = ctx.SimpleQueue()
-    mp.start_processes(_worker, args=(world_size, port, distribute_ns, q), nprocs=world_size, start_method="spawn")
+    if num_experts:
+        mp.start_processes(_moe_worker, args=(world_size, port, num_experts, q), nprocs=world_size, start_method="spawn")
+    else:
+        mp.start_processes(_worker, args=(world_size, port, distribute_ns, q), nprocs=world_size, start_method="spawn")
     return q.get()
 
 
@@ -94,6 +141,9 @@ class DistributedMuonShardingTest(unittest.TestCase):
 
     def test_allgather_path_8_ranks(self):
         self.assertLess(_run(8, distribute_ns=False), 1e-3)
+
+    def test_moe_experts_fewer_than_ranks(self):
+        self.assertLess(_run(8, num_experts=4), 1e-5)  # 4 of 8 ranks hold no expert (as 32 experts on 64 GPUs)
 
     def test_layout_matches_dtensor(self):
         from lingbotvla.optim.muon import _shard_layout
