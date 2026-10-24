@@ -14,8 +14,8 @@ visual_state) with PPU-side paths, and only these changes:
     res1 + augon   the same augmentation on the default 256 bilinear input (the augmenter's input guard
            accepts both layouts, lingbotvla/data/vla_data/utils.py)
 
-train.global_batch_size is the run's batch (train.sh default GBS): 256, except the 4-node res1 aug-on run at the
-official 1024 (32 GPUs, no grad accumulation). Steps / compile / checkpointing are set by train.sh (20k steps,
+train.global_batch_size is the run's batch (train.sh default GBS): 256, except the official 1024 for the 4-node res1
+aug-on run (32 GPUs, no grad accumulation) and final_d4rt_q96_ctxvs_res2_augon_bs1024 (8 GPUs x 16 x GA 8). Steps / compile / checkpointing are set by train.sh (20k steps,
 compile off); the yaml carries the same values for reference.
 """
 import copy
@@ -44,6 +44,7 @@ RUNS = {
     "d4rt_q96_ctxvs_res2_augoff": dict(res2=True, aug=False, queries=96),
     "d4rt_q96_ctxvs_res2_augon": dict(res2=True, aug=True, queries=96),
     "d4rt_q96_ctxvs_res1_augon": dict(res2=False, aug=True, queries=96, gbs=1024),  # 4 nodes x 8 PPU
+    "final_d4rt_q96_ctxvs_res2_augon_bs1024": dict(res2=True, aug=True, queries=96, gbs=1024),  # 1 node, GA 8
 }
 
 

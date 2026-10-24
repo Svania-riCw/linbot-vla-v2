@@ -1,8 +1,9 @@
 # final_runs — d4rt-ctxvs × {resolution, colour augmentation}, DLC 8 × PPU
 
-Six runs, all **20k steps**; five on one 8-PPU node at **global batch 256** (5.1 M samples, 9.3 epochs; changed
-from 1024 × 50k on 2026-10-23, which would have taken 16–30 days), one on **4 nodes × 8 PPU at the official
-global batch 1024** (32 GPUs × MBS 32, no grad accumulation; 20.5 M samples, 37 epochs). lr as in the official RoboTwin recipe (1e-4 → 5e-5 cosine over the run,
+Seven runs, all **20k steps**; five on one 8-PPU node at **global batch 256** (5.1 M samples, 9.3 epochs; changed
+from 1024 × 50k on 2026-10-23, which would have taken 16–30 days), and two at the **official global batch 1024**
+(20.5 M samples, 37 epochs): `d4rt_q96_ctxvs_res1_augon` on 4 nodes × 8 PPU (MBS 32, no grad accumulation) and the
+final run `final_d4rt_q96_ctxvs_res2_augon_bs1024` on one 8-PPU node (MBS 16 × GA 8, ~12.5 days). lr as in the official RoboTwin recipe (1e-4 → 5e-5 cosine over the run,
 Muon, fp32), **torch.compile off**, initialised from `lingbot-vla-v2-6b`, RoboTwin clean-50 (50 tasks ×
 50 episodes, 549,787 frames).
 
@@ -14,6 +15,7 @@ Muon, fp32), **torch.compile off**, initialised from `lingbot-vla-v2-6b`, RoboTw
 | `train_d4rt_q96_ctxvs_res2_augoff.sh` | 384² (432 tok) | off | 96 | q96 twin of the res2 aug-off fallback |
 | `train_d4rt_q08_ctxvs_res1_augoff.sh` | 256² (192 tok) | off | 8 | fallback |
 | `train_d4rt_q96_ctxvs_res1_augon.sh` | 256² (192 tok) | on | 96 | **4 nodes, bs 1024** |
+| `train_final_d4rt_q96_ctxvs_res2_augon_bs1024.sh` | 384² (432 tok) | on | 96 | **final run: 1 node, bs 1024**, save every 500 |
 
 - **d4rt-ctxvs** = `xsy_utils/spatial-exp/configs/robotwin_clean_d4rt_ctxvs.yaml` (alignment teachers +
   d4rt probe, `context: visual_state`), unchanged except paths. res1 keeps its torchvision-bilinear 256².
@@ -176,6 +178,12 @@ res2 MBS 16, gradient checkpointing on** → bs 256 on 8 GPUs = GA 1 (res1) / GA
 |---|---|---|---|
 | res1 | 32 × 8 × 1 | ~9 s | **~2.1 days** |
 | res2 (×4 runs) | 16 × 8 × 2 | ~15 s | **~3.5 days** |
+
+Measured on DLC after the Muon change (2026-10-25, steps 4k–6k): res2 bs 256 StepTime median 13.5–13.9 s, wall
+clock 14.2 s/step including saves (q96 aug-on); res1 7.1 s. Hence **`final_d4rt_q96_ctxvs_res2_augon_bs1024`**
+(16 × 8 × GA 8): micro-step ≈ (13.9 − ~0.7 s optimizer) / 2 ≈ 6.6 s → 8 × 6.6 + 0.7 ≈ 53 s/step, ~54 s wall clock
+→ **20k steps ≈ 12.5 days** (range 12–13). The same script on 2 / 4 nodes: GA 4 / 2, ~6.3 / ~3.3 days (the 2 × 8
+test scaled 1.94×).
 
 Plus ~1 h of startup and saves (DCP every 2,500 steps, ~1 min; HF export async). For scale: the H20 spatial-exp
 lines were bs 128 × 10k = 1.28 M samples (2.3 epochs).
