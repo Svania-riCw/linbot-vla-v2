@@ -384,6 +384,7 @@ def eval_policy(task_name,
                 'off': 'off', 'training_time': 'training_time', 'fixed_prefix': 'training_time',
                 'async_fixed_prefix_v2': 'training_time',
                 'inference_time': 'inference_time', 'paper': 'inference_time',
+                'paper_fixed_delay': 'paper_fixed_delay',
             }.get(requested_rtc_mode)
             if rtc_mode is None:
                 raise ValueError(f'Unsupported RTC mode: {requested_rtc_mode!r}')

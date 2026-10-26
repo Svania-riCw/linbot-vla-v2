@@ -289,6 +289,7 @@ class LingbotVLAv2Server:
         if not all_safetensors:
             raise FileNotFoundError(f"No safetensors weights in {path_to_pi_model}")
         expected = self.vla.state_dict()
+        inference_unused_prefixes = ("model.d4rt_probe.",)
         loaded = set()
         # Validate every tensor before copying, without retaining all FP32 shards.
         for file_path in all_safetensors:
@@ -299,13 +300,27 @@ class LingbotVLAv2Server:
                     loaded.add(key)
                     if key in expected and tuple(f.get_slice(key).get_shape()) != tuple(expected[key].shape):
                         raise ValueError(f"Shape mismatch for {key}")
-        if strict and loaded != set(expected):
-            raise ValueError(f"Checkpoint mismatch: missing={set(expected) - loaded}, unexpected={loaded - set(expected)}")
+        missing = set(expected) - loaded
+        unexpected = loaded - set(expected)
+        ignored = {
+            key for key in unexpected
+            if any(key.startswith(prefix) for prefix in inference_unused_prefixes)
+        }
+        unexpected -= ignored
+        if strict and (missing or unexpected):
+            raise ValueError(f"Checkpoint mismatch: missing={missing}, unexpected={unexpected}")
         for file_path in tqdm(all_safetensors, desc="Loading validated shards"):
             weights = load_file(file_path, device="cpu")
+            weights = {
+                key: value for key, value in weights.items()
+                if key in expected or not any(key.startswith(prefix) for prefix in inference_unused_prefixes)
+            }
             self.vla.load_state_dict(weights, strict=False)
             del weights
-        print(f"Strictly validated and loaded {len(loaded)} checkpoint tensors.")
+        print(
+            f"Strictly validated and loaded {len(loaded) - len(ignored)} checkpoint tensors; "
+            f"ignored {len(ignored)} inference-unused D4RT probe tensors."
+        )
 
     def merge_qwen_config(self, qwen_config):
         if hasattr(qwen_config, 'to_dict'):
@@ -386,6 +401,14 @@ class LingbotVLAv2Server:
         self.processor = build_processor(base_model_path)
         self.language_tokenizer = self.processor.tokenizer
         data_config = SimpleNamespace(**training_config['data'])
+        image_size = getattr(data_config, 'img_size', 256)
+        if isinstance(image_size, bool) or not isinstance(image_size, int) or image_size <= 0:
+            raise ValueError(f'Invalid data.img_size: {image_size!r}; expected a positive integer')
+        print(
+            f"Evaluation image input resolution: {image_size}x{image_size} "
+            f"(config: {training_config_path})",
+            flush=True,
+        )
         
         print('Initializing model ... ')
 
@@ -705,7 +728,7 @@ def main():
 
     parser.add_argument(
         "--rtc_mode",
-        choices=('off', 'training_time', 'inference_time', 'fixed_prefix', 'paper'),
+        choices=('off', 'training_time', 'inference_time', 'fixed_prefix', 'paper', 'paper_fixed_delay'),
         default='off',
         help='RTC method: off, training_time (requires an action-prefix-trained checkpoint), or inference_time (requires eager VJP autograd).',
     )

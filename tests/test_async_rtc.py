@@ -54,6 +54,7 @@ class AsyncRTCTest(unittest.TestCase):
         self.assertEqual(normalize_rtc_mode('fixed_prefix'), 'training_time')
         self.assertEqual(normalize_rtc_mode('inference_time'), 'inference_time')
         self.assertEqual(normalize_rtc_mode('paper'), 'inference_time')
+        self.assertEqual(normalize_rtc_mode('paper_fixed_delay'), 'inference_time')
 
     def test_multiple_plans_align_without_replay_and_snapshot_copies_buffers(self):
         model = FakePolicy()
@@ -155,6 +156,39 @@ class AsyncRTCTest(unittest.TestCase):
             rtc.close()
 
         np.testing.assert_array_equal(actions, np.arange(24))
+
+    def test_paper_fixed_delay_waits_at_delay_without_adapting_delay(self):
+        model = FakePolicy()
+        model.release = threading.Event()
+        rtc = AsyncRTC(model, replan_steps=8, delay=6, mode='paper_fixed_delay',
+                       guidance_beta=5.0, log=lambda *a, **k: None)
+        actions = []
+        try:
+            for step in range(14):
+                actions.append(rtc.next_action(lambda step=step: {
+                    'observation.state': np.full(14, step, dtype=np.float32)
+                })[0])
+            self.assertTrue(model.started.wait(1))
+            self.assertEqual(model.calls[1]['_rtc']['mode'], 'inference_time')
+            self.assertEqual(model.calls[1]['_rtc']['delay'], 6)
+            self.assertEqual(model.calls[1]['_rtc']['execution_horizon'], 8)
+
+            result = []
+            waiter = threading.Thread(target=lambda: result.append(rtc.next_action(
+                lambda: {'observation.state': np.full(14, 14, dtype=np.float32)})))
+            waiter.start()
+            waiter.join(0.05)
+            self.assertTrue(waiter.is_alive(), 'scheduler should wait once the fixed delay is reached')
+            self.assertEqual(rtc.stalls, 1)
+            self.assertEqual(list(rtc.delay_history), [6])
+            model.release.set()
+            waiter.join(1)
+            self.assertFalse(waiter.is_alive())
+            self.assertEqual(result[0][0], 14)
+            self.assertEqual(list(rtc.delay_history), [6])
+        finally:
+            model.release.set()
+            rtc.close()
 
     def test_delay_cannot_exceed_request_interval(self):
         with self.assertRaisesRegex(ValueError, 'cannot exceed'):

@@ -251,6 +251,7 @@ def prepare(args):
     aliases = {
         'off': 'off', 'training_time': 'training_time', 'fixed_prefix': 'training_time',
         'async_fixed_prefix_v2': 'training_time', 'inference_time': 'inference_time', 'paper': 'inference_time',
+        'paper_fixed_delay': 'paper_fixed_delay',
     }
     if rtc_mode is None:
         rtc_mode = 'training_time' if getattr(args, 'rtc_async', 'False') == 'True' else 'off'
@@ -261,6 +262,10 @@ def prepare(args):
         identity['rtc'] = dict(mode='inference_time_softmask_vjp_v1', replan_steps=args.rtc_replan_steps,
                                delay=args.rtc_delay, guidance_beta=args.rtc_guidance_beta,
                                delay_buffer_size=4, scheduler='asap_adaptive_delay')
+    elif rtc_mode == 'paper_fixed_delay':
+        identity['rtc'] = dict(mode='inference_time_softmask_vjp_fixed_delay_v1',
+                               replan_steps=args.rtc_replan_steps, delay=args.rtc_delay,
+                               guidance_beta=args.rtc_guidance_beta, scheduler='fixed_delay_wait')
     elif rtc_mode == 'training_time':
         identity['rtc'] = dict(mode='training_time_prefix_conditioning_v1',
                                replan_steps=args.rtc_replan_steps, delay=args.rtc_delay)
@@ -347,7 +352,7 @@ def main():
                 item.add_argument('--' + option, required=True)
             item.add_argument('--rtc-async', choices=['True', 'False'], default='False')
             item.add_argument('--rtc-mode', choices=['off', 'training_time', 'inference_time',
-                                                       'fixed_prefix', 'paper', 'async_fixed_prefix_v2'])
+                                                       'fixed_prefix', 'paper', 'async_fixed_prefix_v2', 'paper_fixed_delay'])
             item.add_argument('--rtc-guidance-beta', type=float, default=5.0)
             item.add_argument('--rtc-replan-steps', type=int, default=8)
             item.add_argument('--rtc-delay', type=int, default=6)

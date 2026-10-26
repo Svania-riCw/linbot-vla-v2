@@ -36,6 +36,7 @@ class AsyncRTC:
             raise ValueError('Invalid RTC replan interval, delay, or timeout')
         if delay > replan_steps:
             raise ValueError('RTC delay cannot exceed the interval between inference requests')
+        self.fixed_delay = mode == 'paper_fixed_delay'
         mode = normalize_rtc_mode(mode)
         if mode == RTC_INFERENCE_TIME and (guidance_beta <= 0 or not np.isfinite(guidance_beta)):
             raise ValueError('Inference-time RTC guidance_beta must be finite and positive')
@@ -60,7 +61,10 @@ class AsyncRTC:
         observation = snapshot_observation(observe())
         self.request_number += 1
         request_id = f'{self.episode}:{self.request_number}'
-        delay = 0 if initial else (max(self.delay_history) if self.mode == RTC_INFERENCE_TIME else self.delay)
+        delay = 0 if initial else (
+            max(self.delay_history) if self.mode == RTC_INFERENCE_TIME and not self.fixed_delay
+            else self.delay
+        )
         wire_mode = self.mode
         metadata = getattr(self.model, '_server_metadata', {}) or {}
         if int(metadata.get('rtc_protocol', 2)) < 2:
@@ -136,7 +140,7 @@ class AsyncRTC:
         self.raw, self.normalized = raw, normalized
         self.origin = origin
         self.cursor = actual_delay if self.mode == RTC_INFERENCE_TIME else delay
-        if self.mode == RTC_INFERENCE_TIME and origin > 0:
+        if self.mode == RTC_INFERENCE_TIME and origin > 0 and not self.fixed_delay:
             self.delay_history.append(actual_delay)
         self.pending = None
         self._log('install', request_id=rtc['request_id'], skip=self.cursor,
@@ -151,13 +155,15 @@ class AsyncRTC:
             self._submit(observe, initial=True)
             self._install()
         next_request_threshold = self.replan_steps
-        if self.mode == RTC_INFERENCE_TIME:
+        if self.mode == RTC_INFERENCE_TIME and not self.fixed_delay:
             next_request_threshold = max(next_request_threshold, max(self.delay_history))
         if self.pending is None and self.steps_since_request >= next_request_threshold:
             self._submit(observe)
         if self.pending is not None:
             should_install = (
-                self.pending[0].done() if self.mode == RTC_INFERENCE_TIME
+                (self.pending[0].done() if not self.fixed_delay else
+                 self.step - self.pending[1] >= self.delay)
+                if self.mode == RTC_INFERENCE_TIME
                 else self.step - self.pending[1] == self.delay
             )
             if should_install:

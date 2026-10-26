@@ -8,6 +8,7 @@
 #
 # Useful overrides: TASK_CONFIGS, TASKS, TEST_NUM, NUM_GPUS, NUM_PER_GPU,
 # RTC_REPLAN_STEPS, RTC_DELAY, RUN_DIR, QWEN3VL_PATH, EVAL_WORKDIR, OUTPUT_BASE.
+# Pass --image_size N after the checkpoint to override data.img_size explicitly.
 set -euo pipefail
 
 repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
@@ -50,6 +51,8 @@ Environment defaults:
   VIDEO            true; set false to disable video recording
   Pass --no_rtc after the checkpoint to use synchronous inference without RTC.
   Pass --rtc_mode inference_time --use_compile False for training-free RTC.
+  Pass --rtc_mode paper_fixed_delay --use_compile False to keep RTC delay fixed and wait for late inference.
+  Pass --image_size N after the checkpoint to resize evaluation images to NxN.
   --rtc_guidance_beta sets the inference-time guidance clip (default: 5.0).
   RUN_DIR          fixed directory to resume a prior run; with multiple settings,
                    each setting gets its own subdirectory
@@ -75,6 +78,7 @@ for ((i=0; i<${#launcher_args[@]}; i++)); do
                 off) run_prefix=sync ;;
                 training_time|fixed_prefix|async_fixed_prefix_v2) run_prefix=training_time_rtc ;;
                 inference_time|paper) run_prefix=inference_time_rtc ;;
+                paper_fixed_delay) run_prefix=inference_time_fixed_delay_rtc ;;
             esac
             i=$((i + 1))
             ;;

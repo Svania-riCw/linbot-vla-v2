@@ -36,7 +36,9 @@ def validate_server(metadata, delay, replan_steps, rtc_mode=RTC_TRAINING_TIME):
 
 
 def prepare(args, metadata):
-    rtc_mode = normalize_rtc_mode(getattr(args, 'rtc_mode', RTC_TRAINING_TIME))
+    requested_mode = getattr(args, 'rtc_mode', RTC_TRAINING_TIME)
+    fixed_delay = requested_mode == 'paper_fixed_delay'
+    rtc_mode = normalize_rtc_mode(requested_mode)
     validate_server(metadata, args.rtc_delay, args.rtc_replan_steps, rtc_mode)
     identity = dict(model=metadata.get('checkpoint', args.checkpoint_id),
                     remote_checkpoint_id=args.checkpoint_id,
@@ -52,7 +54,10 @@ def prepare(args, metadata):
                              replan_steps=args.rtc_replan_steps))
     if rtc_mode == RTC_INFERENCE_TIME:
         identity['rtc'].update(guidance_beta=args.rtc_guidance_beta,
-                               delay_buffer_size=4, scheduler='asap_adaptive_delay')
+                               delay_buffer_size=4,
+                               scheduler='fixed_delay_wait' if fixed_delay else 'asap_adaptive_delay')
+        if fixed_delay:
+            identity['rtc']['mode'] = 'inference_time_softmask_vjp_fixed_delay_v1'
     prepare_run(args, identity)
 
 
@@ -64,7 +69,7 @@ def main():
     parser.add_argument('--episodes',required=True,type=int)
     parser.add_argument('--tasks',required=True,nargs='+')
     parser.add_argument('--rtc-delay',type=int,default=6)
-    parser.add_argument('--rtc-mode',choices=['training_time','inference_time','fixed_prefix','paper'],
+    parser.add_argument('--rtc-mode',choices=['training_time','inference_time','fixed_prefix','paper','paper_fixed_delay'],
                         default=RTC_TRAINING_TIME)
     parser.add_argument('--rtc-replan-steps',type=int,default=8)
     parser.add_argument('--rtc-guidance-beta',type=float,default=5.0)

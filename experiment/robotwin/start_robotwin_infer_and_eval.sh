@@ -149,7 +149,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --inference_gpu_ids physical GPU IDs for inference, e.g. 0,1,2,3"
             echo "  --sim_gpu_ids       physical GPU IDs for simulation, e.g. 4,5,6,7"
             echo "  --rtc_async         overlap inference with committed old-plan actions"
-            echo "  --rtc_mode          off, training_time (trained checkpoint), or inference_time (training-free VJP)"
+            echo "  --rtc_mode          off, training_time, inference_time, or paper_fixed_delay (fixed delay with paper guidance)"
             echo "  --rtc_guidance_beta maximum guidance weight for inference-time RTC (default: 5.0)"
             echo "  --no_rtc            disable RTC; overrides an earlier RTC mode"
             echo "  --rtc_replan_steps  target actions between inference requests, including delay (default: 8)"
@@ -176,9 +176,10 @@ case "$rtc_mode" in
     off) rtc_async=False ;;
     training_time|fixed_prefix|async_fixed_prefix_v2) rtc_mode=training_time; rtc_async=True ;;
     inference_time|paper) rtc_mode=inference_time; rtc_async=True ;;
+    paper_fixed_delay) rtc_async=True ;;
     *) echo 'rtc_mode must be off, training_time, or inference_time' >&2; exit 2 ;;
 esac
-if [[ "$rtc_mode" == inference_time && "$use_compile" != False ]]; then
+if [[ "$rtc_mode" == inference_time || "$rtc_mode" == paper_fixed_delay ]] && [[ "$use_compile" != False ]]; then
     echo 'Inference-time RTC requires --use_compile False for VJP autograd' >&2; exit 2
 fi
 
